@@ -1,0 +1,181 @@
+{% extends "base.html" %}
+{% block title %}HARIS — {{ hostname }}{% endblock %}
+
+{% block content %}
+<div class="breadcrumb">
+  <a href="/websites">Websites</a><span class="sep">/</span> {{ hostname }}
+</div>
+
+<div style="display:flex; align-items:flex-start; justify-content:space-between; margin-bottom:1.5rem">
+  <div>
+    <h1>{{ hostname }}</h1>
+    <div class="text-muted text-sm" style="display:flex; gap:1rem; margin-top:.3rem">
+      <span>{{ scans | length }} scan{{ 's' if scans | length != 1 else '' }}</span>
+      <span>&middot;</span>
+      <span>First: {{ first_scanned[:10] if first_scanned else '—' }}</span>
+      <span>&middot;</span>
+      <span>Last: {{ last_scanned[:10] if last_scanned else '—' }}</span>
+    </div>
+  </div>
+  <a href="/scan/new" class="btn btn-sm btn-primary">Scan Again</a>
+</div>
+
+{% if scans | length > 1 %}
+<div class="charts-row">
+  <div class="chart-container">
+    <h3>Findings Over Time</h3>
+    <canvas id="findings-trend"></canvas>
+  </div>
+  <div class="chart-container">
+    <h3>Severity Distribution (Latest)</h3>
+    <div style="max-width:240px; margin:0 auto">
+      <canvas id="severity-dist"></canvas>
+    </div>
+  </div>
+</div>
+{% elif scans | length == 1 %}
+<div class="charts-row" style="grid-template-columns: 1fr">
+  <div class="chart-container">
+    <h3>Severity Distribution</h3>
+    <div style="max-width:280px; margin:0 auto">
+      <canvas id="severity-dist"></canvas>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<div class="section-title">Scan History</div>
+<div class="card" style="padding: 0; overflow: hidden; border-radius: var(--radius)">
+  <table>
+    <thead>
+      <tr>
+        <th>Target</th>
+        <th>Profile</th>
+        <th>Findings</th>
+        <th>Risk</th>
+        <th>Date</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for scan in scans %}
+      <tr>
+        <td><code style="font-size:.78rem">{{ scan.target_url }}</code></td>
+        <td>{{ scan.profile_name }}</td>
+        <td>{{ scan.finding_count }}</td>
+        <td><span class="badge posture-{{ scan.risk_posture }}">{{ scan.risk_posture }}</span></td>
+        <td class="text-sm text-muted">{{ scan.started_at[:16] if scan.started_at else '' }}</td>
+        <td><a href="/scan/{{ scan.session_id }}" class="btn btn-sm btn-secondary">View</a></td>
+      </tr>
+      {% endfor %}
+      {% if not scans %}
+      <tr><td colspan="6" class="text-muted text-sm" style="text-align:center; padding:2rem">No scans found for this website.</td></tr>
+      {% endif %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
+<script>
+(function() {
+  var sevColors = {
+    critical: '#f43f5e', high: '#f97316', medium: '#eab308',
+    low: '#22c55e', info: '#06b6d4'
+  };
+  var trendChart = null;
+  var doughnutChart = null;
+  var trendsData = null;
+
+  function getThemeColors() {
+    var s = getComputedStyle(document.documentElement);
+    return {
+      text: s.getPropertyValue('--fg-muted').trim(),
+      grid: s.getPropertyValue('--border').trim(),
+      cardBg: s.getPropertyValue('--bg-card').trim()
+    };
+  }
+
+  function renderCharts(data) {
+    var tc = getThemeColors();
+
+    // Line chart
+    var trendEl = document.getElementById('findings-trend');
+    if (trendEl && data.labels.length > 1) {
+      if (trendChart) trendChart.destroy();
+      var datasets = Object.entries(data.datasets)
+        .filter(function(e) { return e[1].some(function(v) { return v > 0; }); })
+        .map(function(e) {
+          var sev = e[0], values = e[1];
+          return {
+            label: sev.charAt(0).toUpperCase() + sev.slice(1),
+            data: values,
+            borderColor: sevColors[sev],
+            backgroundColor: sevColors[sev] + '15',
+            tension: .35, pointRadius: 4, pointHoverRadius: 6,
+            borderWidth: 2, fill: false
+          };
+        });
+
+      trendChart = new Chart(trendEl, {
+        type: 'line',
+        data: { labels: data.labels, datasets: datasets },
+        options: {
+          responsive: true,
+          interaction: { mode: 'index', intersect: false },
+          plugins: {
+            legend: { labels: { color: tc.text, boxWidth: 10, padding: 16, font: { size: 11 } } }
+          },
+          scales: {
+            x: { ticks: { color: tc.text, font: { size: 10 } }, grid: { color: tc.grid } },
+            y: { ticks: { color: tc.text, stepSize: 1, font: { size: 10 } }, grid: { color: tc.grid }, beginAtZero: true }
+          }
+        }
+      });
+    }
+
+    // Doughnut chart
+    var distEl = document.getElementById('severity-dist');
+    if (distEl) {
+      if (doughnutChart) doughnutChart.destroy();
+      var ls = data.latest_severity;
+      var entries = Object.entries(ls).filter(function(e) { return e[1] > 0; });
+      if (entries.length) {
+        doughnutChart = new Chart(distEl, {
+          type: 'doughnut',
+          data: {
+            labels: entries.map(function(e) { return e[0].charAt(0).toUpperCase() + e[0].slice(1); }),
+            datasets: [{
+              data: entries.map(function(e) { return e[1]; }),
+              backgroundColor: entries.map(function(e) { return sevColors[e[0]]; }),
+              borderColor: tc.cardBg,
+              borderWidth: 3
+            }]
+          },
+          options: {
+            responsive: true, cutout: '65%',
+            plugins: {
+              legend: { position: 'bottom', labels: { color: tc.text, padding: 14, font: { size: 11 } } }
+            }
+          }
+        });
+      }
+    }
+  }
+
+  fetch('/api/website/{{ hostname }}/trends')
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      trendsData = data;
+      renderCharts(data);
+    })
+    .catch(function(err) { console.warn('Failed to load trends:', err); });
+
+  // Re-render charts when theme changes
+  new MutationObserver(function() {
+    if (trendsData) renderCharts(trendsData);
+  }).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+})();
+</script>
+{% endblock %}

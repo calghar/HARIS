@@ -1,0 +1,180 @@
+{% extends "base.html" %}
+{% block title %}HARIS — New Scan{% endblock %}
+
+{% block content %}
+<h1 style="font-size:1.5rem;margin-bottom:1.5rem;">Configure Scan</h1>
+
+<form id="scan-form" class="card">
+  <!-- Target -->
+  <div class="form-group">
+    <label for="target_url">Target URL</label>
+    <input type="url" id="target_url" name="target_url"
+           placeholder="https://example.com" required>
+  </div>
+
+  <!-- Profile selection -->
+  <div class="form-group">
+    <label for="profile">Scan Profile</label>
+    <select id="profile" name="profile">
+      {% for p in profiles %}
+      <option value="{{ p.name }}" {% if p.name == 'quick' %}selected{% endif %}>
+        {{ p.display_name }} — {{ p.estimated_duration }}
+      </option>
+      {% endfor %}
+    </select>
+    <p id="profile-desc" class="text-sm text-muted mt-1"></p>
+  </div>
+
+  <!-- Scope -->
+  <div class="form-row">
+    <div class="form-group">
+      <label for="rate_limit">Rate Limit (req/s)</label>
+      <input type="number" id="rate_limit" name="rate_limit" value="10" min="1" max="100">
+    </div>
+    <div class="form-group">
+      <label for="max_requests">Max Requests</label>
+      <input type="number" id="max_requests" name="max_requests" value="10000" min="100">
+    </div>
+  </div>
+
+  <div class="form-group">
+    <label for="excluded_paths">Excluded Paths (one per line, regex supported)</label>
+    <textarea id="excluded_paths" name="excluded_paths" rows="3"
+              placeholder="/logout&#10;/api/admin/.*"></textarea>
+  </div>
+
+  <!-- Authentication -->
+  <div class="form-group">
+    <label for="auth_method">Authentication</label>
+    <select id="auth_method" name="auth_method">
+      <option value="none">None</option>
+      <option value="header">Bearer Token (Authorization header)</option>
+      <option value="cookie">Cookie</option>
+    </select>
+  </div>
+
+  <div id="auth-header-group" class="form-group" style="display:none;">
+    <label for="auth_header_value">Authorization Header Value</label>
+    <input type="text" id="auth_header_value" name="auth_header_value"
+           placeholder="Bearer your-token-here">
+  </div>
+
+  <!-- Report formats -->
+  <div class="form-group">
+    <label>Report Formats</label>
+    <div class="checkbox-group">
+      <label><input type="checkbox" name="report_formats" value="markdown" checked> Markdown</label>
+      <label><input type="checkbox" name="report_formats" value="json" checked> JSON</label>
+      <label><input type="checkbox" name="report_formats" value="html"> HTML</label>
+    </div>
+  </div>
+
+  <!-- LLM Enrichment -->
+  <div class="form-group">
+    <label>AI-Powered Analysis</label>
+    <div class="checkbox-group">
+      <label><input type="checkbox" name="llm_enrich" id="llm_enrich" value="1"> Enable LLM enrichment</label>
+    </div>
+    <p class="text-sm text-muted mt-1">
+      Adds attack narratives, chain detection, and smart triage to findings.
+      Requires an LLM API key (Anthropic, OpenAI, or local Ollama).
+    </p>
+  </div>
+
+  <div id="llm-options" class="form-group" style="display:none;">
+    <label for="llm_backend">LLM Backend</label>
+    <select id="llm_backend" name="llm_backend">
+      <option value="">Loading...</option>
+    </select>
+  </div>
+
+  <!-- Legal notice -->
+  <div style="background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.25);border-radius:var(--radius);padding:.8rem 1rem;margin:1rem 0;font-size:.85rem;">
+    <strong style="color:var(--critical);">Legal Notice:</strong>
+    Only scan targets you are <strong>authorised</strong> to test.
+    Unauthorised scanning may violate applicable laws.
+  </div>
+
+  <button type="submit" class="btn btn-primary" id="submit-btn">
+    Start Scan
+  </button>
+  <span id="submit-status" class="text-sm text-muted" style="margin-left:1rem;"></span>
+</form>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  // Profile description hints
+  const profiles = {
+    {% for p in profiles %}
+    "{{ p.name }}": "{{ p.description }}",
+    {% endfor %}
+  };
+  const profileSelect = document.getElementById('profile');
+  const profileDesc = document.getElementById('profile-desc');
+  profileSelect.addEventListener('change', () => {
+    profileDesc.textContent = profiles[profileSelect.value] || '';
+  });
+  profileDesc.textContent = profiles[profileSelect.value] || '';
+
+  // Auth toggle
+  document.getElementById('auth_method').addEventListener('change', function() {
+    document.getElementById('auth-header-group').style.display =
+      (this.value === 'header' || this.value === 'cookie') ? 'block' : 'none';
+  });
+
+  // LLM enrichment toggle + backend loader
+  const llmCheckbox = document.getElementById('llm_enrich');
+  const llmOptions = document.getElementById('llm-options');
+  let llmBackendsLoaded = false;
+
+  llmCheckbox.addEventListener('change', function() {
+    llmOptions.style.display = this.checked ? 'block' : 'none';
+    if (this.checked && !llmBackendsLoaded) {
+      llmBackendsLoaded = true;
+      fetch('/api/llm/backends')
+        .then(r => r.json())
+        .then(data => {
+          const select = document.getElementById('llm_backend');
+          select.innerHTML = '';
+          data.backends.forEach(b => {
+            const opt = document.createElement('option');
+            opt.value = b.name;
+            opt.textContent = b.available ? b.name : b.name + ' (unavailable)';
+            opt.disabled = !b.available;
+            if (b.name === data.default) opt.selected = true;
+            select.appendChild(opt);
+          });
+        })
+        .catch(() => {
+          const select = document.getElementById('llm_backend');
+          select.innerHTML = '<option value="anthropic">anthropic</option>';
+        });
+    }
+  });
+
+  // Form submit
+  document.getElementById('scan-form').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    const btn = document.getElementById('submit-btn');
+    const status = document.getElementById('submit-status');
+    btn.disabled = true;
+    status.innerHTML = '<span class="spinner"></span> Starting scan...';
+
+    const formData = new FormData(this);
+    try {
+      const resp = await fetch('/api/scan/start', { method: 'POST', body: formData });
+      const data = await resp.json();
+      if (resp.ok) {
+        window.location.href = data.redirect;
+      } else {
+        status.textContent = 'Error: ' + (data.detail || 'Unknown error');
+        btn.disabled = false;
+      }
+    } catch (err) {
+      status.textContent = 'Network error: ' + err.message;
+      btn.disabled = false;
+    }
+  });
+</script>
+{% endblock %}

@@ -1,0 +1,26 @@
+## Confirmed Finding
+- Title: {{ finding.title }}
+- URL: {{ finding.url }}
+- Parameter: {{ finding.parameter }}
+- Method: {{ finding.method }}
+- Tags: {{ finding.tags | join(', ') }}
+- Description: {{ finding.description[:400] }}
+
+## Target: {{ target.base_url }}
+
+## Task
+Given this confirmed vulnerability, suggest similar vulnerabilities that may exist elsewhere in the application.  Consider:
+- Similar URL patterns with different parameters
+- The same vulnerability type on related endpoints
+- Escalation paths from this finding
+
+Respond with a JSON array of suggestions:
+[
+  {
+    "description": "What to check and where",
+    "rationale": "Why this variant is likely",
+    "url_pattern": "Suggested URL/endpoint to test"
+  }
+]
+
+IMPORTANT: These are suggestions for manual review only, not automated scanning directives.  Return ONLY the JSON array.

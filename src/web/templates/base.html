@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}HARIS{% endblock %}</title>
+  <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/style.css">
+  <script>
+    (function(){
+      var t = localStorage.getItem('haris-theme') || 'dark';
+      document.documentElement.dataset.theme = t;
+    })();
+  </script>
+  <script src="https://unpkg.com/htmx.org@1.9.12"></script>
+</head>
+<body>
+  <header>
+    <div class="container header-inner">
+      <!-- Logo -->
+      <a href="/" class="logo-group">
+        <svg class="logo-mark" viewBox="0 0 32 38" width="26" height="30" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M16 1L2 8v12c0 9.05 5.97 14.72 14 17 8.03-2.28 14-7.95 14-17V8L16 1z" stroke="currentColor" stroke-width="2" stroke-linejoin="round" fill="none"/>
+          <path d="M11 14v10M21 14v10M11 19h10" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
+        </svg>
+        <div class="logo-text">
+          <span class="logo-name">HARIS</span>
+          <span class="logo-tagline">Security Audit</span>
+        </div>
+      </a>
+
+      <!-- Navigation -->
+      <nav id="main-nav">
+        <a href="/" class="{% if nav_active == 'dashboard' %}active{% endif %}">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><rect x="1.5" y="1.5" width="5" height="5" rx="1"/><rect x="9.5" y="1.5" width="5" height="5" rx="1"/><rect x="1.5" y="9.5" width="5" height="5" rx="1"/><rect x="9.5" y="9.5" width="5" height="5" rx="1"/></svg>
+          Dashboard
+        </a>
+        <a href="/websites" class="{% if nav_active == 'websites' %}active{% endif %}">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="8" cy="8" r="6.5"/><path d="M1.5 8h13M8 1.5c-2 2.5-2 9.5 0 13M8 1.5c2 2.5 2 9.5 0 13"/></svg>
+          Websites
+        </a>
+        <a href="/scans" class="{% if nav_active == 'scans' %}active{% endif %}">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M2 4h12M2 8h12M2 12h8"/></svg>
+          Scans
+        </a>
+        <a href="/scan/new" class="{% if nav_active == 'new' %}active{% endif %}">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M8 3v10M3 8h10"/></svg>
+          New Scan
+        </a>
+      </nav>
+
+      <!-- Theme toggle -->
+      <button id="theme-toggle" class="theme-toggle" onclick="toggleTheme()" aria-label="Toggle theme">
+        <svg id="theme-icon-sun" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
+          <circle cx="10" cy="10" r="4"/>
+          <path d="M10 2v2M10 16v2M2 10h2M16 10h2M4.93 4.93l1.41 1.41M13.66 13.66l1.41 1.41M4.93 15.07l1.41-1.41M13.66 6.34l1.41-1.41"/>
+        </svg>
+        <svg id="theme-icon-moon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" style="display:none">
+          <path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z"/>
+        </svg>
+      </button>
+
+      <!-- Hamburger (mobile) -->
+      <button class="hamburger" onclick="document.getElementById('main-nav').classList.toggle('open')" aria-label="Menu">
+        <svg viewBox="0 0 22 22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+          <path d="M3 6h16M3 11h16M3 16h16"/>
+        </svg>
+      </button>
+    </div>
+  </header>
+
+  <main class="container">
+    {% block content %}{% endblock %}
+  </main>
+
+  <footer class="site-footer">
+    <div class="container">
+      HARIS Security Audit Framework &middot;
+      <a href="https://github.com/nicksavill/HARIS">GitHub</a> &middot;
+      <a href="/licenses">Open Source Licenses</a>
+    </div>
+  </footer>
+
+  <script>
+    // Theme
+    function toggleTheme() {
+      var html = document.documentElement;
+      var next = html.dataset.theme === 'dark' ? 'light' : 'dark';
+      html.dataset.theme = next;
+      localStorage.setItem('haris-theme', next);
+      updateThemeIcon(next);
+    }
+    function updateThemeIcon(theme) {
+      document.getElementById('theme-icon-sun').style.display = theme === 'dark' ? '' : 'none';
+      document.getElementById('theme-icon-moon').style.display = theme === 'light' ? '' : 'none';
+    }
+    updateThemeIcon(document.documentElement.dataset.theme);
+
+    // Tab switching
+    document.addEventListener('click', function(e) {
+      if (!e.target.classList.contains('tab')) return;
+      var group = e.target.closest('.tabs');
+      var target = e.target.dataset.tab;
+      group.querySelectorAll('.tab').forEach(function(t) { t.classList.remove('active'); });
+      e.target.classList.add('active');
+      document.querySelectorAll('.tab-content').forEach(function(c) { c.classList.remove('active'); });
+      var panel = document.getElementById(target);
+      if (panel) panel.classList.add('active');
+    });
+
+    // Mobile nav: close on link click
+    document.querySelectorAll('#main-nav a').forEach(function(a) {
+      a.addEventListener('click', function() {
+        document.getElementById('main-nav').classList.remove('open');
+      });
+    });
+  </script>
+  {% block scripts %}{% endblock %}
+</body>
+</html>

@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block title %}HARIS — Websites{% endblock %}
+
+{% block content %}
+<div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:1.5rem">
+  <div>
+    <h1>Websites</h1>
+    <p class="text-muted text-sm">{{ websites | length }} scanned target{{ 's' if websites | length != 1 else '' }}</p>
+  </div>
+  <a href="/scan/new" class="btn btn-primary">New Scan</a>
+</div>
+
+{% if websites %}
+<div class="website-grid">
+  {% for w in websites %}
+  <a href="/website/{{ w.hostname }}" class="website-card">
+    <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:.5rem">
+      <h3>{{ w.hostname }}</h3>
+      <span class="badge posture-{{ w.latest_risk_posture }}" style="font-size:.65rem">{{ w.latest_risk_posture }}</span>
+    </div>
+    <div class="meta">
+      <span>{{ w.scan_count }} scan{{ 's' if w.scan_count != 1 else '' }}</span>
+      <span>&middot;</span>
+      <span>{{ w.latest_finding_count }} findings</span>
+    </div>
+    <div class="meta mt-1" style="font-size:.72rem">
+      <span>Last scanned {{ w.last_scanned[:10] if w.last_scanned else '—' }}</span>
+      {% if w.scan_count > 1 %}
+      <span>&middot;</span>
+      <span>First {{ w.first_scanned[:10] if w.first_scanned else '' }}</span>
+      {% endif %}
+    </div>
+  </a>
+  {% endfor %}
+</div>
+{% else %}
+<div class="card" style="text-align:center; padding:3rem">
+  <p class="text-muted mb-1">No websites scanned yet.</p>
+  <a href="/scan/new" class="btn btn-primary">Start your first scan</a>
+</div>
+{% endif %}
+{% endblock %}

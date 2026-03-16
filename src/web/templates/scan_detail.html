@@ -1,0 +1,577 @@
+{% extends "base.html" %}
+{% block title %}HARIS — Scan {{ scan.scan_id }}{% endblock %}
+
+{% block content %}
+
+<!-- Header -->
+<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;">
+  <div>
+    <h1 style="font-size:1.3rem;">
+      Scan: <code>{{ scan.target_url }}</code>
+    </h1>
+    <p class="text-sm text-muted">
+      {{ scan.profile }} &middot; {{ scan.scan_id }} &middot; {{ scan.started_at[:19] }}
+    </p>
+  </div>
+  <span class="status-{{ scan.status }}" style="font-size:1rem;font-weight:600;">
+    {% if scan.status == 'running' %}<span class="spinner"></span>{% endif %}
+    {{ scan.status }}
+  </span>
+</div>
+
+{% if scan.status == 'running' %}
+<!-- Polling for status -->
+<div class="card" style="text-align:center;padding:2rem;"
+     hx-get="/api/scan/{{ scan.scan_id }}/status" hx-trigger="every 3s"
+     hx-swap="none">
+  <span class="spinner" style="width:32px;height:32px;border-width:3px;"></span>
+  <p class="mt-2">Scan in progress... this page will refresh when complete.</p>
+</div>
+<script>
+  // Reload page when scan completes
+  document.body.addEventListener('htmx:afterRequest', function(e) {
+    try {
+      const data = JSON.parse(e.detail.xhr.responseText);
+      if (data.status === 'completed' || data.status === 'failed') {
+        globalThis.location.reload();
+      }
+    } catch(err) {
+      console.error('Error parsing scan status response:', err);
+    }
+  });
+</script>
+
+{% elif scan.status == 'failed' %}
+<div class="card" style="border-color:var(--critical);">
+  <strong style="color:var(--critical);">Scan Failed</strong>
+  <p class="mt-1">{{ scan.error or 'Unknown error' }}</p>
+</div>
+
+{% elif session %}
+<!-- Risk posture + stats -->
+<div class="card">
+  <div style="display:flex;align-items:center;gap:1.5rem;flex-wrap:wrap;">
+    <div>
+      <span class="text-sm text-muted">Risk Posture</span><br>
+      <span class="posture posture-{{ session.risk_posture.value }}">
+        {{ session.risk_posture.value | upper }}
+      </span>
+    </div>
+    <div style="flex:1;min-width:200px;">
+      <p class="text-sm">{{ session.risk_posture_text }}</p>
+    </div>
+  </div>
+
+  <div class="stats-grid mt-2">
+    <div class="stat-card">
+      <div class="stat-value">{{ session.all_findings | length }}</div>
+      <div class="stat-label">Findings</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-value" style="color:var(--critical);">
+        {{ session.findings_by_severity[session.findings_by_severity.keys()|list|first] | length if session.findings_by_severity else 0 }}
+      </div>
+      <div class="stat-label">Critical + High</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-value">{{ session.multi_confirmed_count }}</div>
+      <div class="stat-label">Multi-confirmed</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-value">{{ "%.0f" | format(session.duration_seconds) }}s</div>
+      <div class="stat-label">Duration</div>
+    </div>
+  </div>
+
+  <!-- Severity bar -->
+  {% set total = session.all_findings | length %}
+  {% if total > 0 %}
+  <div class="severity-bar mt-2">
+    {% for sev, findings in session.findings_by_severity.items() %}
+    {% if findings | length > 0 %}
+    <span class="sev-{{ sev.value }}" style="width: '{{ (findings|length / total * 100)|round(1) }}%'"></span>
+    {% endif %}
+    {% endfor %}
+  </div>
+  <div class="flex gap-2 text-sm text-muted" style="flex-wrap:wrap;">
+    {% for sev, findings in session.findings_by_severity.items() %}
+    {% if findings | length > 0 %}
+    <span><span class="badge badge-{{ sev.value }}">{{ sev.value }}</span> {{ findings | length }}</span>
+    {% endif %}
+    {% endfor %}
+  </div>
+  {% endif %}
+</div>
+
+<!-- Download reports & actions -->
+<div class="flex gap-1 mt-2 mb-2" style="flex-wrap:wrap;">
+  {% for fmt in scan.report_formats %}
+  <a href="/api/scan/{{ scan.scan_id }}/report/{{ fmt }}" class="btn btn-secondary btn-sm">
+    Download {{ fmt | upper }}
+  </a>
+  {% endfor %}
+  <button class="btn btn-sm" style="background:var(--critical);margin-left:auto;"
+          onclick="deleteScan('{{ scan.scan_id }}')">
+    Delete Scan
+  </button>
+</div>
+
+<!-- Tabs -->
+<div class="tabs">
+  <button class="tab active" data-tab="tab-findings">Findings</button>
+  <button class="tab" data-tab="tab-remediation">Remediation</button>
+  <button class="tab" data-tab="tab-ask">Ask the Report</button>
+  {% if session.llm_enrichments or session.attack_chains or session.triaged_findings %}
+  <button class="tab" data-tab="tab-ai-insights">AI Insights</button>
+  {% endif %}
+  <button class="tab" data-tab="tab-scanners">Scanners</button>
+</div>
+
+<!-- Findings tab -->
+<div id="tab-findings" class="tab-content active">
+  {% if session.all_findings %}
+  {% for finding in session.all_findings %}
+  <div class="finding-card sev-{{ finding.severity.value }}">
+    <div class="finding-title">
+      <span class="badge badge-{{ finding.severity.value }}">{{ finding.severity.value }}</span>
+      {{ finding.title }}
+    </div>
+    <div class="finding-meta">
+      <span>{{ finding.owasp_category or 'Unmapped' }}</span>
+      {% if finding.cwe_id %}<span>{{ finding.cwe_id }}</span>{% endif %}
+      <span>Scanner: {{ finding.scanner }}</span>
+      {% if finding.url %}<span><code>{{ finding.url }}</code></span>{% endif %}
+    </div>
+    <p class="text-sm">{{ finding.description }}</p>
+
+    {% if finding.finding_id in business_impacts %}
+    {% set impact = business_impacts[finding.finding_id] %}
+    <div class="business-impact">
+      <strong>Business Impact:</strong> {{ impact.headline }}<br>
+      <span class="text-muted">Worst case:</span> {{ impact.worst_case }}
+    </div>
+    {% endif %}
+
+    {% if finding.evidence %}
+    <details class="mt-1">
+      <summary class="text-sm" style="cursor:pointer;color:var(--accent);">Show evidence</summary>
+      <pre>{{ finding.evidence }}</pre>
+    </details>
+    {% endif %}
+
+    {% if finding.request_example %}
+    <details class="mt-1">
+      <summary class="text-sm" style="cursor:pointer;color:var(--accent);">Reproduction</summary>
+      <pre>{{ finding.request_example }}</pre>
+    </details>
+    {% endif %}
+
+    {% if finding.remediation %}
+    <p class="text-sm mt-1"><strong>Fix:</strong> {{ finding.remediation }}</p>
+    {% endif %}
+
+    <div class="flex gap-1 mt-1" style="flex-wrap:wrap;">
+      <button class="btn btn-secondary btn-sm" onclick="explainFinding('{{ finding.finding_id }}')">Explain</button>
+    </div>
+
+    {% if session.llm_enrichments and finding.finding_id in session.llm_enrichments %}
+    {% set enr = session.llm_enrichments[finding.finding_id] %}
+    <details class="mt-1">
+      <summary class="text-sm" style="cursor:pointer;color:var(--accent);">AI Analysis</summary>
+      <div class="enrichment-box">
+        {% if enr.attack_narrative %}
+        <p><strong>Attack Narrative:</strong> {{ enr.attack_narrative }}</p>
+        {% endif %}
+        {% if enr.business_impact_assessment %}
+        <p><strong>Business Impact:</strong> {{ enr.business_impact_assessment }}</p>
+        {% endif %}
+        <div class="flex gap-1 mt-1" style="flex-wrap:wrap;">
+          {% if enr.exploitation_complexity %}
+          <span class="badge badge-complexity-{{ enr.exploitation_complexity }}">Complexity: {{ enr.exploitation_complexity }}</span>
+          {% endif %}
+          {% if enr.false_positive_likelihood %}
+          <span class="badge badge-fp-{{ enr.false_positive_likelihood }}">FP likelihood: {{ enr.false_positive_likelihood }}</span>
+          {% endif %}
+          {% if enr.attack_chain_position %}
+          <span class="badge" style="background:var(--bg-input);color:var(--fg);">Chain: {{ enr.attack_chain_position | replace('_', ' ') }}</span>
+          {% endif %}
+        </div>
+        {% if enr.related_cwes %}
+        <p class="text-sm mt-1"><strong>Related CWEs:</strong> {{ enr.related_cwes | join(', ') }}</p>
+        {% endif %}
+        {% if enr.variant_suggestions %}
+        <div class="mt-1">
+          <strong class="text-sm">Variant Suggestions:</strong>
+          <ul class="text-sm text-muted" style="margin:.25rem 0 0 1.2rem;">
+            {% for vs in enr.variant_suggestions %}
+            <li>{{ vs }}</li>
+            {% endfor %}
+          </ul>
+        </div>
+        {% endif %}
+      </div>
+    </details>
+    {% endif %}
+  </div>
+  {% endfor %}
+  {% else %}
+  <p class="text-muted">No findings — the target looks clean for the checks that were run.</p>
+  {% endif %}
+</div>
+
+<!-- Remediation tab -->
+<div id="tab-remediation" class="tab-content">
+  {% if session.remediation_steps %}
+  <p class="text-sm text-muted mb-2">
+    Ordered by impact-to-effort ratio. Quick wins first.
+  </p>
+  <ul class="checklist">
+    {% for step in session.remediation_steps %}
+    <li>
+      <input type="checkbox">
+      <div>
+        <span class="badge badge-{{ step.impact.value }}">{{ step.impact.value }}</span>
+        <span class="effort-tag effort-{{ step.effort.value }}">{{ step.effort.value | replace('_', ' ') }}</span>
+        <strong style="margin-left:.3rem;">{{ step.title }}</strong>
+        <span class="text-sm text-muted">({{ step.finding_count }} finding{{ 's' if step.finding_count != 1 }})</span>
+        <p class="text-sm text-muted mt-1">{{ step.description }}</p>
+      </div>
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p class="text-muted">No remediation steps needed.</p>
+  {% endif %}
+</div>
+
+<!-- Ask the Report tab -->
+<div id="tab-ask" class="tab-content">
+  <div class="card" style="display:flex;flex-direction:column;height:520px;padding:0;">
+    <!-- Chat header -->
+    <div style="padding:.75rem 1rem;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:.75rem;flex-wrap:wrap;">
+      <span class="text-sm text-muted">Chat with your scan report</span>
+      <div style="margin-left:auto;display:flex;align-items:center;gap:.5rem;">
+        <label class="text-sm text-muted" for="llm-backend" style="margin:0;">Backend:</label>
+        <select id="llm-backend" class="btn btn-secondary btn-sm" style="padding:.2rem .4rem;font-size:.8rem;">
+          <option value="">Loading...</option>
+        </select>
+        <button class="btn btn-sm" onclick="newConversation()" title="New conversation">New Chat</button>
+      </div>
+    </div>
+
+    <!-- Quick actions -->
+    <div class="flex gap-1" style="padding:.5rem 1rem;flex-wrap:wrap;border-bottom:1px solid var(--border);">
+      <button class="btn btn-secondary btn-sm" onclick="askPreset('Summarize the top 3 risks for an executive audience')">Top 3 Risks</button>
+      <button class="btn btn-secondary btn-sm" onclick="askPreset('List all HIGH and CRITICAL findings related to authentication')">Auth Issues</button>
+      <button class="btn btn-secondary btn-sm" onclick="askPreset('Generate a remediation plan I can paste into a Jira epic')">Jira Plan</button>
+      <button class="btn btn-secondary btn-sm" onclick="askPreset('Draft an email to the product owner summarizing the risk posture')">Draft Email</button>
+      <button class="btn btn-secondary btn-sm" onclick="askPreset('Suggest security test cases for CI based on these findings')">CI Test Cases</button>
+    </div>
+
+    <!-- Messages area -->
+    <div id="chat-messages" class="chat-messages">
+      <div class="chat-welcome text-sm text-muted" style="text-align:center;padding:2rem 1rem;">
+        Ask a question about this scan. You can follow up on any answer.
+      </div>
+    </div>
+
+    <!-- Input area -->
+    <div class="chat-input-area">
+      <form id="ask-form" onsubmit="submitQuestion(event)" style="display:flex;gap:.5rem;">
+        <textarea id="ask-input" name="question" rows="1"
+                  placeholder="Ask a question..."
+                  style="flex:1;resize:none;min-height:40px;max-height:100px;"></textarea>
+        <button type="submit" class="btn btn-primary" id="ask-btn" style="align-self:flex-end;">Send</button>
+      </form>
+      <div id="chat-meta" class="text-sm text-muted" style="margin-top:.25rem;display:none;"></div>
+    </div>
+  </div>
+</div>
+<script>
+// Chat state
+let conversationId = null;
+let totalTokens = 0;
+
+// Populate the backend dropdown on page load
+(function() {
+  fetch('/api/llm/backends')
+    .then(r => r.json())
+    .then(data => {
+      const select = document.getElementById('llm-backend');
+      select.innerHTML = '';
+      data.backends.forEach(b => {
+        const opt = document.createElement('option');
+        opt.value = b.name;
+        opt.textContent = b.available ? b.name : b.name + ' (unavailable)';
+        opt.disabled = !b.available;
+        if (b.name === data.default) opt.selected = true;
+        select.appendChild(opt);
+      });
+    })
+    .catch(() => {
+      const select = document.getElementById('llm-backend');
+      select.innerHTML = '<option value="anthropic">anthropic</option>';
+    });
+})();
+
+function newConversation() {
+  conversationId = null;
+  totalTokens = 0;
+  const area = document.getElementById('chat-messages');
+  area.innerHTML = '<div class="chat-welcome text-sm text-muted" style="text-align:center;padding:2rem 1rem;">Ask a question about this scan. You can follow up on any answer.</div>';
+  document.getElementById('chat-meta').style.display = 'none';
+}
+
+function appendMessage(role, content) {
+  const area = document.getElementById('chat-messages');
+  // Remove welcome message on first real message
+  const welcome = area.querySelector('.chat-welcome');
+  if (welcome) welcome.remove();
+
+  const bubble = document.createElement('div');
+  bubble.className = role === 'user' ? 'chat-bubble-user' : 'chat-bubble-assistant';
+  if (role === 'assistant' && typeof marked !== 'undefined') {
+    bubble.innerHTML = marked.parse(content);
+  } else {
+    bubble.textContent = content;
+  }
+  area.appendChild(bubble);
+  area.scrollTop = area.scrollHeight;
+}
+
+function showTyping() {
+  const area = document.getElementById('chat-messages');
+  const el = document.createElement('div');
+  el.className = 'chat-bubble-assistant typing-indicator';
+  el.id = 'typing-indicator';
+  el.innerHTML = '<span></span><span></span><span></span>';
+  area.appendChild(el);
+  area.scrollTop = area.scrollHeight;
+}
+
+function hideTyping() {
+  const el = document.getElementById('typing-indicator');
+  if (el) el.remove();
+}
+
+function askPreset(question) {
+  document.getElementById('ask-input').value = question;
+  submitQuestion(new Event('submit'));
+}
+
+function submitQuestion(e) {
+  if (e) e.preventDefault();
+  const input = document.getElementById('ask-input');
+  const question = input.value.trim();
+  if (!question) return;
+
+  const backend = document.getElementById('llm-backend').value;
+  input.value = '';
+  document.getElementById('ask-btn').disabled = true;
+
+  appendMessage('user', question);
+  showTyping();
+
+  const payload = {question, backend};
+  if (conversationId) payload.conversation_id = conversationId;
+
+  fetch('/api/scan/{{ scan.scan_id }}/chat', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify(payload)
+  })
+  .then(r => r.json())
+  .then(data => {
+    hideTyping();
+    document.getElementById('ask-btn').disabled = false;
+    if (data.error) {
+      appendMessage('assistant', 'Error: ' + data.error);
+    } else {
+      conversationId = data.conversation_id;
+      totalTokens = data.total_tokens || 0;
+      appendMessage('assistant', data.answer);
+      const meta = document.getElementById('chat-meta');
+      meta.textContent = (data.model || '') + ' | ' + totalTokens + ' tokens';
+      meta.style.display = 'block';
+    }
+  })
+  .catch(err => {
+    hideTyping();
+    document.getElementById('ask-btn').disabled = false;
+    appendMessage('assistant', 'Request failed: ' + err);
+  });
+}
+
+// Auto-resize textarea
+document.getElementById('ask-input').addEventListener('input', function() {
+  this.style.height = 'auto';
+  this.style.height = Math.min(this.scrollHeight, 100) + 'px';
+});
+
+// Explain a finding via the dedicated endpoint
+function explainFinding(findingId) {
+  const backend = document.getElementById('llm-backend').value;
+  // Switch to Ask tab
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+  document.querySelector('[data-tab="tab-ask"]').classList.add('active');
+  document.getElementById('tab-ask').classList.add('active');
+
+  appendMessage('user', 'Explain finding ' + findingId);
+  showTyping();
+
+  fetch('/api/scan/{{ scan.scan_id }}/explain/' + findingId, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({backend: backend})
+  })
+  .then(r => r.json())
+  .then(data => {
+    hideTyping();
+    if (data.error) {
+      appendMessage('assistant', 'Error: ' + data.error);
+    } else {
+      appendMessage('assistant', data.answer);
+    }
+  })
+  .catch(err => {
+    hideTyping();
+    appendMessage('assistant', 'Request failed: ' + err);
+  });
+}
+</script>
+
+<!-- AI Insights tab -->
+{% if session.llm_enrichments or session.attack_chains or session.triaged_findings %}
+<div id="tab-ai-insights" class="tab-content">
+
+  {% if session.attack_chains %}
+  <h3 style="font-size:1.1rem;margin-bottom:.75rem;">Attack Chains</h3>
+  {% for chain in session.attack_chains %}
+  <div class="attack-chain-card">
+    <div class="finding-title">
+      <span class="badge" style="background:var(--high);color:#fff;">{{ chain.likelihood }}</span>
+      {{ chain.name }}
+    </div>
+    <p class="text-sm mt-1">{{ chain.description }}</p>
+    <div class="flex gap-1 mt-1" style="flex-wrap:wrap;">
+      <span class="text-sm text-muted">Impact: <strong>{{ chain.total_impact }}</strong></span>
+      <span class="text-sm text-muted" style="margin-left:1rem;">Findings:
+        {% for fid in chain.finding_ids %}
+        <code style="font-size:.75rem;">{{ fid }}</code>{{ ", " if not loop.last }}
+        {% endfor %}
+      </span>
+    </div>
+  </div>
+  {% endfor %}
+  {% endif %}
+
+  {% if session.triaged_findings %}
+  <h3 style="font-size:1.1rem;margin:1.5rem 0 .75rem;">Smart Triage</h3>
+  <p class="text-sm text-muted mb-2">Severity adjusted by exploitability and business context.</p>
+  <table class="triage-table">
+    <thead>
+      <tr>
+        <th>Finding</th>
+        <th>Original</th>
+        <th>Adjusted</th>
+        <th>Exploitability</th>
+        <th>Priority</th>
+        <th>Timeline</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for tf in session.triaged_findings %}
+      <tr>
+        <td class="text-sm">{{ tf.finding_id[:12] }}</td>
+        <td><span class="badge badge-{{ tf.original_severity.value }}">{{ tf.original_severity.value }}</span></td>
+        <td><span class="badge badge-{{ tf.adjusted_severity.value }}">{{ tf.adjusted_severity.value }}</span></td>
+        <td>
+          <span class="exploitability-bar" style="--score: {{ tf.exploitability_score }};">
+            {{ tf.exploitability_score }}/10
+          </span>
+        </td>
+        <td>
+          <span class="priority-bar" style="--score: {{ tf.business_priority }};">
+            {{ tf.business_priority }}/10
+          </span>
+        </td>
+        <td><span class="badge badge-timeline-{{ tf.recommended_timeline }}">{{ tf.recommended_timeline | replace('_', ' ') }}</span></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+
+  {% if session.llm_enrichments %}
+  <h3 style="font-size:1.1rem;margin:1.5rem 0 .75rem;">Enrichment Summary</h3>
+  <div class="stats-grid">
+    <div class="stat-card">
+      <div class="stat-value">{{ session.llm_enrichments | length }}</div>
+      <div class="stat-label">Enriched Findings</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-value">{{ session.attack_chains | length }}</div>
+      <div class="stat-label">Attack Chains</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-value">{{ session.triaged_findings | length }}</div>
+      <div class="stat-label">Triaged</div>
+    </div>
+  </div>
+  {% endif %}
+
+</div>
+{% endif %}
+
+<!-- Scanners tab -->
+<div id="tab-scanners" class="tab-content">
+  <table>
+    <thead>
+      <tr><th>Scanner</th><th>Findings</th><th>Errors</th><th>Duration</th></tr>
+    </thead>
+    <tbody>
+      {% for result in session.scanner_results %}
+      <tr>
+        <td>{{ result.scanner_name }}</td>
+        <td>{{ result.findings | length }}</td>
+        <td>{% if result.errors %}<span style="color:var(--critical);">{{ result.errors | length }}</span>{% else %}0{% endif %}</td>
+        <td>{{ result.metadata.get('elapsed_seconds', '—') }}s</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% if session.errors %}
+  <div class="mt-2">
+    <strong class="text-sm">Errors:</strong>
+    {% for err in session.errors %}
+    <p class="text-sm" style="color:var(--critical);">{{ err }}</p>
+    {% endfor %}
+  </div>
+  {% endif %}
+</div>
+
+{% else %}
+<div class="card">
+  <p class="text-muted">Scan is pending.</p>
+</div>
+{% endif %}
+
+<script src="https://cdn.jsdelivr.net/npm/marked@15/marked.min.js"></script>
+<script>
+if (typeof marked !== 'undefined') {
+  marked.setOptions({ breaks: true, gfm: true });
+}
+</script>
+<script>
+function deleteScan(scanId) {
+  if (!confirm('Delete this scan and all its reports? This cannot be undone.')) return;
+  fetch('/api/scan/' + scanId, {method: 'DELETE'})
+    .then(r => {
+      if (r.ok) { globalThis.location.href = '/scans'; }
+      else { return r.json().then(d => { alert(d.detail || 'Delete failed'); }); }
+    })
+    .catch(err => alert('Delete failed: ' + err));
+}
+</script>
+{% endblock %}

@@ -1,0 +1,21 @@
+## Findings
+{% for f in findings[:25] %}
+- [{{ f.finding_id }}] {{ f.title }} (scanner={{ f.scanner }}, confidence={{ f.confidence.value }}, evidence={{ f.evidence[:100] }})
+{% endfor %}
+
+## Task
+Review these findings and identify any that are likely false positives.
+Consider: evidence quality, scanner reliability for this finding type,
+and whether the evidence actually supports the claimed vulnerability.
+
+Respond with a JSON array:
+[
+  {
+    "finding_id": "...",
+    "false_positive_likelihood": "low | medium | high",
+    "rationale": "Why this may be a false positive"
+  }
+]
+
+Only include findings with medium or high false positive likelihood.
+Return ONLY the JSON array.

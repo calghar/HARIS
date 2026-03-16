@@ -1,0 +1,38 @@
+# HARIS — Docker Compose configuration
+#
+# Usage:
+#   docker compose up              # Start the web UI on port 8000
+#   docker compose run --rm cli    # Run a CLI scan interactively
+#
+# The web UI is available at http://localhost:8000
+
+services:
+  web:
+    build: .
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./reports:/app/reports
+      - ./data:/app/data
+      - ./config:/app/config:ro
+    env_file:
+      - .env
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  # CLI mode: run one-off scans from the command line
+  cli:
+    build: .
+    entrypoint: ["python", "scripts/run_scan.py"]
+    volumes:
+      - ./reports:/app/reports
+      - ./data:/app/data
+      - ./config:/app/config:ro
+    env_file:
+      - .env
+    profiles:
+      - cli

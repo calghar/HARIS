@@ -1,0 +1,31 @@
+## Finding to Analyse
+- Title: {{ finding.title }}
+- Severity: {{ finding.severity.value }}
+- URL: {{ finding.url }}
+- Scanner: {{ finding.scanner }}
+- Description: {{ finding.description[:500] }}
+- Evidence: {{ finding.evidence[:300] }}
+- Tags: {{ finding.tags | join(', ') }}
+- CWE: {{ finding.cwe_id or 'unknown' }}
+
+## Target
+- URL: {{ target.base_url }}
+
+## Other Findings in This Scan
+{% for t in sibling_titles[:15] %}
+- {{ t }}
+{% endfor %}
+
+## Task
+Analyse this finding and respond with a JSON object containing:
+{
+  "attack_narrative": "Step-by-step description of how an attacker would exploit this",
+  "business_impact_assessment": "What business damage this could cause",
+  "exploitation_complexity": "low | medium | high",
+  "false_positive_likelihood": "low | medium | high",
+  "related_cwes": ["CWE-XXX", ...],
+  "attack_chain_position": "initial_access | escalation | exfiltration | standalone",
+  "variant_suggestions": ["Natural language suggestions of similar vulns to check"]
+}
+
+Return ONLY the JSON object, no markdown fences or commentary.

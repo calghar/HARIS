@@ -1,0 +1,94 @@
+{% extends "base.html" %}
+{% block title %}HARIS — Scans{% endblock %}
+
+{% block content %}
+<div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:1.5rem">
+  <div>
+    <h1>Scans</h1>
+    <p class="text-muted text-sm">{{ total }} scan{{ 's' if total != 1 else '' }}</p>
+  </div>
+  <a href="/scan/new" class="btn btn-primary">New Scan</a>
+</div>
+
+<div class="filter-bar">
+  <div class="form-group">
+    <label for="filter-hostname">Website</label>
+    <select id="filter-hostname" name="hostname"
+            hx-get="/api/scans?format=html"
+            hx-target="#scan-table-body"
+            hx-include="#filter-severity, #filter-date-from, #filter-date-to"
+            hx-vals='{"page": "1"}'>
+      <option value="">All websites</option>
+      {% for h in hostnames %}
+      <option value="{{ h }}" {% if filters.hostname == h %}selected{% endif %}>{{ h }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="form-group">
+    <label for="filter-severity">Severity</label>
+    <select id="filter-severity" name="severity"
+            hx-get="/api/scans?format=html"
+            hx-target="#scan-table-body"
+            hx-include="#filter-hostname, #filter-date-from, #filter-date-to"
+            hx-vals='{"page": "1"}'>
+      <option value="">All severities</option>
+      {% for s in ['critical', 'high', 'medium', 'low', 'info'] %}
+      <option value="{{ s }}" {% if filters.severity == s %}selected{% endif %}>{{ s | capitalize }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="form-group">
+    <label for="filter-date-from">From</label>
+    <input type="date" id="filter-date-from" name="date_from"
+           value="{{ filters.date_from or '' }}"
+           hx-get="/api/scans?format=html"
+           hx-target="#scan-table-body"
+           hx-include="#filter-hostname, #filter-severity, #filter-date-to"
+           hx-vals='{"page": "1"}'
+           hx-trigger="change">
+  </div>
+  <div class="form-group">
+    <label for="filter-date-to">To</label>
+    <input type="date" id="filter-date-to" name="date_to"
+           value="{{ filters.date_to or '' }}"
+           hx-get="/api/scans?format=html"
+           hx-target="#scan-table-body"
+           hx-include="#filter-hostname, #filter-severity, #filter-date-from"
+           hx-vals='{"page": "1"}'
+           hx-trigger="change">
+  </div>
+  <div class="form-group" style="flex: 0">
+    <label>&nbsp;</label>
+    <button class="btn btn-sm btn-secondary" onclick="clearFilters()">Clear</button>
+  </div>
+</div>
+
+<div class="card" style="padding: 0">
+  <table>
+    <thead>
+      <tr>
+        <th>Target</th>
+        <th>Profile</th>
+        <th>Status</th>
+        <th>Findings</th>
+        <th>Risk</th>
+        <th>Started</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody id="scan-table-body">
+      {% include "_scan_rows.html" %}
+    </tbody>
+  </table>
+</div>
+
+<script>
+function clearFilters() {
+  document.getElementById('filter-hostname').value = '';
+  document.getElementById('filter-severity').value = '';
+  document.getElementById('filter-date-from').value = '';
+  document.getElementById('filter-date-to').value = '';
+  htmx.ajax('GET', '/api/scans?format=html&page=1', '#scan-table-body');
+}
+</script>
+{% endblock %}

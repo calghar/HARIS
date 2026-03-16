@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+{% block title %}HARIS — Open Source Licenses{% endblock %}
+
+{% block content %}
+<div class="breadcrumb">
+  <a href="/">Dashboard</a><span class="sep">/</span> Open Source Licenses
+</div>
+
+<h1 style="margin-bottom:.5rem">Open Source Licenses</h1>
+<p class="text-muted text-sm" style="margin-bottom:2rem">
+  HARIS integrates with the following open source security tools. Each tool is invoked as an
+  independent external process and retains its own license. Users are responsible for complying
+  with each tool's license terms.
+</p>
+
+<div class="card" style="padding:0; overflow:hidden">
+  <table>
+    <thead>
+      <tr>
+        <th>Scanner</th>
+        <th>Version</th>
+        <th>License</th>
+        <th>Notes</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>Nuclei</strong></td>
+        <td>3.x</td>
+        <td><span class="badge" style="background:var(--low);color:#fff">MIT</span></td>
+        <td class="text-sm text-muted">Attribution required. Fully permissive.</td>
+      </tr>
+      <tr>
+        <td><strong>Nikto</strong></td>
+        <td>2.x</td>
+        <td><span class="badge" style="background:var(--medium);color:#000">GPLv3</span></td>
+        <td class="text-sm text-muted">Copyleft applies to Nikto itself, not to HARIS (separate process).</td>
+      </tr>
+      <tr>
+        <td><strong>Wapiti</strong></td>
+        <td>3.x</td>
+        <td><span class="badge" style="background:var(--medium);color:#000">GPLv2</span></td>
+        <td class="text-sm text-muted">Copyleft applies to Wapiti itself, not to HARIS (separate process).</td>
+      </tr>
+      <tr>
+        <td><strong>Nmap</strong></td>
+        <td>7.x</td>
+        <td><span class="badge" style="background:var(--high);color:#fff">NPSL</span></td>
+        <td class="text-sm text-muted">Non-commercial clause applies to Nmap binary. Commercial users must obtain an OEM license.</td>
+      </tr>
+      <tr>
+        <td><strong>SSLyze</strong></td>
+        <td>6.x</td>
+        <td><span class="badge" style="background:var(--medium);color:#000">AGPL-3.0</span></td>
+        <td class="text-sm text-muted">Called as external CLI subprocess. AGPL copyleft does not apply to HARIS.</td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+<div class="card mt-2">
+  <h2 style="margin-bottom:.5rem">HARIS License</h2>
+  <p class="text-sm text-muted" style="margin-bottom:.5rem">HARIS is released under the MIT License.</p>
+  <pre style="font-size:.8rem; background:var(--bg-input); padding:1rem; border-radius:var(--radius)">MIT License
+
+Copyright (c) 2025 HARIS contributors
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.</pre>
+</div>
+{% endblock %}

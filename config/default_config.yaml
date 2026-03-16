@@ -1,0 +1,131 @@
+# HARIS - Default Configuration
+# ================================
+# Copy this file and customise for your engagement.
+# Sensitive values (tokens, passwords) should be set via environment
+# variables: HARIS_AUTH_COOKIE, HARIS_AUTH_HEADER, etc.
+
+# Scan profile: quick | full | regression | pre-launch | compliance
+profile: full
+
+target:
+  url: "https://example.com"
+
+  scope:
+    allowed_domains:
+      - "example.com"
+    excluded_paths:
+      - "/logout"
+      - "/api/admin/.*"
+    max_depth: 5
+    rate_limit_rps: 10.0
+    max_requests: 10000
+    allowed_methods:
+      - GET
+      - HEAD
+      - OPTIONS
+      - POST
+
+  auth:
+    method: none          # none | cookie | header | form
+    # cookie_name: "session"
+    # cookie_value: ""    # Set via HARIS_AUTH_COOKIE env var
+    # header_name: "Authorization"
+    # header_value: ""    # Set via HARIS_AUTH_HEADER env var
+    # login_url: ""
+    # username_field: "username"
+    # password_field: "password"
+    # username: ""        # Set via HARIS_AUTH_USERNAME env var
+    # password: ""        # Set via HARIS_AUTH_PASSWORD env var
+
+  metadata:
+    engagement_id: ""
+    owner: ""
+    notes: ""
+
+# Scanners to run (order matters for sequential execution)
+scanners:
+  - name: header_checks
+    enabled: true
+
+  - name: tls_checks
+    enabled: true
+    options:
+      cert_expiry_warn_days: 30
+
+  - name: misc_checks
+    enabled: true
+    options:
+      check_sensitive_paths: true
+      check_cors: true
+      check_redirect: true
+
+  - name: nmap
+    enabled: true
+    options:
+      ports: "80,443,8080,8443,8000,8888"
+      timeout: 300
+
+  - name: sslyze
+    enabled: true
+    options:
+      timeout: 120
+
+  - name: wapiti
+    enabled: true
+    options:
+      timeout: 300
+      max_scan_time: 600
+      scope: folder
+      modules: all
+      max_links: 500
+
+# Output configuration
+output_dir: "./reports"
+report_formats:
+  - markdown
+  - json
+  - html
+
+# Logging
+log_level: INFO
+
+# Template management
+# -------------------
+# Templates are fetched to template_dir and tracked in metadata.json.
+# Run: HARIS update-templates [--scanner nuclei] [--force]
+template_dir: "./templates"
+template_sources:
+  - name: nuclei-official
+    scanner: nuclei
+    source_type: git
+    url: "https://github.com/projectdiscovery/nuclei-templates.git"
+    branch: main
+    enabled: true
+
+  - name: nikto-official
+    scanner: nikto
+    source_type: git
+    url: "https://github.com/sullo/nikto.git"
+    branch: master
+    enabled: true
+
+# LLM-powered analysis (all features opt-in)
+# -------------------------------------------
+# Requires ANTHROPIC_API_KEY (or OPENAI_API_KEY) env var.
+llm:
+  backend: anthropic
+  model: ""                        # blank = backend default
+  enrichment_enabled: false        # set true to enrich during scans
+  enrich_severity_threshold: high  # only enrich HIGH + CRITICAL
+  max_tokens_per_finding: 1024
+  triage_context:
+    industry: ""                   # e.g. fintech, healthcare
+    data_sensitivity: ""           # e.g. pii, phi, financial
+    compliance_frameworks: []      # e.g. [pci-dss, soc2]
+  # Model routing — use different models per task type
+  # model_routing:
+  #   summary: claude-haiku-4-5     # cheap model for summaries
+  #   enrichment: claude-sonnet-4-6 # stronger for enrichment
+  #   chat: claude-sonnet-4-6       # mid-tier for interactive Q&A
+  #   attack_chains: claude-sonnet-4-6
+  #   triage: claude-sonnet-4-6

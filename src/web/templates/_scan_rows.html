@@ -1,0 +1,43 @@
+{% for scan in scans %}
+<tr>
+  <td><code style="font-size:.78rem">{{ scan.target_url }}</code></td>
+  <td>{{ scan.profile_name or scan.profile or '' }}</td>
+  <td>
+    {% set st = scan.status if scan.status is defined else 'completed' %}
+    <span class="status-{{ st }}">
+      {% if st == 'running' %}<span class="spinner"></span> {% endif %}
+      {{ st }}
+    </span>
+  </td>
+  <td>{{ scan.finding_count }}</td>
+  <td>
+    {% if scan.risk_posture %}
+    <span class="badge posture-{{ scan.risk_posture }}">{{ scan.risk_posture }}</span>
+    {% endif %}
+  </td>
+  <td class="text-sm text-muted">{{ scan.started_at[:16] if scan.started_at else '' }}</td>
+  <td>
+    <a href="/scan/{{ scan.session_id or scan.scan_id }}" class="btn btn-sm btn-secondary">View</a>
+  </td>
+</tr>
+{% endfor %}
+
+{% if pagination and pagination.total_pages > 1 %}
+<tr>
+  <td colspan="7">
+    <div class="pagination">
+      {% if pagination.page > 1 %}
+      <button class="btn btn-sm btn-secondary"
+              hx-get="/api/scans?format=html&page={{ pagination.page - 1 }}&hostname={{ pagination.hostname or '' }}&severity={{ pagination.severity or '' }}&date_from={{ pagination.date_from or '' }}&date_to={{ pagination.date_to or '' }}"
+              hx-target="#scan-table-body">Previous</button>
+      {% endif %}
+      <span class="page-info">Page {{ pagination.page }} of {{ pagination.total_pages }}</span>
+      {% if pagination.page < pagination.total_pages %}
+      <button class="btn btn-sm btn-secondary"
+              hx-get="/api/scans?format=html&page={{ pagination.page + 1 }}&hostname={{ pagination.hostname or '' }}&severity={{ pagination.severity or '' }}&date_from={{ pagination.date_from or '' }}&date_to={{ pagination.date_to or '' }}"
+              hx-target="#scan-table-body">Next</button>
+      {% endif %}
+    </div>
+  </td>
+</tr>
+{% endif %}
