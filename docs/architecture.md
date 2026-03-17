@@ -10,7 +10,7 @@ Configuration -> Target -> Scanners -> Findings -> Enrichment -> Reports
 
 ## Layers
 
-### 1. Configuration (`src/config/`)
+### 1. Configuration (`src/config/`, `src/models/scan_config_template.py`)
 
 The configuration layer loads settings from three sources (in priority order):
 
@@ -19,6 +19,8 @@ The configuration layer loads settings from three sources (in priority order):
 3. **YAML config file** (`config/*.yaml`)
 
 This ensures sensitive values (credentials, tokens) never need to be committed to files.
+
+**Scan Configuration Templates** add a fourth source: reusable presets stored in the SQLite database (`scan_config_templates` table, schema v4).  A template bundles a scan profile with per-scanner option overrides (Nuclei tags/severity, Nikto tuning/plugins, Nmap ports/script categories, Wapiti modules/scope, etc.).  When a scan is started with a template, its `template_id` is recorded on the scan session.  Five built-in templates are seeded on first run.
 
 ### 2. Target Model (`src/core/target.py`)
 
@@ -78,13 +80,26 @@ A lookup table maps vulnerability keywords and CWE IDs to OWASP Top 10 (2025) ca
 - **JSONReporter**: Machine-readable structured output
 - **HTMLReporter**: Self-contained HTML wrapping the Markdown report
 
+### 8. Web Dashboard (`src/web/`)
+
+The FastAPI web application serves a multi-page dashboard:
+
+- **Dashboard** (`/`): Paginated scan history with HTMX filters (website, severity), quick actions, and a recently scanned sidebar.
+- **Websites** (`/websites`): Per-target overview. Detail pages show a visual timeline of risk posture changes and finding deltas.
+- **Scans** (`/scans`): Filterable by website, severity, template, and scanner name.
+- **Templates** (`/templates`): Two-tab hub -- *Scan Configurations* (CRUD for saved presets) and *Scanner Templates* (manage external template sources, trigger updates).
+- **New Scan** (`/scan/new`): Template selector dropdown auto-fills the form; "Save as Template" persists current settings. Per-scanner advanced options are collapsible.
+- **Settings** (`/settings`): Read-only overview of LLM backends, available scanners, and database info.
+
+Navigation order: Dashboard | Websites | Scans | Templates | New Scan (CTA button style).
+
 ## Data Flow
 
 ```txt
-YAML Config + Env Vars + CLI Args
+YAML Config + Env Vars + CLI Args + Scan Config Template (optional)
         |
         v
-    Config object
+    Config object (template overrides merged)
         |
         v
     Target + Scope
@@ -100,8 +115,17 @@ YAML Config + Env Vars + CLI Args
     Deduplication + OWASP enrichment
         |
         v
-    ScanSession (all findings, metadata)
+    ScanSession (all findings, metadata, template_id)
         |
         v
     Reporter.generate(session) --> report files
 ```
+
+### Database Schema
+
+The SQLite database (schema v4) stores:
+
+- `scans` -- Scan sessions with a `template_id` column linking to the template used
+- `findings` -- All findings per scan
+- `scan_config_templates` -- Reusable scan configuration presets
+- `llm_enrichments`, `attack_chains`, `triaged_findings`, `false_positive_assessments`, `executive_priorities` -- LLM enrichment data

@@ -76,9 +76,13 @@ python scripts/run_scan.py llm ask \
 The "Ask the Report" tab on any completed scan page provides:
 
 - **Backend selector** dropdown that auto-detects available backends (checks installed packages and API keys)
-- Preset question buttons for common queries (Top 3 Risks, Auth Issues, Jira Plan, etc.)
+- Preset question buttons for common queries (Top 3 Risks, Auth Issues, Jira Plan, Compare Scans, etc.)
 - A freeform text input for custom questions
 - Response display with model/token metadata
+
+When a scan was started with a scan configuration template, the template context (name, profile, per-scanner overrides) is included in the chat context so the LLM can reference the scan configuration in its answers.
+
+The "Compare Scans" preset button provides a quick way to ask the LLM to compare findings between the current scan and a previous scan of the same target.
 
 The backend auto-detection API (`GET /api/llm/backends`) checks each backend for:
 
