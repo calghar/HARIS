@@ -5,6 +5,20 @@
 <h1 style="font-size:1.5rem;margin-bottom:1.5rem;">Configure Scan</h1>
 
 <form id="scan-form" class="card">
+  <!-- Configuration Template -->
+  <div class="form-group">
+    <label for="scan_template">Configuration Template</label>
+    <select id="scan_template" name="template_id">
+      <option value="">None (manual configuration)</option>
+      {% for t in scan_templates %}
+      <option value="{{ t.template_id }}" {% if t.is_default %}selected{% endif %}>
+        {{ t.name }}{% if t.is_default %} (default){% endif %}
+      </option>
+      {% endfor %}
+    </select>
+    <p id="template-desc" class="text-sm text-muted mt-1">Select a saved template to auto-fill settings, or configure manually.</p>
+  </div>
+
   <!-- Target -->
   <div class="form-group">
     <label for="target_url">Target URL</label>
@@ -104,6 +118,45 @@
 
 {% block scripts %}
 <script>
+  // Template selector — auto-fill form when a template is chosen
+  const templateSelect = document.getElementById('scan_template');
+  const templateDesc = document.getElementById('template-desc');
+  templateSelect.addEventListener('change', async function() {
+    const id = this.value;
+    if (!id) {
+      templateDesc.textContent = 'Select a saved template to auto-fill settings, or configure manually.';
+      return;
+    }
+    try {
+      const resp = await fetch('/api/scan-templates/' + id);
+      if (!resp.ok) return;
+      const tpl = await resp.json();
+      templateDesc.textContent = tpl.description || '';
+      // Auto-fill form fields
+      document.getElementById('profile').value = tpl.profile || 'quick';
+      profileDesc.textContent = profiles[tpl.profile] || '';
+      document.getElementById('rate_limit').value = tpl.rate_limit_rps || 10;
+      document.getElementById('max_requests').value = tpl.max_requests || 10000;
+      document.getElementById('excluded_paths').value = (tpl.excluded_paths || []).join('\n');
+      document.getElementById('auth_method').value = tpl.auth_method || 'none';
+      document.getElementById('auth-header-group').style.display =
+        (tpl.auth_method === 'header' || tpl.auth_method === 'cookie') ? 'block' : 'none';
+      // Report formats
+      document.querySelectorAll('input[name="report_formats"]').forEach(cb => {
+        cb.checked = (tpl.report_formats || []).includes(cb.value);
+      });
+      // LLM enrichment
+      const llmCb = document.getElementById('llm_enrich');
+      llmCb.checked = !!tpl.llm_enrichment;
+      llmCb.dispatchEvent(new Event('change'));
+    } catch (e) { /* ignore fetch errors */ }
+  });
+
+  // Auto-select default template on page load
+  if (templateSelect.value) {
+    templateSelect.dispatchEvent(new Event('change'));
+  }
+
   // Profile description hints
   const profiles = {
     {% for p in profiles %}

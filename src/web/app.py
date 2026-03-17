@@ -22,7 +22,7 @@ from ..core.profiles import PROFILES
 from ..core.risk import get_business_impact
 from ..core.runner import ScanRunner, build_scan_list
 from ..db.store import ScanStore
-from ..models import AuthConfig, ScanSession, Scope, Target
+from ..models import AuthConfig, ScanConfigTemplate, ScanSession, Scope, Target
 from ..models.chat import Conversation
 from ..reporting import REPORTER_REGISTRY
 from .llm_routes import router as llm_router
@@ -84,11 +84,13 @@ async def dashboard(request: Request) -> HTMLResponse:
     running = sum(1 for s in _scans.values() if s["status"] == ScanStatus.RUNNING)
     if running:
         summary["total_scans"] += running
+    hostnames = sorted({w["hostname"] for w in _store.list_websites()})
     return templates.TemplateResponse("dashboard.html", {
         "request": request,
         "nav_active": "dashboard",
         "summary": summary,
         "scanners": _SCANNER_INFO,
+        "hostnames": hostnames,
     })
 
 
@@ -107,6 +109,11 @@ async def website_detail(request: Request, hostname: str) -> HTMLResponse:
     scans = _store.get_scans_for_hostname(hostname)
     first_scanned = scans[-1]["started_at"] if scans else ""
     last_scanned = scans[0]["started_at"] if scans else ""
+    # Build template name lookup
+    all_templates = _store.list_scan_config_templates()
+    template_names = {
+        t["template_id"]: t["name"] for t in all_templates
+    }
     return templates.TemplateResponse("website_detail.html", {
         "request": request,
         "nav_active": "websites",
@@ -114,6 +121,7 @@ async def website_detail(request: Request, hostname: str) -> HTMLResponse:
         "scans": scans,
         "first_scanned": first_scanned,
         "last_scanned": last_scanned,
+        "template_names": template_names,
     })
 
 
@@ -175,6 +183,37 @@ async def scans_page(
     })
 
 
+@app.get("/settings", response_class=HTMLResponse)
+async def settings_page(request: Request) -> HTMLResponse:
+    summary = _store.dashboard_summary()
+    all_scanners = sorted(all_registered().keys())
+    llm_config: dict[str, Any] = {}
+    template_dir = "./templates"
+    try:
+        from ..config.loader import load_config as _load_cfg
+        cfg = _load_cfg()
+        llm_config = {
+            "backend": cfg.llm.backend,
+            "enrichment_enabled": cfg.llm.enrichment_enabled,
+            "threshold": cfg.llm.enrich_severity_threshold,
+        }
+        template_dir = cfg.template_dir
+    except Exception:
+        pass
+
+    return templates.TemplateResponse("settings.html", {
+        "request": request,
+        "nav_active": "settings",
+        "scanners": all_scanners,
+        "llm_backend": llm_config.get("backend", "anthropic"),
+        "llm_enrichment_enabled": llm_config.get("enrichment_enabled", False),
+        "enrich_threshold": llm_config.get("threshold", "high"),
+        "total_scans": summary.get("total_scans", 0),
+        "total_websites": summary.get("total_websites", 0),
+        "template_dir": template_dir,
+    })
+
+
 @app.get("/licenses", response_class=HTMLResponse)
 async def licenses_page(request: Request) -> HTMLResponse:
     return templates.TemplateResponse("licenses.html", {
@@ -187,11 +226,13 @@ async def licenses_page(request: Request) -> HTMLResponse:
 @app.get("/scan/new", response_class=HTMLResponse)
 async def new_scan_form(request: Request) -> HTMLResponse:
     all_scanners = all_registered()
+    scan_templates = _store.list_scan_config_templates()
     return templates.TemplateResponse("scan_new.html", {
         "request": request,
         "nav_active": "new",
         "profiles": list(PROFILES.values()),
         "available_scanners": sorted(all_scanners.keys()),
+        "scan_templates": scan_templates,
     })
 
 
@@ -272,6 +313,26 @@ async def start_scan(request: Request) -> JSONResponse:
 
     llm_enrich = bool(form.get("llm_enrich"))
     llm_backend_name = str(form.get("llm_backend", "")).strip() or None
+    template_id = str(form.get("template_id", "")).strip()
+
+    # If a template is selected, merge its settings (form overrides template)
+    scanner_options: dict[str, dict[str, Any]] = {}
+    if template_id:
+        tpl = _store.get_scan_config_template(template_id)
+        if tpl:
+            scanner_options = dict(tpl.scanner_options)
+            if not profile_name or profile_name == "quick":
+                profile_name = tpl.profile
+            if not form.get("rate_limit"):
+                rate_limit = tpl.rate_limit_rps
+            if not form.get("max_requests"):
+                max_requests = tpl.max_requests
+            if not excluded_paths:
+                excluded_paths = list(tpl.excluded_paths)
+            if not llm_enrich and tpl.llm_enrichment:
+                llm_enrich = True
+                if not llm_backend_name and tpl.llm_backend:
+                    llm_backend_name = tpl.llm_backend
 
     scan_id = uuid.uuid4().hex[:10]
     now = datetime.now(UTC).isoformat()
@@ -286,6 +347,7 @@ async def start_scan(request: Request) -> JSONResponse:
         "session": None,
         "report_formats": list(report_formats),
         "llm_enrich": llm_enrich,
+        "template_id": template_id,
         "error": None,
     }
 
@@ -307,6 +369,8 @@ async def start_scan(request: Request) -> JSONResponse:
         list(report_formats),
         llm_enrich,
         llm_backend_name,
+        template_id,
+        scanner_options,
     )
 
     return JSONResponse(
@@ -657,6 +721,17 @@ async def chat_with_scan(
 
         backend = create_backend(backend_name)
         qa = ReportQA(backend=backend)
+
+        # Enrich question with template context if available
+        if session.template_id:
+            tpl = _store.get_scan_config_template(session.template_id)
+            if tpl:
+                question = (
+                    f"[Context: This scan used configuration template "
+                    f"'{tpl.name}': {tpl.description}. "
+                    f"Profile: {tpl.profile}.]\n\n{question}"
+                )
+
         response = qa.chat(session, question, conv.messages)
 
         # Record both messages
@@ -777,6 +852,154 @@ async def trigger_template_update(request: Request) -> JSONResponse:
 
 
 # ---------------------------------------------------------------------------
+# Scan configuration templates
+# ---------------------------------------------------------------------------
+
+@app.get("/templates", response_class=HTMLResponse)
+async def templates_page(request: Request) -> HTMLResponse:
+    scan_templates = _store.list_scan_config_templates()
+    # Scanner template sources
+    scanner_sources: list[dict[str, Any]] = []
+    try:
+        from ..config.loader import load_config as _load_cfg
+        from ..templates.manager import TemplateManager
+
+        cfg = _load_cfg()
+        mgr = TemplateManager(
+            base_dir=cfg.template_dir, sources=cfg.template_sources,
+        )
+        scanner_sources = [m.model_dump() for m in mgr.list_sources()]
+    except Exception:
+        pass
+
+    return templates.TemplateResponse("templates.html", {
+        "request": request,
+        "nav_active": "templates",
+        "scan_templates": scan_templates,
+        "scanner_sources": scanner_sources,
+    })
+
+
+@app.get("/templates/new", response_class=HTMLResponse)
+async def template_new_form(request: Request) -> HTMLResponse:
+    return templates.TemplateResponse("template_form.html", {
+        "request": request,
+        "nav_active": "templates",
+        "profiles": list(PROFILES.values()),
+        "template": None,
+    })
+
+
+@app.get("/templates/{template_id}/edit", response_class=HTMLResponse)
+async def template_edit_form(
+    request: Request, template_id: str,
+) -> HTMLResponse:
+    tpl = _store.get_scan_config_template(template_id)
+    if tpl is None:
+        raise HTTPException(status_code=404, detail="Template not found")
+    return templates.TemplateResponse("template_form.html", {
+        "request": request,
+        "nav_active": "templates",
+        "profiles": list(PROFILES.values()),
+        "template": tpl.model_dump(),
+    })
+
+
+@app.get("/api/scan-templates")
+async def api_list_scan_templates() -> JSONResponse:
+    return JSONResponse(_store.list_scan_config_templates())
+
+
+@app.get("/api/scan-templates/{template_id}")
+async def api_get_scan_template(template_id: str) -> JSONResponse:
+    tpl = _store.get_scan_config_template(template_id)
+    if tpl is None:
+        raise HTTPException(status_code=404, detail="Template not found")
+    return JSONResponse(tpl.model_dump())
+
+
+@app.post("/api/scan-templates")
+async def api_create_scan_template(request: Request) -> JSONResponse:
+    body = await request.json()
+    now = datetime.now(UTC).isoformat()
+    tpl = ScanConfigTemplate(
+        name=body["name"],
+        description=body.get("description", ""),
+        profile=body.get("profile", "quick"),
+        rate_limit_rps=float(body.get("rate_limit_rps", 10.0)),
+        max_requests=int(body.get("max_requests", 10000)),
+        excluded_paths=body.get("excluded_paths", []),
+        auth_method=body.get("auth_method", "none"),
+        report_formats=body.get("report_formats", ["markdown", "json"]),
+        llm_enrichment=bool(body.get("llm_enrichment", False)),
+        llm_backend=body.get("llm_backend", ""),
+        scanner_options=body.get("scanner_options", {}),
+        tags=body.get("tags", []),
+        created_at=now,
+        updated_at=now,
+    )
+    _store.save_scan_config_template(tpl)
+    return JSONResponse(tpl.model_dump(), status_code=201)
+
+
+@app.put("/api/scan-templates/{template_id}")
+async def api_update_scan_template(
+    template_id: str, request: Request,
+) -> JSONResponse:
+    existing = _store.get_scan_config_template(template_id)
+    if existing is None:
+        raise HTTPException(status_code=404, detail="Template not found")
+    body = await request.json()
+    now = datetime.now(UTC).isoformat()
+    updated = ScanConfigTemplate(
+        template_id=template_id,
+        name=body.get("name", existing.name),
+        description=body.get("description", existing.description),
+        profile=body.get("profile", existing.profile),
+        rate_limit_rps=float(
+            body.get("rate_limit_rps", existing.rate_limit_rps),
+        ),
+        max_requests=int(
+            body.get("max_requests", existing.max_requests),
+        ),
+        excluded_paths=body.get("excluded_paths", existing.excluded_paths),
+        auth_method=body.get("auth_method", existing.auth_method),
+        report_formats=body.get(
+            "report_formats", existing.report_formats,
+        ),
+        llm_enrichment=bool(
+            body.get("llm_enrichment", existing.llm_enrichment),
+        ),
+        llm_backend=body.get("llm_backend", existing.llm_backend),
+        scanner_options=body.get(
+            "scanner_options", existing.scanner_options,
+        ),
+        tags=body.get("tags", existing.tags),
+        is_default=existing.is_default,
+        created_at=existing.created_at,
+        updated_at=now,
+    )
+    _store.save_scan_config_template(updated)
+    return JSONResponse(updated.model_dump())
+
+
+@app.delete("/api/scan-templates/{template_id}")
+async def api_delete_scan_template(template_id: str) -> JSONResponse:
+    if not _store.delete_scan_config_template(template_id):
+        raise HTTPException(status_code=404, detail="Template not found")
+    return JSONResponse({"deleted": template_id})
+
+
+@app.post("/api/scan-templates/{template_id}/set-default")
+async def api_set_default_template(template_id: str) -> JSONResponse:
+    tpl = _store.get_scan_config_template(template_id)
+    if tpl is None:
+        raise HTTPException(status_code=404, detail="Template not found")
+    _store.set_default_scan_config_template(template_id)
+    return JSONResponse({"default": template_id})
+
+
+# ---------------------------------------------------------------------------
 # Background scan runner
 # ---------------------------------------------------------------------------
 
@@ -787,6 +1010,8 @@ def _run_scan_blocking(
     report_formats: list[str],
     llm_enrich: bool = False,
     llm_backend_name: str | None = None,
+    template_id: str = "",
+    scanner_options: dict[str, dict[str, Any]] | None = None,
 ) -> None:
     scan = _scans[scan_id]
     scan["status"] = ScanStatus.RUNNING
@@ -798,8 +1023,10 @@ def _run_scan_blocking(
             session_id=scan_id,
             llm_enrich=llm_enrich,
             llm_backend_name=llm_backend_name,
+            scanner_options=scanner_options,
         )
         session = runner.run()
+        session.template_id = template_id
 
         scan["session"] = session
         scan["status"] = ScanStatus.COMPLETED

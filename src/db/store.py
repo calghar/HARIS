@@ -15,10 +15,11 @@ from ..models import (
     Target,
 )
 from ..models.enrichment import AttackChain, EnrichedFinding, TriagedFinding
+from ..models.scan_config_template import ScanConfigTemplate
 
 logger = logging.getLogger(__name__)
 
-_SCHEMA_VERSION = 3
+_SCHEMA_VERSION = 4
 
 _SCHEMA_SQL = """\
 CREATE TABLE IF NOT EXISTS schema_version (
@@ -127,6 +128,30 @@ ALTER TABLE scans ADD COLUMN false_positive_assessments TEXT NOT NULL DEFAULT '[
 ALTER TABLE scans ADD COLUMN executive_priorities TEXT NOT NULL DEFAULT '';
 """
 
+_SCHEMA_V4_SQL = """\
+CREATE TABLE IF NOT EXISTS scan_config_templates (
+    template_id    TEXT PRIMARY KEY,
+    name           TEXT NOT NULL,
+    description    TEXT NOT NULL DEFAULT '',
+    profile        TEXT NOT NULL DEFAULT 'quick',
+    rate_limit_rps REAL NOT NULL DEFAULT 10.0,
+    max_requests   INTEGER NOT NULL DEFAULT 10000,
+    excluded_paths TEXT NOT NULL DEFAULT '[]',
+    auth_method    TEXT NOT NULL DEFAULT 'none',
+    report_formats TEXT NOT NULL DEFAULT '["markdown","json"]',
+    llm_enrichment INTEGER NOT NULL DEFAULT 0,
+    llm_backend    TEXT NOT NULL DEFAULT '',
+    scanner_options TEXT NOT NULL DEFAULT '{}',
+    tags           TEXT NOT NULL DEFAULT '[]',
+    is_default     INTEGER NOT NULL DEFAULT 0,
+    created_at     TEXT NOT NULL DEFAULT '',
+    updated_at     TEXT NOT NULL DEFAULT ''
+);
+CREATE INDEX IF NOT EXISTS idx_sct_name ON scan_config_templates(name);
+ALTER TABLE scans ADD COLUMN template_id TEXT NOT NULL DEFAULT '';
+CREATE INDEX IF NOT EXISTS idx_scans_template ON scans(template_id);
+"""
+
 
 class ScanStore:
     """SQLite storage for scan sessions and findings.
@@ -165,18 +190,22 @@ class ScanStore:
                 )
                 conn.executescript(_SCHEMA_V2_SQL)
                 conn.executescript(_SCHEMA_V3_SQL)
+                conn.executescript(_SCHEMA_V4_SQL)
             else:
                 current = row["version"]
                 if current < 2:
                     conn.executescript(_SCHEMA_V2_SQL)
                 if current < 3:
                     conn.executescript(_SCHEMA_V3_SQL)
+                if current < 4:
+                    conn.executescript(_SCHEMA_V4_SQL)
                 if current < _SCHEMA_VERSION:
                     conn.execute(
                         "UPDATE schema_version SET version = ?",
                         (_SCHEMA_VERSION,),
                     )
             conn.commit()
+        self._seed_default_templates()
         logger.debug("Database initialised at %s", self.db_path)
 
     # ------------------------------------------------------------------
@@ -204,8 +233,9 @@ class ScanStore:
                    (session_id, target_url, profile_name, profile_intro,
                     started_at, finished_at, scanners_used,
                     risk_posture, risk_posture_text, errors, target_json,
-                    false_positive_assessments, executive_priorities)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                    false_positive_assessments, executive_priorities,
+                    template_id)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                 (
                     session.session_id,
                     session.target.base_url,
@@ -220,6 +250,7 @@ class ScanStore:
                     target_json,
                     json.dumps(session.false_positive_assessments),
                     session.executive_priorities,
+                    session.template_id,
                 ),
             )
 
@@ -386,7 +417,7 @@ class ScanStore:
         with self._connect() as conn:
             rows = conn.execute(
                 """SELECT s.session_id, s.target_url, s.profile_name,
-                          s.started_at, s.risk_posture,
+                          s.started_at, s.risk_posture, s.template_id,
                           COUNT(f.id) AS finding_count
                    FROM scans s
                    LEFT JOIN findings f ON f.session_id = s.session_id
@@ -402,6 +433,7 @@ class ScanStore:
                 "started_at": row["started_at"],
                 "risk_posture": row["risk_posture"],
                 "finding_count": row["finding_count"],
+                "template_id": row["template_id"],
             }
             for row in rows
         ]
@@ -556,6 +588,11 @@ class ScanStore:
             executive_priorities=(
                 scan_row["executive_priorities"]
                 if "executive_priorities" in scan_row.keys()
+                else ""
+            ),
+            template_id=(
+                scan_row["template_id"]
+                if "template_id" in scan_row.keys()
                 else ""
             ),
         )
@@ -734,7 +771,8 @@ class ScanStore:
         with self._connect() as conn:
             rows = conn.execute(
                 """SELECT s.session_id, s.target_url, s.profile_name,
-                          s.started_at, s.risk_posture,
+                          s.started_at, s.risk_posture, s.template_id,
+                          s.scanners_used,
                           COUNT(f.id) AS finding_count
                    FROM scans s
                    LEFT JOIN findings f ON f.session_id = s.session_id
@@ -750,6 +788,8 @@ class ScanStore:
                 "started_at": row["started_at"],
                 "risk_posture": row["risk_posture"],
                 "finding_count": row["finding_count"],
+                "template_id": row["template_id"],
+                "scanners_used": json.loads(row["scanners_used"]),
             }
             for row in rows
             if self._hostname(row["target_url"]) == hostname
@@ -809,6 +849,8 @@ class ScanStore:
         severity: str | None = None,
         date_from: str | None = None,
         date_to: str | None = None,
+        template_id: str | None = None,
+        scanner: str | None = None,
     ) -> tuple[list[dict[str, Any]], int]:
         """Return paginated, filtered scan sessions."""
         base = """FROM scans s
@@ -836,6 +878,14 @@ class ScanStore:
             )
             params.append(severity)
 
+        if template_id:
+            where_clauses.append("s.template_id = ?")
+            params.append(template_id)
+
+        if scanner:
+            where_clauses.append("s.scanners_used LIKE ?")
+            params.append(f'%"{scanner}"%')
+
         where_sql = ""
         if where_clauses:
             where_sql = " WHERE " + " AND ".join(where_clauses)
@@ -850,7 +900,7 @@ class ScanStore:
             offset = (page - 1) * per_page
             rows = conn.execute(
                 f"""SELECT s.session_id, s.target_url, s.profile_name,
-                           s.started_at, s.risk_posture,
+                           s.started_at, s.risk_posture, s.template_id,
                            COUNT(f.id) AS finding_count
                     {base}{where_sql}
                     GROUP BY s.session_id
@@ -868,8 +918,300 @@ class ScanStore:
                     "started_at": row["started_at"],
                     "risk_posture": row["risk_posture"],
                     "finding_count": row["finding_count"],
+                    "template_id": row["template_id"],
                 }
                 for row in rows
             ],
             total,
         )
+
+    # ------------------------------------------------------------------
+    # Scan configuration templates
+    # ------------------------------------------------------------------
+
+    def save_scan_config_template(self, tpl: ScanConfigTemplate) -> None:
+        """Insert or update a scan configuration template."""
+        with self._connect() as conn:
+            conn.execute(
+                """INSERT OR REPLACE INTO scan_config_templates
+                   (template_id, name, description, profile,
+                    rate_limit_rps, max_requests, excluded_paths,
+                    auth_method, report_formats, llm_enrichment,
+                    llm_backend, scanner_options, tags, is_default,
+                    created_at, updated_at)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                (
+                    tpl.template_id,
+                    tpl.name,
+                    tpl.description,
+                    tpl.profile,
+                    tpl.rate_limit_rps,
+                    tpl.max_requests,
+                    json.dumps(tpl.excluded_paths),
+                    tpl.auth_method,
+                    json.dumps(tpl.report_formats),
+                    int(tpl.llm_enrichment),
+                    tpl.llm_backend,
+                    json.dumps(tpl.scanner_options),
+                    json.dumps(tpl.tags),
+                    int(tpl.is_default),
+                    tpl.created_at,
+                    tpl.updated_at,
+                ),
+            )
+            conn.commit()
+
+    def get_scan_config_template(
+        self, template_id: str,
+    ) -> ScanConfigTemplate | None:
+        """Load a single scan config template by ID."""
+        with self._connect() as conn:
+            row = conn.execute(
+                "SELECT * FROM scan_config_templates WHERE template_id = ?",
+                (template_id,),
+            ).fetchone()
+
+        if row is None:
+            return None
+        return self._row_to_template(row)
+
+    def list_scan_config_templates(self) -> list[dict[str, Any]]:
+        """Return all scan config templates, ordered by name."""
+        with self._connect() as conn:
+            rows = conn.execute(
+                """SELECT * FROM scan_config_templates
+                   ORDER BY is_default DESC, name ASC"""
+            ).fetchall()
+
+        return [
+            {
+                "template_id": row["template_id"],
+                "name": row["name"],
+                "description": row["description"],
+                "profile": row["profile"],
+                "rate_limit_rps": row["rate_limit_rps"],
+                "max_requests": row["max_requests"],
+                "scanner_options": json.loads(row["scanner_options"]),
+                "tags": json.loads(row["tags"]),
+                "is_default": bool(row["is_default"]),
+                "created_at": row["created_at"],
+                "updated_at": row["updated_at"],
+            }
+            for row in rows
+        ]
+
+    def delete_scan_config_template(self, template_id: str) -> bool:
+        """Delete a scan config template. Returns True if found."""
+        with self._connect() as conn:
+            cursor = conn.execute(
+                "DELETE FROM scan_config_templates WHERE template_id = ?",
+                (template_id,),
+            )
+            conn.commit()
+            return cursor.rowcount > 0
+
+    def set_default_scan_config_template(self, template_id: str) -> None:
+        """Mark one template as default, clearing any previous default."""
+        with self._connect() as conn:
+            conn.execute(
+                "UPDATE scan_config_templates SET is_default = 0"
+            )
+            conn.execute(
+                "UPDATE scan_config_templates SET is_default = 1 "
+                "WHERE template_id = ?",
+                (template_id,),
+            )
+            conn.commit()
+
+    def get_default_scan_config_template(
+        self,
+    ) -> ScanConfigTemplate | None:
+        """Return the default template, or None."""
+        with self._connect() as conn:
+            row = conn.execute(
+                "SELECT * FROM scan_config_templates WHERE is_default = 1"
+            ).fetchone()
+
+        if row is None:
+            return None
+        return self._row_to_template(row)
+
+    @staticmethod
+    def _row_to_template(row: sqlite3.Row) -> ScanConfigTemplate:
+        """Convert a DB row to a ScanConfigTemplate."""
+        return ScanConfigTemplate(
+            template_id=row["template_id"],
+            name=row["name"],
+            description=row["description"],
+            profile=row["profile"],
+            rate_limit_rps=row["rate_limit_rps"],
+            max_requests=row["max_requests"],
+            excluded_paths=json.loads(row["excluded_paths"]),
+            auth_method=row["auth_method"],
+            report_formats=json.loads(row["report_formats"]),
+            llm_enrichment=bool(row["llm_enrichment"]),
+            llm_backend=row["llm_backend"],
+            scanner_options=json.loads(row["scanner_options"]),
+            tags=json.loads(row["tags"]),
+            is_default=bool(row["is_default"]),
+            created_at=row["created_at"],
+            updated_at=row["updated_at"],
+        )
+
+    # ------------------------------------------------------------------
+    # Seed default templates
+    # ------------------------------------------------------------------
+
+    def _seed_default_templates(self) -> None:
+        """Populate built-in scan config templates on first run."""
+        with self._connect() as conn:
+            count = conn.execute(
+                "SELECT COUNT(*) AS c FROM scan_config_templates"
+            ).fetchone()["c"]
+
+        if count > 0:
+            return
+
+        now = ""  # Will be set by caller if needed
+        defaults = [
+            ScanConfigTemplate(
+                template_id="builtin-01",
+                name="Quick Surface Scan",
+                description=(
+                    "Fast built-in checks only. Good for first look "
+                    "or CI gates."
+                ),
+                profile="quick",
+                rate_limit_rps=10.0,
+                max_requests=10_000,
+                llm_enrichment=False,
+                scanner_options={},
+                tags=["built-in", "ci", "fast"],
+                is_default=True,
+                created_at=now,
+                updated_at=now,
+            ),
+            ScanConfigTemplate(
+                template_id="builtin-02",
+                name="Pre-Launch Audit",
+                description=(
+                    "Comprehensive scan before go-live. Built-in checks "
+                    "plus network scanners."
+                ),
+                profile="pre-launch",
+                rate_limit_rps=10.0,
+                max_requests=10_000,
+                llm_enrichment=True,
+                scanner_options={
+                    "nmap": {
+                        "ports": "80,443,8080,8443,8000,3000,9090",
+                        "script_categories": ["default", "safe", "vuln"],
+                    },
+                    "wapiti": {
+                        "scope": "folder",
+                        "modules": "all",
+                        "max_links": 500,
+                    },
+                },
+                tags=["built-in", "pre-launch"],
+                created_at=now,
+                updated_at=now,
+            ),
+            ScanConfigTemplate(
+                template_id="builtin-03",
+                name="Full OWASP Top 10",
+                description=(
+                    "Maximum coverage with all scanners including "
+                    "active injection testing."
+                ),
+                profile="full",
+                rate_limit_rps=5.0,
+                max_requests=50_000,
+                llm_enrichment=True,
+                scanner_options={
+                    "nuclei": {
+                        "tags": [
+                            "cve", "misconfig", "exposure",
+                            "default-login",
+                        ],
+                        "severity": ["critical", "high", "medium"],
+                        "rate_limit": 100,
+                    },
+                    "nikto": {
+                        "tuning": "123bde",
+                        "plugins": [
+                            "@@DEFAULT", "shellshock", "headers",
+                            "springboot",
+                        ],
+                    },
+                    "wapiti": {
+                        "scope": "domain",
+                        "modules": "all",
+                        "max_scan_time": 900,
+                        "max_links": 1000,
+                    },
+                    "nmap": {
+                        "ports": (
+                            "80,443,8080,8443,8000,8888,"
+                            "3000,5000,9090,9443"
+                        ),
+                        "script_categories": [
+                            "default", "safe", "vuln", "discovery",
+                        ],
+                    },
+                },
+                tags=["built-in", "comprehensive", "owasp"],
+                created_at=now,
+                updated_at=now,
+            ),
+            ScanConfigTemplate(
+                template_id="builtin-04",
+                name="Regression Check",
+                description=(
+                    "Lightweight post-deployment check. Headers, TLS, "
+                    "and misconfiguration only."
+                ),
+                profile="regression",
+                rate_limit_rps=20.0,
+                max_requests=5_000,
+                llm_enrichment=False,
+                scanner_options={
+                    "misc_checks": {"check_sensitive_paths": False},
+                    "tls_checks": {"cert_expiry_warn_days": 30},
+                },
+                tags=["built-in", "ci", "fast", "regression"],
+                created_at=now,
+                updated_at=now,
+            ),
+            ScanConfigTemplate(
+                template_id="builtin-05",
+                name="Compliance Audit",
+                description=(
+                    "Focused on SOC 2 / ISO 27001 / PCI-DSS "
+                    "control verification."
+                ),
+                profile="compliance",
+                rate_limit_rps=10.0,
+                max_requests=20_000,
+                llm_enrichment=True,
+                scanner_options={
+                    "nmap": {
+                        "ports": "80,443,8080,8443,22,3389",
+                        "script_categories": [
+                            "default", "safe", "vuln", "auth",
+                        ],
+                    },
+                    "tls_checks": {"cert_expiry_warn_days": 60},
+                    "info_disclosure": {
+                        "check_error_pages": True,
+                        "check_version_endpoints": True,
+                    },
+                },
+                tags=["built-in", "compliance", "audit"],
+                created_at=now,
+                updated_at=now,
+            ),
+        ]
+
+        for tpl in defaults:
+            self.save_scan_config_template(tpl)

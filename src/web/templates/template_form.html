@@ -1,0 +1,813 @@
+{% extends "base.html" %}
+{% block title %}HARIS — {% if template %}Edit Template{% else %}New Template{% endif %}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div class="breadcrumb">
+    <a href="/templates">Templates</a>
+    <span class="sep">/</span>
+    {% if template %}Edit: {{ template.name }}{% else %}New Template{% endif %}
+  </div>
+</div>
+
+<h1 style="font-size:1.5rem;margin-bottom:1.5rem;">
+  {% if template %}Edit Template{% else %}New Scan Template{% endif %}
+</h1>
+
+<form id="template-form">
+
+  <!-- ================================================================
+       Section 1: General Settings
+       ================================================================ -->
+  <div class="card">
+    <h2 style="font-size:1rem;margin-bottom:1.25rem;padding-bottom:.6rem;border-bottom:1px solid var(--border);">
+      General Settings
+    </h2>
+
+    <div class="form-group">
+      <label for="name">Template Name <span style="color:var(--critical);">*</span></label>
+      <input type="text" id="name" name="name" required
+             placeholder="e.g. Production API Baseline"
+             value="{{ template.name if template else '' }}">
+    </div>
+
+    <div class="form-group">
+      <label for="description">Description</label>
+      <textarea id="description" name="description" rows="2"
+                placeholder="What is this template used for?">{{ template.description if template else '' }}</textarea>
+    </div>
+
+    <div class="form-row">
+      <div class="form-group">
+        <label for="profile">Scan Profile</label>
+        <select id="profile" name="profile">
+          {% for p in profiles %}
+          <option value="{{ p.name }}"
+            {% if template and template.profile == p.name %}selected
+            {% elif not template and p.name == 'quick' %}selected{% endif %}>
+            {{ p.display_name }}
+          </option>
+          {% endfor %}
+        </select>
+        <p id="profile-desc" class="text-sm text-muted mt-1"></p>
+      </div>
+
+      <div class="form-group">
+        <label for="auth_method">Authentication</label>
+        <select id="auth_method" name="auth_method">
+          <option value="none" {% if not template or template.auth_method == 'none' %}selected{% endif %}>None</option>
+          <option value="header" {% if template and template.auth_method == 'header' %}selected{% endif %}>Bearer Token (Authorization header)</option>
+          <option value="cookie" {% if template and template.auth_method == 'cookie' %}selected{% endif %}>Cookie</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="form-row">
+      <div class="form-group">
+        <label for="rate_limit_rps">Rate Limit (req/s)</label>
+        <input type="number" id="rate_limit_rps" name="rate_limit_rps"
+               value="{{ template.rate_limit_rps if template else 10 }}"
+               min="1" max="100">
+      </div>
+      <div class="form-group">
+        <label for="max_requests">Max Requests</label>
+        <input type="number" id="max_requests" name="max_requests"
+               value="{{ template.max_requests if template else 10000 }}"
+               min="100">
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label for="excluded_paths">Excluded Paths <span class="text-muted text-sm">(one per line, regex supported)</span></label>
+      <textarea id="excluded_paths" name="excluded_paths" rows="3"
+                placeholder="/logout&#10;/api/admin/.*">{{ (template.excluded_paths | join('\n')) if template and template.excluded_paths else '' }}</textarea>
+    </div>
+
+    <div class="form-group">
+      <label>Report Formats</label>
+      <div class="checkbox-group">
+        <label>
+          <input type="checkbox" name="report_formats" value="markdown"
+            {% if not template or 'markdown' in template.report_formats %}checked{% endif %}>
+          Markdown
+        </label>
+        <label>
+          <input type="checkbox" name="report_formats" value="json"
+            {% if not template or 'json' in template.report_formats %}checked{% endif %}>
+          JSON
+        </label>
+        <label>
+          <input type="checkbox" name="report_formats" value="html"
+            {% if template and 'html' in template.report_formats %}checked{% endif %}>
+          HTML
+        </label>
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label>AI-Powered Analysis</label>
+      <div class="checkbox-group">
+        <label>
+          <input type="checkbox" id="llm_enrichment" name="llm_enrichment" value="1"
+            {% if template and template.llm_enrichment %}checked{% endif %}>
+          Enable LLM enrichment
+        </label>
+      </div>
+      <p class="text-sm text-muted mt-1">
+        Adds attack narratives, chain detection, and smart triage to findings.
+        Requires an LLM API key (Anthropic, OpenAI, or local Ollama).
+      </p>
+    </div>
+
+    <div id="llm-backend-group" class="form-group" style="display:none;">
+      <label for="llm_backend">LLM Backend</label>
+      <select id="llm_backend" name="llm_backend">
+        <option value="">Loading...</option>
+      </select>
+    </div>
+
+    <div class="form-group">
+      <label for="tags">Tags <span class="text-muted text-sm">(comma-separated)</span></label>
+      <input type="text" id="tags" name="tags"
+             placeholder="production, api, compliance"
+             value="{{ (template.tags | join(', ')) if template and template.tags else '' }}">
+    </div>
+  </div>
+
+  <!-- ================================================================
+       Section 2: Scanner Options (accordion)
+       ================================================================ -->
+  <div class="card" style="margin-top:1.5rem;">
+    <h2 style="font-size:1rem;margin-bottom:1.25rem;padding-bottom:.6rem;border-bottom:1px solid var(--border);">
+      Scanner Options
+    </h2>
+    <p class="text-sm text-muted" style="margin-bottom:1.25rem;">
+      Configure per-scanner options. Panels are shown based on the selected profile.
+    </p>
+
+    <!-- Nuclei -->
+    <details class="scanner-panel" id="panel-nuclei" style="display:none;">
+      <summary class="scanner-panel-header">
+        <span class="scanner-panel-title">Nuclei</span>
+        <span class="scanner-panel-meta text-sm text-muted">Template-based CVE and misconfiguration scanner</span>
+      </summary>
+      <div class="scanner-panel-body">
+        <div class="form-group">
+          <label>Template Tags</label>
+          <div class="checkbox-group" id="nuclei-tags-group">
+            {% set nuclei_tag_opts = ['cve', 'misconfig', 'exposure', 'default-login', 'xss', 'sqli', 'ssrf', 'lfi', 'rfi', 'rce', 'tech-detect', 'panel'] %}
+            {% set nuclei_tags_saved = template.scanner_options.nuclei.tags if template and template.scanner_options and 'nuclei' in template.scanner_options and 'tags' in template.scanner_options.nuclei else [] %}
+            {% for tag in nuclei_tag_opts %}
+            <label>
+              <input type="checkbox" name="nuclei_tags" value="{{ tag }}"
+                {% if not template or tag in nuclei_tags_saved %}checked{% endif %}>
+              {{ tag }}
+            </label>
+            {% endfor %}
+          </div>
+          <div class="form-group" style="margin-top:.6rem;margin-bottom:0;">
+            <label for="nuclei_custom_tags">Custom Tags <span class="text-muted text-sm">(comma-separated)</span></label>
+            <input type="text" id="nuclei_custom_tags" name="nuclei_custom_tags"
+                   placeholder="custom-tag,my-templates"
+                   value="">
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Severity Filter</label>
+          <div class="checkbox-group">
+            {% set nuclei_sev_opts = ['critical', 'high', 'medium', 'low', 'info'] %}
+            {% set nuclei_sev_saved = template.scanner_options.nuclei.severity if template and template.scanner_options and 'nuclei' in template.scanner_options and 'severity' in template.scanner_options.nuclei else [] %}
+            {% for sev in nuclei_sev_opts %}
+            <label>
+              <input type="checkbox" name="nuclei_severity" value="{{ sev }}"
+                {% if not template or sev in nuclei_sev_saved %}checked{% endif %}>
+              <span class="badge badge-{{ sev }}">{{ sev }}</span>
+            </label>
+            {% endfor %}
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label for="nuclei_rate_limit">Rate Limit (req/s)</label>
+            <input type="number" id="nuclei_rate_limit" name="nuclei_rate_limit"
+                   value="{{ template.scanner_options.nuclei.rate_limit if template and template.scanner_options and 'nuclei' in template.scanner_options and 'rate_limit' in template.scanner_options.nuclei else 150 }}"
+                   min="1" max="500">
+          </div>
+          <div class="form-group">
+            <label for="nuclei_timeout">Timeout (seconds)</label>
+            <input type="number" id="nuclei_timeout" name="nuclei_timeout"
+                   value="{{ template.scanner_options.nuclei.timeout if template and template.scanner_options and 'nuclei' in template.scanner_options and 'timeout' in template.scanner_options.nuclei else 600 }}"
+                   min="30">
+          </div>
+        </div>
+      </div>
+    </details>
+
+    <!-- Nikto -->
+    <details class="scanner-panel" id="panel-nikto" style="display:none;">
+      <summary class="scanner-panel-header">
+        <span class="scanner-panel-title">Nikto</span>
+        <span class="scanner-panel-meta text-sm text-muted">Web server misconfiguration and outdated software scanner</span>
+      </summary>
+      <div class="scanner-panel-body">
+        <div class="form-group">
+          <label>Tuning</label>
+          <div class="checkbox-group" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:.4rem;">
+            {% set nikto_tunings = [
+              ('1', 'Interesting File'),
+              ('2', 'Misconfiguration'),
+              ('3', 'Info Disclosure'),
+              ('4', 'Injection'),
+              ('5', 'Remote File Retrieval'),
+              ('6', 'DoS'),
+              ('7', 'Remote File Retrieval (Server)'),
+              ('8', 'Command Execution'),
+              ('9', 'SQL Injection'),
+              ('0', 'File Upload'),
+              ('a', 'Auth Bypass'),
+              ('b', 'Software ID'),
+            ] %}
+            {% set nikto_tuning_saved = template.scanner_options.nikto.tuning if template and template.scanner_options and 'nikto' in template.scanner_options and 'tuning' in template.scanner_options.nikto else [] %}
+            {% for val, lbl in nikto_tunings %}
+            <label>
+              <input type="checkbox" name="nikto_tuning" value="{{ val }}"
+                {% if not template or val in nikto_tuning_saved %}checked{% endif %}>
+              {{ val }} — {{ lbl }}
+            </label>
+            {% endfor %}
+          </div>
+        </div>
+        <div class="form-group" style="max-width:200px;">
+          <label for="nikto_timeout">Timeout (seconds)</label>
+          <input type="number" id="nikto_timeout" name="nikto_timeout"
+                 value="{{ template.scanner_options.nikto.timeout if template and template.scanner_options and 'nikto' in template.scanner_options and 'timeout' in template.scanner_options.nikto else 300 }}"
+                 min="30">
+        </div>
+      </div>
+    </details>
+
+    <!-- Nmap -->
+    <details class="scanner-panel" id="panel-nmap" style="display:none;">
+      <summary class="scanner-panel-header">
+        <span class="scanner-panel-title">Nmap</span>
+        <span class="scanner-panel-meta text-sm text-muted">Network reconnaissance and port/service scanner</span>
+      </summary>
+      <div class="scanner-panel-body">
+        <div class="form-group">
+          <label for="nmap_ports">Ports</label>
+          <div style="display:flex;gap:.5rem;align-items:flex-start;flex-wrap:wrap;margin-bottom:.4rem;">
+            <button type="button" class="btn btn-secondary btn-sm"
+                    onclick="document.getElementById('nmap_ports').value='80,443,8080,8443'">
+              Common Web
+            </button>
+            <button type="button" class="btn btn-secondary btn-sm"
+                    onclick="document.getElementById('nmap_ports').value='80,443,8080,8443,8000,8888,3000,5000,9090'">
+              Extended
+            </button>
+            <button type="button" class="btn btn-secondary btn-sm"
+                    onclick="document.getElementById('nmap_ports').value='80,443,8080,8443,22,3389'">
+              Compliance
+            </button>
+          </div>
+          <input type="text" id="nmap_ports" name="nmap_ports"
+                 placeholder="80,443,8080,8443"
+                 value="{{ template.scanner_options.nmap.ports if template and template.scanner_options and 'nmap' in template.scanner_options and 'ports' in template.scanner_options.nmap else '80,443,8080,8443' }}">
+        </div>
+        <div class="form-group">
+          <label>Script Categories</label>
+          <div class="checkbox-group">
+            {% set nmap_scripts = ['default', 'safe', 'vuln', 'discovery', 'auth', 'version', 'brute', 'exploit'] %}
+            {% set nmap_scripts_saved = template.scanner_options.nmap.script_categories if template and template.scanner_options and 'nmap' in template.scanner_options and 'script_categories' in template.scanner_options.nmap else [] %}
+            {% for sc in nmap_scripts %}
+            <label>
+              <input type="checkbox" name="nmap_script_categories" value="{{ sc }}"
+                {% if not template or sc in nmap_scripts_saved %}checked{% endif %}>
+              {{ sc }}
+            </label>
+            {% endfor %}
+          </div>
+        </div>
+        <div class="form-group" style="max-width:200px;">
+          <label for="nmap_timeout">Timeout (seconds)</label>
+          <input type="number" id="nmap_timeout" name="nmap_timeout"
+                 value="{{ template.scanner_options.nmap.timeout if template and template.scanner_options and 'nmap' in template.scanner_options and 'timeout' in template.scanner_options.nmap else 300 }}"
+                 min="30">
+        </div>
+      </div>
+    </details>
+
+    <!-- Wapiti -->
+    <details class="scanner-panel" id="panel-wapiti" style="display:none;">
+      <summary class="scanner-panel-header">
+        <span class="scanner-panel-title">Wapiti</span>
+        <span class="scanner-panel-meta text-sm text-muted">Black-box web application vulnerability scanner</span>
+      </summary>
+      <div class="scanner-panel-body">
+        <div class="form-group">
+          <label for="wapiti_modules">Modules</label>
+          <div style="display:flex;gap:.5rem;align-items:flex-start;flex-wrap:wrap;margin-bottom:.4rem;">
+            <button type="button" class="btn btn-secondary btn-sm"
+                    onclick="document.getElementById('wapiti_modules').value='all'">
+              All
+            </button>
+            {% for mod in ['sql', 'xss', 'xxe', 'ssrf', 'exec', 'file'] %}
+            <button type="button" class="btn btn-secondary btn-sm"
+                    onclick="addWapitiModule('{{ mod }}')">
+              {{ mod }}
+            </button>
+            {% endfor %}
+          </div>
+          <input type="text" id="wapiti_modules" name="wapiti_modules"
+                 placeholder="all"
+                 value="{{ template.scanner_options.wapiti.modules if template and template.scanner_options and 'wapiti' in template.scanner_options and 'modules' in template.scanner_options.wapiti else 'all' }}">
+          <p class="text-sm text-muted mt-1">Use <code>all</code> for all modules, or comma-separate individual ones.</p>
+        </div>
+        <div class="form-group">
+          <label for="wapiti_scope">Scope</label>
+          <select id="wapiti_scope" name="wapiti_scope">
+            <option value="folder" {% if not template or not template.scanner_options or 'wapiti' not in template.scanner_options or template.scanner_options.wapiti.get('scope','folder') == 'folder' %}selected{% endif %}>folder</option>
+            <option value="domain" {% if template and template.scanner_options and 'wapiti' in template.scanner_options and template.scanner_options.wapiti.get('scope') == 'domain' %}selected{% endif %}>domain</option>
+          </select>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label for="wapiti_max_scan_time">Max Scan Time (seconds)</label>
+            <input type="number" id="wapiti_max_scan_time" name="wapiti_max_scan_time"
+                   value="{{ template.scanner_options.wapiti.max_scan_time if template and template.scanner_options and 'wapiti' in template.scanner_options and 'max_scan_time' in template.scanner_options.wapiti else 600 }}"
+                   min="60">
+          </div>
+          <div class="form-group">
+            <label for="wapiti_max_links">Max Links</label>
+            <input type="number" id="wapiti_max_links" name="wapiti_max_links"
+                   value="{{ template.scanner_options.wapiti.max_links if template and template.scanner_options and 'wapiti' in template.scanner_options and 'max_links' in template.scanner_options.wapiti else 500 }}"
+                   min="1">
+          </div>
+        </div>
+        <div class="form-group" style="max-width:200px;">
+          <label for="wapiti_timeout">Timeout (seconds)</label>
+          <input type="number" id="wapiti_timeout" name="wapiti_timeout"
+                 value="{{ template.scanner_options.wapiti.timeout if template and template.scanner_options and 'wapiti' in template.scanner_options and 'timeout' in template.scanner_options.wapiti else 300 }}"
+                 min="30">
+        </div>
+      </div>
+    </details>
+
+    <!-- SSLyze -->
+    <details class="scanner-panel" id="panel-sslyze" style="display:none;">
+      <summary class="scanner-panel-header">
+        <span class="scanner-panel-title">SSLyze</span>
+        <span class="scanner-panel-meta text-sm text-muted">TLS/SSL configuration and certificate analyser</span>
+      </summary>
+      <div class="scanner-panel-body">
+        <div class="form-group" style="max-width:200px;">
+          <label for="sslyze_timeout">Timeout (seconds)</label>
+          <input type="number" id="sslyze_timeout" name="sslyze_timeout"
+                 value="{{ template.scanner_options.sslyze.timeout if template and template.scanner_options and 'sslyze' in template.scanner_options and 'timeout' in template.scanner_options.sslyze else 120 }}"
+                 min="10">
+        </div>
+      </div>
+    </details>
+
+    <!-- Built-in Checks (always shown, collapsed by default) -->
+    <details class="scanner-panel" id="panel-builtins">
+      <summary class="scanner-panel-header">
+        <span class="scanner-panel-title">Built-in Checks</span>
+        <span class="scanner-panel-meta text-sm text-muted">header_checks, tls_checks, misc_checks, info_disclosure, cookie_checks</span>
+      </summary>
+      <div class="scanner-panel-body">
+
+        <p class="text-sm text-muted" style="margin-bottom:1rem;">
+          These checks are always included in every profile.
+        </p>
+
+        <!-- header_checks -->
+        <div style="margin-bottom:1.25rem;">
+          <p style="font-size:.82rem;font-weight:600;color:var(--fg);margin-bottom:.5rem;">header_checks</p>
+          <div class="checkbox-group">
+            <label>
+              <input type="checkbox" id="header_checks_follow_redirects" name="header_checks_follow_redirects" value="1"
+                {% if template and template.scanner_options and 'header_checks' in template.scanner_options and template.scanner_options.header_checks.get('follow_redirects') %}checked{% endif %}>
+              follow_redirects
+            </label>
+          </div>
+        </div>
+
+        <!-- tls_checks -->
+        <div style="margin-bottom:1.25rem;">
+          <p style="font-size:.82rem;font-weight:600;color:var(--fg);margin-bottom:.5rem;">tls_checks</p>
+          <div class="form-group" style="max-width:220px;margin-bottom:0;">
+            <label for="tls_cert_expiry_warn_days">cert_expiry_warn_days</label>
+            <input type="number" id="tls_cert_expiry_warn_days" name="tls_cert_expiry_warn_days"
+                   value="{{ template.scanner_options.tls_checks.cert_expiry_warn_days if template and template.scanner_options and 'tls_checks' in template.scanner_options and 'cert_expiry_warn_days' in template.scanner_options.tls_checks else 30 }}"
+                   min="1" max="365">
+          </div>
+        </div>
+
+        <!-- misc_checks -->
+        <div style="margin-bottom:1.25rem;">
+          <p style="font-size:.82rem;font-weight:600;color:var(--fg);margin-bottom:.5rem;">misc_checks</p>
+          <div class="checkbox-group">
+            {% set misc_opts = [
+              ('check_cors', 'check_cors'),
+              ('check_redirect', 'check_redirect'),
+              ('check_sensitive_paths', 'check_sensitive_paths'),
+            ] %}
+            {% for field, lbl in misc_opts %}
+            <label>
+              <input type="checkbox" name="{{ field }}" value="1"
+                {% if not template or not template.scanner_options or 'misc_checks' not in template.scanner_options or template.scanner_options.misc_checks.get(field, True) %}checked{% endif %}>
+              {{ lbl }}
+            </label>
+            {% endfor %}
+          </div>
+        </div>
+
+        <!-- info_disclosure -->
+        <div style="margin-bottom:.25rem;">
+          <p style="font-size:.82rem;font-weight:600;color:var(--fg);margin-bottom:.5rem;">info_disclosure</p>
+          <div class="checkbox-group">
+            {% set info_opts = [
+              ('check_error_pages', 'check_error_pages'),
+              ('check_debug_endpoints', 'check_debug_endpoints'),
+              ('check_html_comments', 'check_html_comments'),
+              ('check_version_endpoints', 'check_version_endpoints'),
+            ] %}
+            {% for field, lbl in info_opts %}
+            <label>
+              <input type="checkbox" name="{{ field }}" value="1"
+                {% if not template or not template.scanner_options or 'info_disclosure' not in template.scanner_options or template.scanner_options.info_disclosure.get(field, True) %}checked{% endif %}>
+              {{ lbl }}
+            </label>
+            {% endfor %}
+          </div>
+        </div>
+
+      </div>
+    </details>
+
+  </div><!-- /card scanner options -->
+
+  <!-- Submit -->
+  <div style="display:flex;align-items:center;gap:1rem;margin-top:1.5rem;margin-bottom:3rem;">
+    <button type="submit" class="btn btn-primary" id="submit-btn">
+      {% if template %}Update Template{% else %}Save Template{% endif %}
+    </button>
+    <a href="/templates" class="btn btn-secondary">Cancel</a>
+    <span id="submit-status" class="text-sm text-muted"></span>
+  </div>
+
+</form>
+{% endblock %}
+
+
+{% block scripts %}
+<style>
+  /* Scanner panel accordion */
+  .scanner-panel {
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    margin-bottom: .6rem;
+    transition: border-color var(--transition);
+  }
+  .scanner-panel[open] { border-color: var(--border-hover); }
+
+  .scanner-panel-header {
+    display: flex;
+    align-items: center;
+    gap: .75rem;
+    padding: .75rem 1rem;
+    cursor: pointer;
+    list-style: none;
+    user-select: none;
+    border-radius: var(--radius);
+  }
+  .scanner-panel-header::-webkit-details-marker { display: none; }
+  .scanner-panel-header::before {
+    content: '';
+    display: inline-block;
+    width: 8px; height: 8px;
+    border-right: 1.5px solid var(--fg-muted);
+    border-bottom: 1.5px solid var(--fg-muted);
+    transform: rotate(-45deg);
+    transition: transform var(--transition);
+    flex-shrink: 0;
+    margin-right: .1rem;
+  }
+  details[open] .scanner-panel-header::before {
+    transform: rotate(45deg);
+  }
+  .scanner-panel-title {
+    font-size: .88rem;
+    font-weight: 600;
+    color: var(--fg);
+  }
+  .scanner-panel-meta { margin-left: auto; }
+
+  .scanner-panel-body {
+    padding: 1rem 1rem 1.1rem;
+    border-top: 1px solid var(--border);
+  }
+</style>
+
+<script>
+  // ----------------------------------------------------------------
+  // Profile → scanner mapping (mirrors src/core/profiles.py)
+  // ----------------------------------------------------------------
+  const PROFILE_SCANNERS = {
+    {% for p in profiles %}
+    "{{ p.name }}": {{ p.scanners | tojson }},
+    {% endfor %}
+  };
+
+  // External-tool panels (built-ins panel is always shown)
+  const SCANNER_PANELS = {
+    "nuclei":  document.getElementById("panel-nuclei"),
+    "nikto":   document.getElementById("panel-nikto"),
+    "nmap":    document.getElementById("panel-nmap"),
+    "wapiti":  document.getElementById("panel-wapiti"),
+    "sslyze":  document.getElementById("panel-sslyze"),
+  };
+
+  const profileDescriptions = {
+    {% for p in profiles %}
+    "{{ p.name }}": "{{ p.description | replace('"', '\\"') | replace('\n', ' ') }}",
+    {% endfor %}
+  };
+
+  function updateScannerPanels(profileName) {
+    const scanners = PROFILE_SCANNERS[profileName] || [];
+    Object.entries(SCANNER_PANELS).forEach(([name, el]) => {
+      if (!el) return;
+      const visible = scanners.includes(name);
+      el.style.display = visible ? "" : "none";
+      // Collapse hidden panels to avoid stale data confusion
+      if (!visible) el.open = false;
+    });
+  }
+
+  const profileSelect = document.getElementById("profile");
+  const profileDesc   = document.getElementById("profile-desc");
+
+  profileSelect.addEventListener("change", function() {
+    profileDesc.textContent = profileDescriptions[this.value] || "";
+    updateScannerPanels(this.value);
+  });
+
+  // Initialise on page load
+  profileDesc.textContent = profileDescriptions[profileSelect.value] || "";
+  updateScannerPanels(profileSelect.value);
+
+  // ----------------------------------------------------------------
+  // LLM enrichment toggle
+  // ----------------------------------------------------------------
+  const llmCheckbox    = document.getElementById("llm_enrichment");
+  const llmBackendGrp  = document.getElementById("llm-backend-group");
+  let llmBackendsLoaded = false;
+
+  function syncLlmPanel() {
+    llmBackendGrp.style.display = llmCheckbox.checked ? "block" : "none";
+    if (llmCheckbox.checked && !llmBackendsLoaded) {
+      llmBackendsLoaded = true;
+      fetch("/api/llm/backends")
+        .then(r => r.json())
+        .then(data => {
+          const sel = document.getElementById("llm_backend");
+          sel.innerHTML = "";
+          data.backends.forEach(b => {
+            const opt = document.createElement("option");
+            opt.value = b.name;
+            opt.textContent = b.available ? b.name : b.name + " (unavailable)";
+            opt.disabled = !b.available;
+            // In edit mode honour the saved backend, otherwise pick the default
+            const saved = {{ ('"' + template.llm_backend + '"') if template and template.llm_backend else 'null' }};
+            if (saved ? b.name === saved : b.name === data.default) opt.selected = true;
+            sel.appendChild(opt);
+          });
+        })
+        .catch(() => {
+          document.getElementById("llm_backend").innerHTML =
+            '<option value="anthropic">anthropic</option>';
+        });
+    }
+  }
+
+  llmCheckbox.addEventListener("change", syncLlmPanel);
+  // Trigger immediately if checked (edit mode with enrichment on)
+  if (llmCheckbox.checked) syncLlmPanel();
+
+  // ----------------------------------------------------------------
+  // Wapiti module quick-add helper
+  // ----------------------------------------------------------------
+  function addWapitiModule(mod) {
+    const inp = document.getElementById("wapiti_modules");
+    if (inp.value === "all") {
+      inp.value = mod;
+      return;
+    }
+    const parts = inp.value.split(",").map(s => s.trim()).filter(Boolean);
+    if (!parts.includes(mod)) parts.push(mod);
+    inp.value = parts.join(",");
+  }
+
+  // ----------------------------------------------------------------
+  // Collect form data → structured JSON payload
+  // ----------------------------------------------------------------
+  function collectFormData() {
+    const get  = id => document.getElementById(id);
+    const vals = name => [...document.querySelectorAll(`[name="${name}"]:checked`)].map(el => el.value);
+
+    // Scanner options
+    const scannerOptions = {};
+
+    // Nuclei
+    const nucleiPanel = get("panel-nuclei");
+    if (nucleiPanel && nucleiPanel.style.display !== "none") {
+      const tags = vals("nuclei_tags");
+      const customRaw = (get("nuclei_custom_tags").value || "").trim();
+      if (customRaw) {
+        customRaw.split(",").map(s => s.trim()).filter(Boolean).forEach(t => {
+          if (!tags.includes(t)) tags.push(t);
+        });
+      }
+      scannerOptions.nuclei = {
+        tags: tags,
+        severity: vals("nuclei_severity"),
+        rate_limit: parseInt(get("nuclei_rate_limit").value, 10) || 150,
+        timeout: parseInt(get("nuclei_timeout").value, 10) || 600,
+      };
+    }
+
+    // Nikto
+    const niktoPanel = get("panel-nikto");
+    if (niktoPanel && niktoPanel.style.display !== "none") {
+      scannerOptions.nikto = {
+        tuning: vals("nikto_tuning"),
+        timeout: parseInt(get("nikto_timeout").value, 10) || 300,
+      };
+    }
+
+    // Nmap
+    const nmapPanel = get("panel-nmap");
+    if (nmapPanel && nmapPanel.style.display !== "none") {
+      scannerOptions.nmap = {
+        ports: get("nmap_ports").value.trim() || "80,443,8080,8443",
+        script_categories: vals("nmap_script_categories"),
+        timeout: parseInt(get("nmap_timeout").value, 10) || 300,
+      };
+    }
+
+    // Wapiti
+    const wapitiPanel = get("panel-wapiti");
+    if (wapitiPanel && wapitiPanel.style.display !== "none") {
+      scannerOptions.wapiti = {
+        modules: get("wapiti_modules").value.trim() || "all",
+        scope: get("wapiti_scope").value,
+        max_scan_time: parseInt(get("wapiti_max_scan_time").value, 10) || 600,
+        max_links: parseInt(get("wapiti_max_links").value, 10) || 500,
+        timeout: parseInt(get("wapiti_timeout").value, 10) || 300,
+      };
+    }
+
+    // SSLyze
+    const sslyzePanel = get("panel-sslyze");
+    if (sslyzePanel && sslyzePanel.style.display !== "none") {
+      scannerOptions.sslyze = {
+        timeout: parseInt(get("sslyze_timeout").value, 10) || 120,
+      };
+    }
+
+    // Built-in checks (always collected)
+    scannerOptions.header_checks = {
+      follow_redirects: get("header_checks_follow_redirects").checked,
+    };
+    scannerOptions.tls_checks = {
+      cert_expiry_warn_days: parseInt(get("tls_cert_expiry_warn_days").value, 10) || 30,
+    };
+    scannerOptions.misc_checks = {
+      check_cors:             document.querySelector('[name="check_cors"]').checked,
+      check_redirect:         document.querySelector('[name="check_redirect"]').checked,
+      check_sensitive_paths:  document.querySelector('[name="check_sensitive_paths"]').checked,
+    };
+    scannerOptions.info_disclosure = {
+      check_error_pages:       document.querySelector('[name="check_error_pages"]').checked,
+      check_debug_endpoints:   document.querySelector('[name="check_debug_endpoints"]').checked,
+      check_html_comments:     document.querySelector('[name="check_html_comments"]').checked,
+      check_version_endpoints: document.querySelector('[name="check_version_endpoints"]').checked,
+    };
+
+    // Tags
+    const tagsRaw = get("tags").value.trim();
+    const tagsArr = tagsRaw
+      ? tagsRaw.split(",").map(s => s.trim()).filter(Boolean)
+      : [];
+
+    // Excluded paths
+    const excludedRaw = get("excluded_paths").value.trim();
+    const excludedArr = excludedRaw
+      ? excludedRaw.split("\n").map(s => s.trim()).filter(Boolean)
+      : [];
+
+    // Report formats
+    const reportFormats = vals("report_formats");
+
+    return {
+      name:            get("name").value.trim(),
+      description:     get("description").value.trim(),
+      profile:         get("profile").value,
+      rate_limit_rps:  parseFloat(get("rate_limit_rps").value) || 10,
+      max_requests:    parseInt(get("max_requests").value, 10) || 10000,
+      excluded_paths:  excludedArr,
+      auth_method:     get("auth_method").value,
+      report_formats:  reportFormats,
+      llm_enrichment:  get("llm_enrichment").checked,
+      llm_backend:     llmCheckbox.checked ? (get("llm_backend").value || "") : "",
+      scanner_options: scannerOptions,
+      tags:            tagsArr,
+    };
+  }
+
+  // ----------------------------------------------------------------
+  // Form submit — POST (create) or PUT (edit)
+  // ----------------------------------------------------------------
+  document.getElementById("template-form").addEventListener("submit", async function(e) {
+    e.preventDefault();
+    const btn    = document.getElementById("submit-btn");
+    const status = document.getElementById("submit-status");
+
+    const payload = collectFormData();
+    if (!payload.name) {
+      status.textContent = "Template name is required.";
+      return;
+    }
+
+    btn.disabled = true;
+    status.innerHTML = '<span class="spinner"></span> Saving...';
+
+    try {
+      {% if template %}
+      const resp = await fetch("/api/scan-templates/{{ template.template_id }}", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      {% else %}
+      const resp = await fetch("/api/scan-templates", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      {% endif %}
+
+      const data = await resp.json();
+      if (resp.ok) {
+        window.location.href = "/templates";
+      } else {
+        status.textContent = "Error: " + (data.detail || JSON.stringify(data));
+        btn.disabled = false;
+      }
+    } catch (err) {
+      status.textContent = "Network error: " + err.message;
+      btn.disabled = false;
+    }
+  });
+
+  // ----------------------------------------------------------------
+  // Edit mode: pre-populate scanner_options fields
+  // (Jinja has already set basic inputs via value= attributes.
+  //  The JS below handles list-of-strings fields that Jinja can't
+  //  easily populate without server-side loops inside JS, and
+  //  also handles any mis-match between Jinja defaults vs saved data.)
+  // ----------------------------------------------------------------
+  {% if template and template.scanner_options %}
+  (function() {
+    const so = {{ template.scanner_options | tojson }};
+
+    // Nuclei tags — uncheck all, then check saved ones
+    if (so.nuclei && Array.isArray(so.nuclei.tags)) {
+      document.querySelectorAll('[name="nuclei_tags"]').forEach(cb => {
+        cb.checked = so.nuclei.tags.includes(cb.value);
+      });
+    }
+    if (so.nuclei && Array.isArray(so.nuclei.severity)) {
+      document.querySelectorAll('[name="nuclei_severity"]').forEach(cb => {
+        cb.checked = so.nuclei.severity.includes(cb.value);
+      });
+    }
+
+    // Nikto tuning
+    if (so.nikto && Array.isArray(so.nikto.tuning)) {
+      document.querySelectorAll('[name="nikto_tuning"]').forEach(cb => {
+        cb.checked = so.nikto.tuning.includes(cb.value);
+      });
+    }
+
+    // Nmap script categories
+    if (so.nmap && Array.isArray(so.nmap.script_categories)) {
+      document.querySelectorAll('[name="nmap_script_categories"]').forEach(cb => {
+        cb.checked = so.nmap.script_categories.includes(cb.value);
+      });
+    }
+  })();
+  {% endif %}
+</script>
+{% endblock %}

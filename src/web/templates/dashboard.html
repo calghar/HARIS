@@ -35,26 +35,28 @@
 
 <div class="dashboard-sections">
   <div>
-    <div class="section-title">Recent Critical &amp; High Findings</div>
-    <div class="card">
-      {% if summary.recent_findings %}
-      <ul class="finding-list">
-        {% for f in summary.recent_findings %}
-        <li>
-          <span class="badge badge-{{ f.severity }}">{{ f.severity[:4] }}</span>
-          <a href="/scan/{{ f.session_id }}">{{ f.title }}</a>
-          <span class="text-muted text-sm" style="margin-left:auto; white-space:nowrap; font-size:.72rem">
-            {{ f.target_url | replace('https://', '') | truncate(30) }}
-          </span>
-        </li>
-        {% endfor %}
-      </ul>
-      {% else %}
-      <div class="empty-state">
-        <svg viewBox="0 0 24 24" width="40" height="40" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" stroke-linejoin="round"/><path d="M9 12l2 2 4-4" stroke-linecap="round" stroke-linejoin="round"/></svg>
-        <p>No critical or high findings yet.</p>
+    <div class="section-title">Recent Scans</div>
+    <div class="filter-bar card" style="padding:.6rem 1rem; margin-bottom:.5rem; display:flex; gap:.5rem; flex-wrap:wrap; align-items:center">
+      <select id="dash-hostname" style="flex:1; min-width:140px" onchange="dashFilter()">
+        <option value="">All websites</option>
+        {% for h in hostnames %}<option value="{{ h }}">{{ h }}</option>{% endfor %}
+      </select>
+      <select id="dash-severity" style="width:120px" onchange="dashFilter()">
+        <option value="">All severities</option>
+        <option value="critical">Critical</option>
+        <option value="high">High</option>
+        <option value="medium">Medium</option>
+        <option value="low">Low</option>
+      </select>
+    </div>
+
+    <div class="card" style="padding:0; overflow:hidden; border-radius:var(--radius)">
+      <div id="dash-scan-table"
+           hx-get="/api/scans?format=html&per_page=10"
+           hx-trigger="load"
+           hx-target="#dash-scan-table">
+        <div class="text-muted text-sm" style="text-align:center; padding:2rem">Loading scans...</div>
       </div>
-      {% endif %}
     </div>
   </div>
 
@@ -81,31 +83,27 @@
       <a href="/scan/new" class="btn btn-sm btn-primary">Start your first scan</a>
     </div>
     {% endif %}
-  </div>
-</div>
 
-<!-- Scanner showcase -->
-<div class="section-title" style="margin-top: 2.5rem">Powered By Open Source</div>
-<div class="scanner-grid">
-  {% for s in scanners %}
-  <div class="scanner-card">
-    <div class="scanner-icon">
-      {% if s.icon == 'radar' %}
-      <svg viewBox="0 0 40 40" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="20" cy="20" r="16"/><circle cx="20" cy="20" r="10"/><circle cx="20" cy="20" r="4"/><path d="M20 4v16"/></svg>
-      {% elif s.icon == 'search' %}
-      <svg viewBox="0 0 40 40" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="17" cy="17" r="12"/><path d="M26 26l9 9"/><path d="M12 17h10M17 12v10"/></svg>
-      {% elif s.icon == 'shield' %}
-      <svg viewBox="0 0 40 40" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 3L5 10v10c0 11 7 17 15 19 8-2 15-8 15-19V10L20 3z"/><path d="M14 20l4 4 8-8"/></svg>
-      {% elif s.icon == 'network' %}
-      <svg viewBox="0 0 40 40" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="20" cy="8" r="4"/><circle cx="8" cy="32" r="4"/><circle cx="32" cy="32" r="4"/><path d="M20 12v8M14 26l4-6M26 26l-4-6"/></svg>
-      {% elif s.icon == 'lock' %}
-      <svg viewBox="0 0 40 40" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="18" width="24" height="18" rx="3"/><path d="M13 18v-5a7 7 0 0114 0v5"/><circle cx="20" cy="28" r="2"/></svg>
-      {% endif %}
+    <div class="section-title" style="margin-top:1.5rem">Quick Actions</div>
+    <div style="display:flex; gap:.5rem; flex-wrap:wrap">
+      <a href="/scan/new" class="btn btn-sm btn-primary">New Scan</a>
+      <a href="/templates" class="btn btn-sm btn-secondary">Templates</a>
+      <a href="/websites" class="btn btn-sm btn-secondary">All Websites</a>
+      <a href="/settings" class="btn btn-sm btn-secondary">Settings</a>
     </div>
-    <h4>{{ s.name }}</h4>
-    <p>{{ s.description }}</p>
-    <span class="badge" style="background:var(--bg-input);color:var(--fg-muted)">v{{ s.version }}</span>
   </div>
-  {% endfor %}
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function dashFilter() {
+  var h = document.getElementById('dash-hostname').value;
+  var s = document.getElementById('dash-severity').value;
+  var url = '/api/scans?format=html&per_page=10';
+  if (h) url += '&hostname=' + encodeURIComponent(h);
+  if (s) url += '&severity=' + encodeURIComponent(s);
+  htmx.ajax('GET', url, '#dash-scan-table');
+}
+</script>
 {% endblock %}

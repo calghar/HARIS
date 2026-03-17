@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block title %}HARIS — Settings{% endblock %}
+
+{% block content %}
+<h1 style="font-size:1.5rem;margin-bottom:1.5rem;">Settings</h1>
+
+<div class="settings-grid">
+  <!-- LLM Configuration -->
+  <div class="card">
+    <h3>LLM Configuration</h3>
+    <table class="settings-table">
+      <tr><td class="text-muted">Backend</td><td>{{ llm_backend or 'anthropic' }}</td></tr>
+      <tr><td class="text-muted">Enrichment</td><td>{{ 'Enabled' if llm_enrichment_enabled else 'Disabled' }}</td></tr>
+      <tr><td class="text-muted">Severity Threshold</td><td>{{ enrich_threshold or 'high' }}</td></tr>
+    </table>
+    <p class="text-sm text-muted mt-1">
+      Configure via <code>config/default_config.yaml</code> or environment variables.
+    </p>
+  </div>
+
+  <!-- Enabled Scanners -->
+  <div class="card">
+    <h3>Available Scanners</h3>
+    <div class="scanner-list">
+      {% for s in scanners %}
+      <div class="scanner-item">
+        <span class="badge badge-info">{{ s }}</span>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <!-- Database -->
+  <div class="card">
+    <h3>Database</h3>
+    <table class="settings-table">
+      <tr><td class="text-muted">Path</td><td><code>data/HARIS.db</code></td></tr>
+      <tr><td class="text-muted">Schema Version</td><td>4</td></tr>
+      <tr><td class="text-muted">Total Scans</td><td>{{ total_scans }}</td></tr>
+      <tr><td class="text-muted">Total Websites</td><td>{{ total_websites }}</td></tr>
+    </table>
+  </div>
+
+  <!-- Application Info -->
+  <div class="card">
+    <h3>Application</h3>
+    <table class="settings-table">
+      <tr><td class="text-muted">Version</td><td>0.1.0</td></tr>
+      <tr><td class="text-muted">Config File</td><td><code>config/default_config.yaml</code></td></tr>
+      <tr><td class="text-muted">Template Dir</td><td><code>{{ template_dir or './templates' }}</code></td></tr>
+    </table>
+  </div>
+</div>
+{% endblock %}

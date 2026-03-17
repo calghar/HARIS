@@ -1,0 +1,313 @@
+{% extends "base.html" %}
+{% block title %}HARIS — Templates{% endblock %}
+
+{% block content %}
+<div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:1.5rem">
+  <div>
+    <h1>Templates</h1>
+    <p class="text-muted text-sm">
+      {{ scan_templates | length }} scan configuration{{ 's' if scan_templates | length != 1 else '' }} &middot;
+      {{ scanner_sources | length }} scanner source{{ 's' if scanner_sources | length != 1 else '' }}
+    </p>
+  </div>
+  <a href="/templates/new" class="btn btn-primary">
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" width="14" height="14"><path d="M8 3v10M3 8h10"/></svg>
+    New Configuration
+  </a>
+</div>
+
+<div class="tabs">
+  <button class="tab active" data-tab="tab-scan-configs">Scan Configurations</button>
+  <button class="tab" data-tab="tab-scanner-templates">Scanner Templates</button>
+</div>
+
+<!-- ===== Tab 1: Scan Configurations ===== -->
+<div id="tab-scan-configs" class="tab-content active">
+  {% if scan_templates %}
+  <div class="website-grid" id="scan-templates-grid">
+    {% for tpl in scan_templates %}
+    <div class="template-card card" id="tpl-{{ tpl.template_id }}" style="padding:0; position:relative; overflow:hidden;">
+      {% if tpl.is_default %}
+      <div style="position:absolute; top:0; left:0; right:0; height:2px; background:var(--accent);"></div>
+      {% endif %}
+      <div style="padding:1.2rem 1.3rem 1rem;">
+        <!-- Header row -->
+        <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:.75rem; margin-bottom:.5rem;">
+          <div style="display:flex; align-items:center; gap:.5rem; flex-wrap:wrap; flex:1; min-width:0;">
+            <h3 style="font-size:.95rem; font-weight:600; margin:0; word-break:break-word;">{{ tpl.name }}</h3>
+            {% if tpl.is_default %}
+            <span class="badge" style="background:var(--accent-glow); color:var(--accent); border:1px solid var(--accent); font-size:.62rem;">Default</span>
+            {% endif %}
+          </div>
+          <span class="badge badge-info" style="flex-shrink:0; font-size:.62rem; white-space:nowrap;">{{ tpl.profile }}</span>
+        </div>
+
+        <!-- Description -->
+        {% if tpl.description %}
+        <p style="font-size:.8rem; color:var(--fg-muted); margin-bottom:.75rem; overflow:hidden; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical;">{{ tpl.description }}</p>
+        {% endif %}
+
+        <!-- Scanner options summary -->
+        {% if tpl.scanner_options %}
+        <p class="text-sm" style="color:var(--fg-muted); margin-bottom:.6rem; font-size:.78rem;">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" width="12" height="12" style="vertical-align:middle; opacity:.6; margin-right:.25rem;"><rect x="2" y="3" width="12" height="10" rx="1.5"/><path d="M5 7h6M5 10h4"/></svg>
+          {% for scanner_name, opts in tpl.scanner_options.items() %}
+            {% if not loop.first %} | {% endif %}
+            <strong style="color:var(--fg); font-weight:600;">{{ scanner_name }}</strong>:
+            {% if opts is mapping %}
+              {% set parts = [] %}
+              {% for k, v in opts.items() %}{% if parts.append(k ~ '=' ~ v) %}{% endif %}{% endfor %}
+              {{ parts | join(', ') if parts else '—' }}
+            {% else %}
+              {{ opts }}
+            {% endif %}
+          {% endfor %}
+        </p>
+        {% endif %}
+
+        <!-- Rate / requests -->
+        <p style="font-size:.75rem; color:var(--fg-muted); margin-bottom:.7rem;">
+          {{ tpl.rate_limit_rps }} req/s &middot; max {{ tpl.max_requests }} requests
+        </p>
+
+        <!-- Tags -->
+        {% if tpl.tags %}
+        <div style="display:flex; flex-wrap:wrap; gap:.3rem; margin-bottom:.85rem;">
+          {% for tag in tpl.tags %}
+          <span style="background:var(--bg-input); border:1px solid var(--border); border-radius:20px; padding:.1rem .55rem; font-size:.68rem; color:var(--fg-muted);">{{ tag }}</span>
+          {% endfor %}
+        </div>
+        {% endif %}
+
+        <!-- Created date -->
+        <p style="font-size:.72rem; color:var(--fg-muted);">Created {{ tpl.created_at[:10] if tpl.created_at else '—' }}</p>
+      </div>
+
+      <!-- Action footer -->
+      <div style="border-top:1px solid var(--border); padding:.65rem 1rem; display:flex; align-items:center; gap:.4rem; background:var(--bg);">
+        <a href="/templates/{{ tpl.template_id }}/edit" class="btn btn-sm btn-secondary">Edit</a>
+        <button class="btn btn-sm btn-secondary" onclick="cloneTemplate('{{ tpl.template_id }}', {{ tpl.name | tojson }})">Clone</button>
+        {% if not tpl.is_default %}
+        <button class="btn btn-sm btn-secondary" onclick="setDefaultTemplate('{{ tpl.template_id }}')">Set Default</button>
+        {% endif %}
+        <button class="btn btn-sm btn-danger" style="margin-left:auto;" onclick="deleteTemplate('{{ tpl.template_id }}', {{ tpl.name | tojson }})">Delete</button>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+
+  {% else %}
+  <div class="card empty-state">
+    <svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" width="48" height="48"><rect x="8" y="6" width="32" height="36" rx="3"/><path d="M16 16h16M16 23h16M16 30h10"/></svg>
+    <p>No scan configurations yet.</p>
+    <a href="/templates/new" class="btn btn-primary">Create your first configuration</a>
+  </div>
+  {% endif %}
+</div>
+
+<!-- ===== Tab 2: Scanner Templates ===== -->
+<div id="tab-scanner-templates" class="tab-content">
+  <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:1rem;">
+    <p class="text-muted text-sm">Scanner template sources and their local state</p>
+    <button class="btn btn-primary btn-sm" id="btn-update-all" onclick="updateAllSources()">
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" width="13" height="13"><path d="M13.5 8A5.5 5.5 0 112.5 5.5"/><path d="M2.5 2.5v3h3"/></svg>
+      Update All
+    </button>
+  </div>
+
+  {% if scanner_sources %}
+  <div class="card" style="padding:0;">
+    <table>
+      <thead>
+        <tr>
+          <th>Scanner</th>
+          <th>Source Name</th>
+          <th>Templates</th>
+          <th>Last Updated</th>
+          <th>Status</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody id="scanner-sources-tbody">
+        {% for src in scanner_sources %}
+        <tr id="src-row-{{ loop.index }}">
+          <td>
+            <span style="font-weight:600; text-transform:capitalize;">{{ src.scanner }}</span>
+          </td>
+          <td>
+            <code style="font-size:.82rem;">{{ src.source_name }}</code>
+            {% if src.local_path %}
+            <br><span style="font-size:.7rem; color:var(--fg-muted);">{{ src.local_path }}</span>
+            {% endif %}
+          </td>
+          <td>
+            {% if src.template_count is not none %}
+            <span style="font-weight:600;">{{ src.template_count }}</span>
+            {% else %}
+            <span class="text-muted">—</span>
+            {% endif %}
+          </td>
+          <td>
+            <span style="font-size:.82rem; color:var(--fg-muted);">
+              {{ src.last_updated[:10] if src.last_updated else '—' }}
+            </span>
+          </td>
+          <td>
+            <span id="src-status-{{ loop.index }}" class="src-status">
+              {% if src.last_updated %}
+              <span style="color:var(--low); font-size:.8rem; font-weight:500;">Up to date</span>
+              {% else %}
+              <span style="color:var(--fg-muted); font-size:.8rem;">Never updated</span>
+              {% endif %}
+            </span>
+          </td>
+          <td style="text-align:right;">
+            <button class="btn btn-sm btn-secondary" onclick="updateSource({{ loop.index }}, {{ src.scanner | tojson }}, {{ src.source_name | tojson }})">
+              Update
+            </button>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  {% else %}
+  <div class="card empty-state">
+    <svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" width="48" height="48"><path d="M24 6v36M6 24h36"/></svg>
+    <p>No scanner template sources configured.</p>
+    <p class="text-muted text-sm">Add sources in <code>config/default_config.yaml</code> under <code>template_sources</code>.</p>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// ===== Scan Configuration actions =====
+
+function deleteTemplate(id, name) {
+  if (!confirm('Delete configuration "' + name + '"? This cannot be undone.')) return;
+  fetch('/api/scan-templates/' + id, { method: 'DELETE' })
+    .then(function(res) {
+      if (!res.ok) return res.json().then(function(d) { throw new Error(d.detail || 'Delete failed'); });
+      var card = document.getElementById('tpl-' + id);
+      if (card) {
+        card.style.transition = 'opacity .25s, transform .25s';
+        card.style.opacity = '0';
+        card.style.transform = 'scale(.96)';
+        setTimeout(function() { card.remove(); }, 260);
+      }
+    })
+    .catch(function(err) { alert('Error: ' + err.message); });
+}
+
+function setDefaultTemplate(id) {
+  fetch('/api/scan-templates/' + id + '/set-default', { method: 'POST' })
+    .then(function(res) {
+      if (!res.ok) return res.json().then(function(d) { throw new Error(d.detail || 'Request failed'); });
+      location.reload();
+    })
+    .catch(function(err) { alert('Error: ' + err.message); });
+}
+
+function cloneTemplate(id, name) {
+  fetch('/api/scan-templates/' + id)
+    .then(function(res) {
+      if (!res.ok) return res.json().then(function(d) { throw new Error(d.detail || 'Fetch failed'); });
+      return res.json();
+    })
+    .then(function(data) {
+      data.name = 'Copy of ' + name;
+      delete data.template_id;
+      delete data.is_default;
+      delete data.created_at;
+      delete data.updated_at;
+      return fetch('/api/scan-templates', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+      });
+    })
+    .then(function(res) {
+      if (!res.ok) return res.json().then(function(d) { throw new Error(d.detail || 'Clone failed'); });
+      location.reload();
+    })
+    .catch(function(err) { alert('Error: ' + err.message); });
+}
+
+// ===== Scanner Template source actions =====
+
+function setSourceStatus(index, html) {
+  var el = document.getElementById('src-status-' + index);
+  if (el) el.innerHTML = html;
+}
+
+function updateSource(index, scanner, sourceName) {
+  setSourceStatus(index, '<span class="spinner" style="width:16px;height:16px;border-width:2px;vertical-align:middle;"></span>');
+  fetch('/api/templates/update', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ scanner: scanner, source_name: sourceName })
+  })
+    .then(function(res) {
+      return res.json().then(function(data) { return { ok: res.ok, data: data }; });
+    })
+    .then(function(result) {
+      if (result.ok) {
+        var msg = result.data.message || 'Updated';
+        setSourceStatus(index, '<span style="color:var(--low);font-size:.8rem;font-weight:500;">' + msg + '</span>');
+      } else {
+        setSourceStatus(index, '<span style="color:var(--critical);font-size:.8rem;">Failed: ' + (result.data.detail || 'Unknown error') + '</span>');
+      }
+    })
+    .catch(function(err) {
+      setSourceStatus(index, '<span style="color:var(--critical);font-size:.8rem;">Error: ' + err.message + '</span>');
+    });
+}
+
+function updateAllSources() {
+  var btn = document.getElementById('btn-update-all');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner" style="width:14px;height:14px;border-width:2px;vertical-align:middle;"></span> Updating...';
+
+  // Set all rows to pending
+  document.querySelectorAll('.src-status').forEach(function(el, i) {
+    el.innerHTML = '<span style="color:var(--fg-muted);font-size:.8rem;">Queued...</span>';
+  });
+
+  fetch('/api/templates/update', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({})
+  })
+    .then(function(res) {
+      return res.json().then(function(data) { return { ok: res.ok, data: data }; });
+    })
+    .then(function(result) {
+      btn.disabled = false;
+      btn.innerHTML = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" width="13" height="13"><path d="M13.5 8A5.5 5.5 0 112.5 5.5"/><path d="M2.5 2.5v3h3"/></svg> Update All';
+
+      if (result.ok) {
+        // Mark all as updated — a page reload gives the freshest state
+        document.querySelectorAll('.src-status').forEach(function(el) {
+          el.innerHTML = '<span style="color:var(--low);font-size:.8rem;font-weight:500;">Updated</span>';
+        });
+      } else {
+        document.querySelectorAll('.src-status').forEach(function(el) {
+          el.innerHTML = '<span style="color:var(--critical);font-size:.8rem;">Failed</span>';
+        });
+        alert('Update failed: ' + (result.data.detail || 'Unknown error'));
+      }
+    })
+    .catch(function(err) {
+      btn.disabled = false;
+      btn.innerHTML = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" width="13" height="13"><path d="M13.5 8A5.5 5.5 0 112.5 5.5"/><path d="M2.5 2.5v3h3"/></svg> Update All';
+      document.querySelectorAll('.src-status').forEach(function(el) {
+        el.innerHTML = '<span style="color:var(--critical);font-size:.8rem;">Error</span>';
+      });
+      alert('Error: ' + err.message);
+    });
+}
+</script>
+{% endblock %}

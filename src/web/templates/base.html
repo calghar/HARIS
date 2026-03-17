@@ -46,7 +46,11 @@
           <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M2 4h12M2 8h12M2 12h8"/></svg>
           Scans
         </a>
-        <a href="/scan/new" class="{% if nav_active == 'new' %}active{% endif %}">
+        <a href="/templates" class="{% if nav_active == 'templates' %}active{% endif %}">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><rect x="2" y="2" width="12" height="12" rx="1.5"/><path d="M5 5h6M5 8h6M5 11h4"/></svg>
+          Templates
+        </a>
+        <a href="/scan/new" class="nav-cta {% if nav_active == 'new' %}active{% endif %}">
           <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M8 3v10M3 8h10"/></svg>
           New Scan
         </a>

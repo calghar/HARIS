@@ -51,6 +51,9 @@ class ScanSession(BaseModel):
     )
     executive_priorities: str = ""
 
+    # Scan configuration template used (empty if none)
+    template_id: str = ""
+
     @property
     def duration_seconds(self) -> float:
         if not self.started_at or not self.finished_at:

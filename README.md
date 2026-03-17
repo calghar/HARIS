@@ -16,9 +16,11 @@ HARIS addresses this by:
 
 4. **Scenario-based profiles** -- Rather than "quick" vs "full", profiles map to real workflows: `pre-launch`, `regression`, `compliance`, etc.
 
-5. **LLM-powered analysis** -- Ask questions about a scan ("Explain the top 3 risks for an exec"), generate Jira tickets, draft stakeholder emails, or create CI test cases -- all grounded in the actual report data.
+5. **Reusable scan configuration templates** -- Save per-scanner options (Nuclei tags/severity, Nikto tuning/plugins, Nmap ports/scripts, Wapiti modules/scope) as named presets.  Five built-in defaults ship out of the box; create, edit, clone, and delete your own from the web UI.
 
-6. **OWASP Top 10 (2025) mapping** -- All findings are mapped to the latest OWASP Top 10 (2025) edition, including the new Supply Chain Failures and Exceptional Conditions categories.
+6. **LLM-powered analysis** -- Ask questions about a scan ("Explain the top 3 risks for an exec"), generate Jira tickets, draft stakeholder emails, or create CI test cases -- all grounded in the actual report data.
+
+7. **OWASP Top 10 (2025) mapping** -- All findings are mapped to the latest OWASP Top 10 (2025) edition, including the new Supply Chain Failures and Exceptional Conditions categories.
 
 ### Scanners (external tools)
 
@@ -99,15 +101,29 @@ python scripts/run_scan.py --web
 # Open http://localhost:8000
 ```
 
-The dashboard provides:
+### Navigation
 
-- **Scan History** with findings count, risk posture, and profile for each scan
-- **Delete Scan** button to remove scans and their reports from both the UI and database
-- **AI-Powered Enrichment** toggle on the scan form — adds attack narratives, chain detection, and smart triage (requires LLM API key)
-- **Multi-turn Chat** tab with conversation history, quick-action buttons, and token tracking
-- **AI Insights** tab showing attack chains, smart triage table, and enrichment summaries (visible when enrichment is enabled)
+The top bar provides: **Dashboard** | **Websites** | **Scans** | **Templates** | **New Scan** (CTA button).
+
+### Pages
+
+- **Dashboard** (`/`) -- Paginated scan history with HTMX-powered filters (website, severity), quick action buttons, and a "recently scanned" sidebar.
+- **Websites** (`/websites`) -- Per-target overview with aggregated stats.
+- **Website Detail** (`/website/{hostname}`) -- Visual timeline of scan history showing risk posture changes and finding deltas.  The scan table includes Template and Scanners columns.
+- **Scans** (`/scans`) -- Filterable scan list with template name and scanner name filters alongside the existing website/severity filters.
+- **Templates** (`/templates`) -- Unified hub with two tabs:
+  - *Scan Configurations* -- card grid for managing saved scan presets (create, edit, clone, delete).
+  - *Scanner Templates* -- manage template sources (Nuclei YAML repos, Nikto DBs, Nmap NSE scripts), trigger updates, and view status.
+- **New Scan** (`/scan/new`) -- Template selector dropdown auto-fills the form with saved presets.  Per-scanner advanced options are collapsible.  A "Save as Template" button persists the current settings for reuse.
+- **Settings** (`/settings`) -- Read-only overview of LLM backends, available scanners, and database info.
+
+### Scan detail tabs
+
+- **Findings** with severity/category filters
+- **Multi-turn Chat** with conversation history, quick-action buttons (including "Compare Scans"), and token tracking
+- **AI Insights** showing attack chains, smart triage table, and enrichment summaries (visible when enrichment is enabled)
 - **Structured Actions**: summarize (by audience), explain findings, generate remediation plans (Markdown/Jira/email), CI test cases, and code-level mitigations
-- **Remediation Checklist** tab with prioritised steps sorted by impact-to-effort ratio
+- **Remediation Checklist** with prioritised steps sorted by impact-to-effort ratio
 
 ## Usage: Docker
 
@@ -126,9 +142,39 @@ docker compose run --rm cli --url https://example.com --profile quick --yes
 | `regression` | header_checks, tls_checks, misc_checks | ~30-60s | CI pipeline gate |
 | `compliance` | Built-in + Nmap, SSLyze | ~5-15 min | SOC 2 / PCI-DSS prep |
 
-## Template Management
+## Scan Configuration Templates
 
-Scanner templates (Nuclei rules, Nikto databases, etc.) are managed centrally:
+Scan configuration templates are reusable presets that bundle a scan profile with per-scanner option overrides.  Five built-in templates are created on first run:
+
+| Template | Profile | Key Options |
+| -------- | ------- | ----------- |
+| Quick Surface Scan | `quick` | Built-in checks only, fast CI gate |
+| Pre-Launch Audit | `pre-launch` | Nmap common ports, Wapiti folder scope, LLM enrichment |
+| Full OWASP Top 10 | `full` | All scanners, Nuclei CVE/misconfig tags, Nikto tuning, rate-limited |
+| Regression Check | `regression` | Headers + TLS + misc only, high rate limit |
+| Compliance Audit | `compliance` | Nmap + TLS + info disclosure, 60-day cert warning, LLM enrichment |
+
+### Per-scanner options
+
+Each template can override options for any scanner:
+
+- **Nuclei**: `tags`, `severity`, `rate_limit`, `timeout`
+- **Nikto**: `plugins`, `tuning`, `timeout`
+- **Wapiti**: `modules`, `scope`, `max_scan_time`, `max_links`, `timeout`
+- **Nmap**: `ports`, `script_categories`, `timeout`
+- **SSLyze / header_checks / tls_checks / misc_checks / info_disclosure / cookie_checks**: see `src/models/scan_config_template.py` for the full list
+
+### Managing templates
+
+- **Web UI**: `/templates` page -- create, edit, clone, delete, and set a default template.
+- **API**: `GET /api/scan-templates`, `POST /api/scan-templates`, `PUT /api/scan-templates/{id}`, `DELETE /api/scan-templates/{id}`, `POST /api/scan-templates/{id}/set-default`.
+- **New Scan form**: select a template from the dropdown to pre-fill all fields; modify and optionally "Save as Template".
+
+When a scan is started with a template, the `template_id` is recorded on the scan session for traceability.
+
+## Scanner Template Management
+
+Scanner templates (Nuclei rules, Nikto databases, Nmap NSE scripts) are managed centrally:
 
 ```bash
 # Update all template sources
@@ -141,7 +187,7 @@ python scripts/run_scan.py update-templates --scanner nuclei
 python scripts/run_scan.py update-templates --list
 ```
 
-Configure sources in `config/default_config.yaml` under `template_sources:`. The web API also exposes `GET /api/templates/status` and `POST /api/templates/update`.
+Configure sources in `config/default_config.yaml` under `template_sources:`. The web API also exposes `GET /api/templates/status` and `POST /api/templates/update`. The `/templates` page in the web dashboard shows the status of all scanner template sources under its "Scanner Templates" tab.
 
 ## In-Pipeline LLM Enrichment
 

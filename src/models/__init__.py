@@ -25,6 +25,7 @@ from .risk import BusinessImpact
 from .scanner import ScannerResult
 from .session import ScanSession
 from .target import AuthConfig, Scope, Target
+from .scan_config_template import ScanConfigTemplate
 from .templates import TemplateConfig, TemplateMetadata, TemplateSource, UpdateResult
 
 __all__ = [
@@ -49,6 +50,7 @@ __all__ = [
     "LLMResponse",
     "OwaspMapping",
     "RemediationStep",
+    "ScanConfigTemplate",
     "ScannerConfig",
     "ScannerResult",
     "ScanProfile",

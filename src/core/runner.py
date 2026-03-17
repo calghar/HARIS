@@ -27,6 +27,7 @@ class ScanRunner:
         scanner_names: list[str] | None = None,
         llm_enrich: bool = False,
         llm_backend_name: str | None = None,
+        scanner_options: dict[str, dict[str, Any]] | None = None,
     ) -> None:
         self._target = target
         self._profile_name = profile_name
@@ -35,6 +36,7 @@ class ScanRunner:
         self._scanner_names = scanner_names
         self._llm_enrich = llm_enrich
         self._llm_backend_name = llm_backend_name
+        self._scanner_options = scanner_options or {}
 
     def run(self) -> ScanSession:
         """Execute the full scan pipeline and return the session."""
@@ -86,11 +88,14 @@ class ScanRunner:
             if cls is None:
                 logger.warning("Unknown scanner: %s — skipping", name)
                 continue
+            # Merge order: config defaults → template overrides
             options: dict[str, Any] = {}
             for sc in self._config.scanners:
                 if sc.name == name:
-                    options = sc.options
+                    options = dict(sc.options)
                     break
+            if name in self._scanner_options:
+                options.update(self._scanner_options[name])
             instances.append(cls(options=options))
 
         return instances

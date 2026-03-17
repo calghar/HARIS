@@ -44,6 +44,30 @@
 </div>
 {% endif %}
 
+{% if scans | length > 1 %}
+<div class="section-title">Timeline</div>
+<div class="timeline">
+  {% for scan in scans[:5] %}
+  <div class="timeline-item">
+    <div class="timeline-dot posture-{{ scan.risk_posture }}"></div>
+    <div class="timeline-content">
+      <span class="text-sm" style="font-weight:500">{{ scan.started_at[:10] if scan.started_at else '' }}</span>
+      <span class="badge posture-{{ scan.risk_posture }}" style="margin-left:.5rem">{{ scan.risk_posture }}</span>
+      <span class="text-sm text-muted" style="margin-left:.5rem">{{ scan.finding_count }} finding{{ 's' if scan.finding_count != 1 else '' }}</span>
+      {% if scan.profile_name %}<span class="text-sm text-muted"> &middot; {{ scan.profile_name }}</span>{% endif %}
+      {% if loop.index > 1 %}
+        {% set prev = scans[loop.index0 - 1] %}
+        {% set delta = scan.finding_count - prev.finding_count %}
+        {% if delta > 0 %}<span class="badge badge-high" style="margin-left:.5rem">+{{ delta }}</span>
+        {% elif delta < 0 %}<span class="badge badge-low" style="margin-left:.5rem">{{ delta }}</span>
+        {% endif %}
+      {% endif %}
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
 <div class="section-title">Scan History</div>
 <div class="card" style="padding: 0; overflow: hidden; border-radius: var(--radius)">
   <table>
@@ -51,6 +75,8 @@
       <tr>
         <th>Target</th>
         <th>Profile</th>
+        <th>Template</th>
+        <th>Scanners</th>
         <th>Findings</th>
         <th>Risk</th>
         <th>Date</th>
@@ -62,6 +88,8 @@
       <tr>
         <td><code style="font-size:.78rem">{{ scan.target_url }}</code></td>
         <td>{{ scan.profile_name }}</td>
+        <td class="text-sm">{{ template_names.get(scan.template_id, '—') if scan.template_id else '—' }}</td>
+        <td class="text-sm">{{ scan.scanners_used | join(', ') if scan.scanners_used else '—' }}</td>
         <td>{{ scan.finding_count }}</td>
         <td><span class="badge posture-{{ scan.risk_posture }}">{{ scan.risk_posture }}</span></td>
         <td class="text-sm text-muted">{{ scan.started_at[:16] if scan.started_at else '' }}</td>
@@ -69,7 +97,7 @@
       </tr>
       {% endfor %}
       {% if not scans %}
-      <tr><td colspan="6" class="text-muted text-sm" style="text-align:center; padding:2rem">No scans found for this website.</td></tr>
+      <tr><td colspan="8" class="text-muted text-sm" style="text-align:center; padding:2rem">No scans found for this website.</td></tr>
       {% endif %}
     </tbody>
   </table>

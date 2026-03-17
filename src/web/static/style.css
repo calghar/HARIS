@@ -737,3 +737,191 @@ main > *:not(script) {
   .scanner-grid { grid-template-columns: repeat(2, 1fr); }
   .dashboard-stats { grid-template-columns: 1fr; }
 }
+
+/* ----------------------------------------------------------------
+   New Scan CTA button in nav
+   ---------------------------------------------------------------- */
+.nav-cta {
+  background: var(--accent) !important;
+  color: #fff !important;
+  border-radius: var(--radius) !important;
+  padding: .35rem .8rem !important;
+  font-weight: 600;
+  transition: background .15s;
+}
+.nav-cta:hover { background: var(--accent-hover) !important; }
+
+/* ----------------------------------------------------------------
+   Timeline (website detail)
+   ---------------------------------------------------------------- */
+.timeline {
+  position: relative;
+  padding-left: 1.5rem;
+  margin-bottom: 1.5rem;
+}
+.timeline::before {
+  content: '';
+  position: absolute;
+  left: .55rem;
+  top: .25rem;
+  bottom: .25rem;
+  width: 2px;
+  background: var(--border);
+  border-radius: 1px;
+}
+.timeline-item {
+  position: relative;
+  padding-bottom: .75rem;
+  display: flex;
+  align-items: center;
+  gap: .25rem;
+}
+.timeline-dot {
+  position: absolute;
+  left: -1.5rem;
+  width: .7rem;
+  height: .7rem;
+  border-radius: 50%;
+  background: var(--fg-muted);
+  border: 2px solid var(--bg);
+  z-index: 1;
+}
+.timeline-dot.posture-critical { background: var(--critical); }
+.timeline-dot.posture-poor { background: var(--high); }
+.timeline-dot.posture-moderate { background: var(--medium); }
+.timeline-dot.posture-good { background: var(--low); }
+.timeline-dot.posture-excellent { background: var(--info); }
+
+/* ----------------------------------------------------------------
+   Template cards
+   ---------------------------------------------------------------- */
+.template-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 1rem;
+}
+.template-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1.2rem;
+  transition: border-color .15s, box-shadow .15s;
+}
+.template-card:hover {
+  border-color: var(--accent);
+  box-shadow: var(--shadow-md);
+}
+.template-card h3 {
+  margin: 0 0 .3rem 0;
+  font-size: 1rem;
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+}
+.template-card .meta {
+  display: flex;
+  gap: .5rem;
+  flex-wrap: wrap;
+  align-items: center;
+  margin: .4rem 0;
+  font-size: .78rem;
+  color: var(--fg-muted);
+}
+.template-card .description {
+  font-size: .82rem;
+  color: var(--fg-muted);
+  margin: .4rem 0;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.template-card .actions {
+  display: flex;
+  gap: .4rem;
+  margin-top: .6rem;
+}
+.template-tag {
+  display: inline-block;
+  padding: .1rem .4rem;
+  border-radius: 3px;
+  font-size: .68rem;
+  background: var(--bg-input);
+  color: var(--fg-muted);
+}
+.template-default-badge {
+  background: var(--accent);
+  color: #fff;
+  font-size: .65rem;
+  padding: .1rem .4rem;
+  border-radius: 3px;
+  text-transform: uppercase;
+  font-weight: 600;
+}
+
+/* ----------------------------------------------------------------
+   Scanner options accordion
+   ---------------------------------------------------------------- */
+.scanner-panel {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  margin-bottom: .5rem;
+  overflow: hidden;
+}
+.scanner-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: .6rem 1rem;
+  background: var(--bg-input);
+  cursor: pointer;
+  font-weight: 500;
+  font-size: .85rem;
+  user-select: none;
+}
+.scanner-panel-header:hover { background: var(--border); }
+.scanner-panel-header .arrow {
+  transition: transform .2s;
+  font-size: .7rem;
+}
+.scanner-panel-header.open .arrow { transform: rotate(90deg); }
+.scanner-panel-body {
+  display: none;
+  padding: .8rem 1rem;
+}
+.scanner-panel-body.open { display: block; }
+
+/* ----------------------------------------------------------------
+   Settings page
+   ---------------------------------------------------------------- */
+.settings-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 1rem;
+}
+.settings-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.settings-table td {
+  padding: .35rem 0;
+  border-bottom: 1px solid var(--border);
+  font-size: .85rem;
+}
+.settings-table td:first-child {
+  width: 45%;
+  font-weight: 500;
+}
+.scanner-list { display: flex; gap: .4rem; flex-wrap: wrap; }
+
+/* ----------------------------------------------------------------
+   Filter bar on dashboard
+   ---------------------------------------------------------------- */
+.filter-bar select {
+  background: var(--bg-input);
+  color: var(--fg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: .3rem .5rem;
+  font-size: .8rem;
+}
