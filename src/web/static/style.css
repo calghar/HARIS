@@ -101,6 +101,11 @@ header {
   transition: filter var(--transition);
 }
 .logo-group:hover .logo-mark { filter: brightness(1.15); }
+.logo-img {
+  height: 36px; width: auto; flex-shrink: 0;
+  transition: filter var(--transition);
+}
+.logo-group:hover .logo-img { filter: brightness(1.15); }
 .logo-text { line-height: 1; }
 .logo-name {
   font-size: 1.05rem; font-weight: 700; color: var(--fg);

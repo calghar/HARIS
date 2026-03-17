@@ -1,4 +1,10 @@
-# HARIS
+<p align="center">
+  <img src="assets/haris_logo.png" alt="HARIS" width="400"><br>
+  <em>Black-box web security audit framework — scan, correlate, prioritise, remediate.</em><br><br>
+  <a href="https://opensource.org/licenses/MIT"><img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="License"></a>
+  <a href="https://www.python.org/downloads/"><img src="https://img.shields.io/badge/python-3.13+-blue.svg" alt="Python"></a>
+  <a href="https://owasp.org/www-project-top-ten/"><img src="https://img.shields.io/badge/OWASP-Top%2010%202025-red.svg" alt="OWASP"></a>
+</p>
 
 Orchestrates multiple black-box security scanners against a web target, correlates their findings, and produces a single prioritised report with business-risk context and a remediation checklist.  Optionally uses LLMs to answer questions about scan results and generate remediation artifacts.
 
@@ -144,7 +150,7 @@ docker compose run --rm cli --url https://example.com --profile quick --yes
 
 ## Scan Configuration Templates
 
-Scan configuration templates are reusable presets that bundle a scan profile with per-scanner option overrides.  Five built-in templates are created on first run:
+Scan configuration templates are reusable presets that bundle a scan profile with per-scanner option overrides. Five built-in templates are created on first run:
 
 | Template | Profile | Key Options |
 | -------- | ------- | ----------- |

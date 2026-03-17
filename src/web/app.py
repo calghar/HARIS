@@ -33,6 +33,7 @@ BASE_DIR = Path(__file__).resolve().parent
 TEMPLATES_DIR = BASE_DIR / "templates"
 STATIC_DIR = BASE_DIR / "static"
 REPORTS_DIR = Path("./reports")
+ASSETS_DIR = Path(__file__).resolve().parents[2] / "assets"
 
 app = FastAPI(
     title="HARIS",
@@ -40,6 +41,7 @@ app = FastAPI(
     version="0.1.0",
 )
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
+app.mount("/assets", StaticFiles(directory=str(ASSETS_DIR)), name="assets")
 app.include_router(llm_router)
 templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 
