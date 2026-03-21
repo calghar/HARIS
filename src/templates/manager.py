@@ -129,7 +129,7 @@ class TemplateManager:
                     version=result.new_version,
                     last_updated=datetime.now(UTC).isoformat(),
                     template_count=result.templates_added,
-                    local_path=str(target_dir),
+                    local_path=result.local_path or str(target_dir),
                 )
 
         self._save_metadata(metadata)

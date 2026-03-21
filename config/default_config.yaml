@@ -102,11 +102,11 @@ template_sources:
     branch: main
     enabled: true
 
-  - name: nikto-official
+  - name: nikto-local
     scanner: nikto
-    source_type: git
-    url: "https://github.com/sullo/nikto.git"
-    branch: master
+    source_type: local
+    local_path: /opt/nikto
+    branch: main
     enabled: true
 
 # LLM-powered analysis (all features opt-in)

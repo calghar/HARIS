@@ -127,10 +127,10 @@ class NucleiTemplateAdapter(BaseScannerTemplateAdapter):
 # ------------------------------------------------------------------
 
 class NiktoTemplateAdapter(BaseScannerTemplateAdapter):
-    """Manages nikto databases and plugins."""
+    """Manages nikto databases by updating the local nikto installation."""
 
     scanner_name = "nikto"
-    file_patterns = ["db_*", "*.db", "*.plugin"]
+    file_patterns = ["db_*"]
 
     def update(
         self,
@@ -138,21 +138,36 @@ class NiktoTemplateAdapter(BaseScannerTemplateAdapter):
         target_dir: Path,
         force: bool = False,
     ) -> UpdateResult:
-        updater = TemplateUpdater()
-        prev_version = updater.get_git_version(target_dir)
-
+        if source.source_type == "local":
+            return self._update_local(source)
         if source.source_type == "git":
-            if force and target_dir.is_dir():
-                shutil.rmtree(target_dir)
-            ok = updater.git_clone_or_pull(
-                source.url, target_dir, source.branch,
+            return self._update_git(source, target_dir, force)
+        return UpdateResult(
+            scanner=self.scanner_name,
+            source_name=source.name,
+            success=False,
+            error=f"Unsupported source_type: {source.source_type}",
+        )
+
+    def _update_local(self, source: TemplateSource) -> UpdateResult:
+        """Pull the existing local nikto installation."""
+        updater = TemplateUpdater()
+        local_dir = Path(source.local_path)
+        prev_version = updater.get_git_version(local_dir)
+
+        git = shutil.which("git")
+        if git is None:
+            return UpdateResult(
+                scanner=self.scanner_name,
+                source_name=source.name,
+                success=False,
+                error="git is not installed or not on PATH",
             )
-        else:
-            ok = False
 
-        new_version = updater.get_git_version(target_dir) if ok else ""
-        count = updater.count_files(target_dir, self.file_patterns)
-
+        ok = TemplateUpdater._git_pull(git, local_dir, source.branch)
+        new_version = updater.get_git_version(local_dir) if ok else ""
+        db_dir = local_dir / "program" / "databases"
+        count = updater.count_files(db_dir, self.file_patterns)
         return UpdateResult(
             scanner=self.scanner_name,
             source_name=source.name,
@@ -160,6 +175,32 @@ class NiktoTemplateAdapter(BaseScannerTemplateAdapter):
             previous_version=prev_version,
             new_version=new_version,
             templates_added=count,
+            local_path=str(db_dir),
+            error="" if ok else "git pull failed",
+        )
+
+    def _update_git(
+        self, source: TemplateSource, target_dir: Path, force: bool,
+    ) -> UpdateResult:
+        """Clone or pull nikto from a remote git repository."""
+        updater = TemplateUpdater()
+        if force and target_dir.is_dir():
+            shutil.rmtree(target_dir)
+        prev_version = updater.get_git_version(target_dir)
+        ok = updater.git_clone_or_pull(source.url, target_dir, source.branch)
+        new_version = updater.get_git_version(target_dir) if ok else ""
+        db_dir = target_dir / "program" / "databases"
+        count = updater.count_files(
+            db_dir if db_dir.is_dir() else target_dir, self.file_patterns,
+        )
+        return UpdateResult(
+            scanner=self.scanner_name,
+            source_name=source.name,
+            success=ok,
+            previous_version=prev_version,
+            new_version=new_version,
+            templates_added=count,
+            local_path=str(db_dir) if db_dir.is_dir() else str(target_dir),
             error="" if ok else "Update failed",
         )
 
@@ -168,15 +209,8 @@ class NiktoTemplateAdapter(BaseScannerTemplateAdapter):
         template_dir: Path,
         sources: list[TemplateSource],
     ) -> dict[str, Any]:
-        """Nikto supports a custom user database via ``-dbcheck``."""
-        # Look for user_scan_database.db or custom db files
-        custom = template_dir / self.scanner_name / "custom"
-        extra_args: list[str] = []
-        if custom.is_dir():
-            for db_file in sorted(custom.glob("*.db")):
-                extra_args.extend(["-useproxy", str(db_file)])
-
-        return {"extra_args": extra_args} if extra_args else {}
+        """Nikto uses its own installation databases -- no extra flags needed."""
+        return {}
 
 
 # ------------------------------------------------------------------

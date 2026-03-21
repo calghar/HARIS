@@ -28,14 +28,14 @@
     <div class="pagination">
       {% if pagination.page > 1 %}
       <button class="btn btn-sm btn-secondary"
-              hx-get="/api/scans?format=html&page={{ pagination.page - 1 }}&hostname={{ pagination.hostname or '' }}&severity={{ pagination.severity or '' }}&date_from={{ pagination.date_from or '' }}&date_to={{ pagination.date_to or '' }}"
-              hx-target="#scan-table-body">Previous</button>
+              hx-get="/api/scans?format=html&page={{ pagination.page - 1 }}&per_page={{ pagination.per_page }}&hostname={{ pagination.hostname or '' }}&severity={{ pagination.severity or '' }}&date_from={{ pagination.date_from or '' }}&date_to={{ pagination.date_to or '' }}"
+              hx-target="closest tbody">Previous</button>
       {% endif %}
       <span class="page-info">Page {{ pagination.page }} of {{ pagination.total_pages }}</span>
       {% if pagination.page < pagination.total_pages %}
       <button class="btn btn-sm btn-secondary"
-              hx-get="/api/scans?format=html&page={{ pagination.page + 1 }}&hostname={{ pagination.hostname or '' }}&severity={{ pagination.severity or '' }}&date_from={{ pagination.date_from or '' }}&date_to={{ pagination.date_to or '' }}"
-              hx-target="#scan-table-body">Next</button>
+              hx-get="/api/scans?format=html&page={{ pagination.page + 1 }}&per_page={{ pagination.per_page }}&hostname={{ pagination.hostname or '' }}&severity={{ pagination.severity or '' }}&date_from={{ pagination.date_from or '' }}&date_to={{ pagination.date_to or '' }}"
+              hx-target="closest tbody">Next</button>
       {% endif %}
     </div>
   </td>

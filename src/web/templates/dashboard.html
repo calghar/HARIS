@@ -51,12 +51,25 @@
     </div>
 
     <div class="card" style="padding:0; overflow:hidden; border-radius:var(--radius)">
-      <div id="dash-scan-table"
-           hx-get="/api/scans?format=html&per_page=10"
-           hx-trigger="load"
-           hx-target="#dash-scan-table">
-        <div class="text-muted text-sm" style="text-align:center; padding:2rem">Loading scans...</div>
-      </div>
+      <table>
+        <thead>
+          <tr>
+            <th>Target</th>
+            <th>Profile</th>
+            <th>Status</th>
+            <th>Findings</th>
+            <th>Risk</th>
+            <th>Started</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="dash-scan-table"
+               hx-get="/api/scans?format=html&per_page=5"
+               hx-trigger="load"
+               hx-target="#dash-scan-table">
+          <tr><td colspan="7" class="text-muted text-sm" style="text-align:center; padding:2rem">Loading scans...</td></tr>
+        </tbody>
+      </table>
     </div>
   </div>
 
@@ -100,7 +113,7 @@
 function dashFilter() {
   var h = document.getElementById('dash-hostname').value;
   var s = document.getElementById('dash-severity').value;
-  var url = '/api/scans?format=html&per_page=10';
+  var url = '/api/scans?format=html&per_page=5';
   if (h) url += '&hostname=' + encodeURIComponent(h);
   if (s) url += '&severity=' + encodeURIComponent(s);
   htmx.ajax('GET', url, '#dash-scan-table');

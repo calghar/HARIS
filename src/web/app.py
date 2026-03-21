@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
 
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -136,7 +136,7 @@ async def scans_page(
     date_from: str = "",
     date_to: str = "",
 ) -> HTMLResponse:
-    per_page = 20
+    per_page = 5
     rows, total = _store.list_sessions_paginated(
         page=page, per_page=per_page,
         hostname=hostname or None,
@@ -168,7 +168,7 @@ async def scans_page(
     hostnames = sorted({w["hostname"] for w in _store.list_websites()})
 
     pagination = {
-        "page": page, "total_pages": total_pages,
+        "page": page, "total_pages": total_pages, "per_page": per_page,
         "hostname": hostname, "severity": severity,
         "date_from": date_from, "date_to": date_to,
     }
@@ -226,15 +226,35 @@ async def licenses_page(request: Request) -> HTMLResponse:
 
 
 @app.get("/scan/new", response_class=HTMLResponse)
-async def new_scan_form(request: Request) -> HTMLResponse:
+async def new_scan_form(
+    request: Request,
+    rescan: str | None = Query(default=None),
+) -> HTMLResponse:
     all_scanners = all_registered()
     scan_templates = _store.list_scan_config_templates()
+    prefill: dict[str, Any] = {}
+    if rescan:
+        try:
+            _, session = _get_scan_and_session(rescan)
+            if session:
+                prefill = {
+                    "target_url": session.target.base_url,
+                    "profile": session.profile_name,
+                    "rate_limit": session.target.scope.rate_limit_rps,
+                    "max_requests": session.target.scope.max_requests,
+                    "excluded_paths": "\n".join(session.target.scope.excluded_paths or []),
+                    "auth_method": session.target.auth.method,
+                    "auth_header_value": session.target.auth.header_value or "",
+                }
+        except HTTPException:
+            pass
     return templates.TemplateResponse("scan_new.html", {
         "request": request,
         "nav_active": "new",
         "profiles": list(PROFILES.values()),
         "available_scanners": sorted(all_scanners.keys()),
         "scan_templates": scan_templates,
+        "prefill": prefill,
     })
 
 
@@ -436,7 +456,7 @@ async def download_report(scan_id: str, fmt: str) -> FileResponse:
 async def list_scans(
     request: Request,
     page: int = 1,
-    per_page: int = 20,
+    per_page: int = 5,
     hostname: str = "",
     severity: str = "",
     date_from: str = "",
@@ -454,7 +474,7 @@ async def list_scans(
 
     if format == "html":
         pagination = {
-            "page": page, "total_pages": total_pages,
+            "page": page, "total_pages": total_pages, "per_page": per_page,
             "hostname": hostname, "severity": severity,
             "date_from": date_from, "date_to": date_to,
         }
@@ -826,6 +846,7 @@ async def template_status() -> JSONResponse:
 async def trigger_template_update(request: Request) -> JSONResponse:
     body = await request.json() if request.headers.get("content-type") else {}
     scanner_name = body.get("scanner")
+    source_name = body.get("source_name")
     force = body.get("force", False)
 
     try:
@@ -833,9 +854,13 @@ async def trigger_template_update(request: Request) -> JSONResponse:
         from ..templates.manager import TemplateManager
 
         config = load_config()
+        # Filter sources when a specific source_name is requested
+        sources = config.template_sources
+        if source_name:
+            sources = [s for s in sources if s.name == source_name]
         mgr = TemplateManager(
             base_dir=config.template_dir,
-            sources=config.template_sources,
+            sources=sources,
         )
 
         loop = asyncio.get_event_loop()
@@ -870,7 +895,20 @@ async def templates_page(request: Request) -> HTMLResponse:
         mgr = TemplateManager(
             base_dir=cfg.template_dir, sources=cfg.template_sources,
         )
-        scanner_sources = [m.model_dump() for m in mgr.list_sources()]
+        # Index downloaded metadata by source_name
+        meta_by_name = {m.source_name: m.model_dump() for m in mgr.list_sources()}
+        # Show ALL configured sources (downloaded or not)
+        for src in cfg.template_sources:
+            if src.name in meta_by_name:
+                scanner_sources.append(meta_by_name[src.name])
+            else:
+                scanner_sources.append({
+                    "source_name": src.name,
+                    "scanner": src.scanner,
+                    "template_count": None,
+                    "last_updated": None,
+                    "local_path": None,
+                })
     except Exception:
         pass
 

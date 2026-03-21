@@ -15,6 +15,9 @@ services:
       - ./reports:/app/reports
       - ./data:/app/data
       - ./config:/app/config:ro
+      - ./assets:/app/assets:ro
+      - ./templates:/app/templates
+      - nikto-data:/opt/nikto
     env_file:
       - .env
     restart: unless-stopped
@@ -36,3 +39,6 @@ services:
       - .env
     profiles:
       - cli
+
+volumes:
+  nikto-data:

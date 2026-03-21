@@ -180,7 +180,14 @@ When a scan is started with a template, the `template_id` is recorded on the sca
 
 ## Scanner Template Management
 
-Scanner templates (Nuclei rules, Nikto databases, Nmap NSE scripts) are managed centrally:
+Scanner templates are managed centrally and each scanner integrates them differently:
+
+| Scanner | Source type | How templates are used |
+| ------- | ----------- | ---------------------- |
+| Nuclei | `git` — clones `nuclei-templates` repo to `./templates/nuclei/` | Template paths passed as `-t` flags; keeps CVE/misconfiguration rules current |
+| Nikto | `local` — `git pull` on the existing `/opt/nikto/` install | Updates `program/databases/db_*` files in-place; Nikto reads them automatically |
+| Nmap | No upstream source; drop `.nse` files in `templates/nmap/custom/` | Custom scripts passed as `--script` args |
+| Wapiti | No template support; uses bundled modules | — |
 
 ```bash
 # Update all template sources
@@ -193,7 +200,7 @@ python scripts/run_scan.py update-templates --scanner nuclei
 python scripts/run_scan.py update-templates --list
 ```
 
-Configure sources in `config/default_config.yaml` under `template_sources:`. The web API also exposes `GET /api/templates/status` and `POST /api/templates/update`. The `/templates` page in the web dashboard shows the status of all scanner template sources under its "Scanner Templates" tab.
+Configure sources in `config/default_config.yaml` under `template_sources:`. The web dashboard (`/templates` → "Scanner Templates" tab) shows all configured sources and lets you trigger updates per-source or all at once. The `./templates/` directory and the `nikto-data` Docker volume are both persisted so updates survive container rebuilds.
 
 ## In-Pipeline LLM Enrichment
 

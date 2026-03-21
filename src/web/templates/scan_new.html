@@ -4,7 +4,7 @@
 {% block content %}
 <h1 style="font-size:1.5rem;margin-bottom:1.5rem;">Configure Scan</h1>
 
-<form id="scan-form" class="card">
+<form id="scan-form" class="card" novalidate>
   <!-- Configuration Template -->
   <div class="form-group">
     <label for="scan_template">Configuration Template</label>
@@ -22,8 +22,10 @@
   <!-- Target -->
   <div class="form-group">
     <label for="target_url">Target URL</label>
-    <input type="url" id="target_url" name="target_url"
-           placeholder="https://example.com" required>
+    <input type="text" id="target_url" name="target_url"
+           placeholder="https://example.com"
+           value="{{ prefill.target_url or '' }}">
+    <p id="url-error" class="text-sm mt-1" style="color:var(--critical);display:none;">Please enter a valid URL starting with http:// or https://</p>
   </div>
 
   <!-- Profile selection -->
@@ -31,7 +33,7 @@
     <label for="profile">Scan Profile</label>
     <select id="profile" name="profile">
       {% for p in profiles %}
-      <option value="{{ p.name }}" {% if p.name == 'quick' %}selected{% endif %}>
+      <option value="{{ p.name }}" {% if p.name == (prefill.profile or 'quick') %}selected{% endif %}>
         {{ p.display_name }} — {{ p.estimated_duration }}
       </option>
       {% endfor %}
@@ -43,34 +45,35 @@
   <div class="form-row">
     <div class="form-group">
       <label for="rate_limit">Rate Limit (req/s)</label>
-      <input type="number" id="rate_limit" name="rate_limit" value="10" min="1" max="100">
+      <input type="number" id="rate_limit" name="rate_limit" value="{{ prefill.rate_limit or 10 }}" min="1" max="100">
     </div>
     <div class="form-group">
       <label for="max_requests">Max Requests</label>
-      <input type="number" id="max_requests" name="max_requests" value="10000" min="100">
+      <input type="number" id="max_requests" name="max_requests" value="{{ prefill.max_requests or 10000 }}" min="100">
     </div>
   </div>
 
   <div class="form-group">
     <label for="excluded_paths">Excluded Paths (one per line, regex supported)</label>
     <textarea id="excluded_paths" name="excluded_paths" rows="3"
-              placeholder="/logout&#10;/api/admin/.*"></textarea>
+              placeholder="/logout&#10;/api/admin/.*">{{ prefill.excluded_paths or '' }}</textarea>
   </div>
 
   <!-- Authentication -->
   <div class="form-group">
     <label for="auth_method">Authentication</label>
     <select id="auth_method" name="auth_method">
-      <option value="none">None</option>
-      <option value="header">Bearer Token (Authorization header)</option>
-      <option value="cookie">Cookie</option>
+      <option value="none" {% if not prefill.auth_method or prefill.auth_method == 'none' %}selected{% endif %}>None</option>
+      <option value="header" {% if prefill.auth_method == 'header' %}selected{% endif %}>Bearer Token (Authorization header)</option>
+      <option value="cookie" {% if prefill.auth_method == 'cookie' %}selected{% endif %}>Cookie</option>
     </select>
   </div>
 
   <div id="auth-header-group" class="form-group" style="display:none;">
     <label for="auth_header_value">Authorization Header Value</label>
     <input type="text" id="auth_header_value" name="auth_header_value"
-           placeholder="Bearer your-token-here">
+           placeholder="Bearer your-token-here"
+           value="{{ prefill.auth_header_value or '' }}">
   </div>
 
   <!-- Report formats -->
@@ -170,11 +173,23 @@
   });
   profileDesc.textContent = profiles[profileSelect.value] || '';
 
+  // Clear URL error on input
+  document.getElementById('target_url').addEventListener('input', function() {
+    document.getElementById('url-error').style.display = 'none';
+  });
+
   // Auth toggle
   document.getElementById('auth_method').addEventListener('change', function() {
     document.getElementById('auth-header-group').style.display =
       (this.value === 'header' || this.value === 'cookie') ? 'block' : 'none';
   });
+  // Show auth-header-group on load if prefill specifies a method
+  (function() {
+    const prefillAuthMethod = {{ prefill.auth_method | tojson if prefill else '"none"' }};
+    if (prefillAuthMethod === 'header' || prefillAuthMethod === 'cookie') {
+      document.getElementById('auth-header-group').style.display = 'block';
+    }
+  })();
 
   // LLM enrichment toggle + backend loader
   const llmCheckbox = document.getElementById('llm_enrich');
@@ -209,6 +224,17 @@
   // Form submit
   document.getElementById('scan-form').addEventListener('submit', async function(e) {
     e.preventDefault();
+    const urlInput = document.getElementById('target_url');
+    const urlError = document.getElementById('url-error');
+    const url = urlInput.value.trim();
+    if (!url || !/^https?:\/\//i.test(url)) {
+      urlError.style.display = '';
+      urlInput.focus();
+      return;
+    }
+    urlError.style.display = 'none';
+    urlInput.value = url;
+
     const btn = document.getElementById('submit-btn');
     const status = document.getElementById('submit-status');
     btn.disabled = true;

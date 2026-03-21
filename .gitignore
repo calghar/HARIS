@@ -38,6 +38,9 @@ htmlcov/
 # Reports (generated output)
 reports/
 
+# Downloaded scanner templates (runtime data, fetched via update-templates)
+/templates/
+
 # Database
 data/
 

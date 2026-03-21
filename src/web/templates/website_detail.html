@@ -17,7 +17,7 @@
       <span>Last: {{ last_scanned[:10] if last_scanned else '—' }}</span>
     </div>
   </div>
-  <a href="/scan/new" class="btn btn-sm btn-primary">Scan Again</a>
+  <a href="/scan/new?rescan={{ scans[0].session_id if scans else '' }}" class="btn btn-sm btn-primary">Scan Again</a>
 </div>
 
 {% if scans | length > 1 %}

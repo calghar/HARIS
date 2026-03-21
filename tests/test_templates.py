@@ -10,6 +10,7 @@ from src.models.templates import (
 )
 from src.templates.adapters import (
     ADAPTER_REGISTRY,
+    NiktoTemplateAdapter,
     NucleiTemplateAdapter,
     get_adapter,
 )
@@ -142,6 +143,111 @@ class TestNucleiAdapter:
         result = adapter.update(source, tmp_path / "nuclei" / "official")
         assert result.success
         assert result.new_version == "abc1234"
+
+
+# ---------------------------------------------------------------------------
+# NiktoTemplateAdapter
+# ---------------------------------------------------------------------------
+
+
+class TestNiktoAdapter:
+    def test_file_patterns(self):
+        adapter = NiktoTemplateAdapter()
+        assert adapter.file_patterns == ["db_*"]
+
+    def test_get_scanner_options_returns_empty(self, tmp_path):
+        adapter = NiktoTemplateAdapter()
+        source = TemplateSource(
+            name="nikto-local", scanner="nikto",
+            source_type="local", local_path="/opt/nikto",
+        )
+        opts = adapter.get_scanner_options(tmp_path, [source])
+        assert opts == {}
+
+    def test_update_unsupported_source_type(self, tmp_path):
+        adapter = NiktoTemplateAdapter()
+        source = TemplateSource(
+            name="nikto-url", scanner="nikto", source_type="url",
+        )
+        result = adapter.update(source, tmp_path)
+        assert not result.success
+        assert "Unsupported source_type" in result.error
+
+    @patch("shutil.which", return_value=None)
+    def test_update_local_no_git(self, mock_which, tmp_path):
+        adapter = NiktoTemplateAdapter()
+        source = TemplateSource(
+            name="nikto-local", scanner="nikto",
+            source_type="local", local_path=str(tmp_path),
+            branch="master",
+        )
+        result = adapter.update(source, tmp_path)
+        assert not result.success
+        assert "git is not installed" in result.error
+
+    @patch("shutil.which", return_value="/usr/bin/git")
+    @patch.object(TemplateUpdater, "_git_pull", return_value=True)
+    @patch.object(TemplateUpdater, "get_git_version", return_value="f1a2b3c")
+    def test_update_local_success(
+        self, mock_ver, mock_pull, mock_which, tmp_path,
+    ):
+        # Set up a fake nikto directory with program/databases/db_*
+        db_dir = tmp_path / "program" / "databases"
+        db_dir.mkdir(parents=True)
+        (db_dir / "db_tests").write_text("test data")
+        (db_dir / "db_outdated").write_text("outdated checks")
+        (db_dir / "db_variables").write_text("variables")
+
+        adapter = NiktoTemplateAdapter()
+        source = TemplateSource(
+            name="nikto-local", scanner="nikto",
+            source_type="local", local_path=str(tmp_path),
+            branch="master",
+        )
+        result = adapter.update(source, tmp_path / "nikto" / "nikto-local")
+        assert result.success
+        assert result.new_version == "f1a2b3c"
+        assert result.templates_added == 3
+        assert result.local_path == str(db_dir)
+
+    @patch.object(TemplateUpdater, "git_clone_or_pull", return_value=True)
+    @patch.object(TemplateUpdater, "get_git_version", return_value="aaa1111")
+    @patch.object(TemplateUpdater, "count_files", return_value=12)
+    def test_update_git_source(
+        self, mock_count, mock_ver, mock_git, tmp_path,
+    ):
+        adapter = NiktoTemplateAdapter()
+        source = TemplateSource(
+            name="nikto-remote", scanner="nikto",
+            source_type="git", url="https://github.com/sullo/nikto.git",
+            branch="master",
+        )
+        result = adapter.update(source, tmp_path / "nikto" / "nikto-remote")
+        assert result.success
+        assert result.new_version == "aaa1111"
+
+    def test_list_templates_db_files(self, tmp_path):
+        (tmp_path / "db_tests").write_text("data")
+        (tmp_path / "db_variables").write_text("data")
+        (tmp_path / "readme.md").write_text("not a db")
+        (tmp_path / "config.txt").write_text("not a db")
+
+        adapter = NiktoTemplateAdapter()
+        templates = adapter.list_templates(tmp_path)
+        assert "db_tests" in templates
+        assert "db_variables" in templates
+        assert "readme.md" not in templates
+        assert "config.txt" not in templates
+
+    def test_update_result_has_local_path(self):
+        """Verify UpdateResult model accepts the local_path field."""
+        r = UpdateResult(
+            scanner="nikto",
+            source_name="nikto-local",
+            success=True,
+            local_path="/opt/nikto/program/databases",
+        )
+        assert r.local_path == "/opt/nikto/program/databases"
 
 
 # ---------------------------------------------------------------------------

@@ -65,6 +65,8 @@ class UpdateResult(BaseModel):
     templates_added: int = 0
     templates_removed: int = 0
     error: str = ""
+    local_path: str = ""
+    """Filesystem path where templates actually reside (may differ from target_dir)."""
 
 
 class TemplateConfig(BaseModel):

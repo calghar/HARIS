@@ -1,5 +1,30 @@
 # Changelog
 
+## 0.3.0 — 2026-03-21
+
+### Added
+- Vertical left sidebar navigation on desktop, replacing the horizontal top bar; mobile top bar with hamburger preserved
+- HARIS logo enlarged and moved to sidebar header
+- "Scan Again" from website detail page now pre-populates the New Scan form with the previous scan's URL, profile, rate limit, excluded paths, and auth settings
+- Scanner Templates page now lists all configured sources immediately, even before a first update ("Never updated" state shown for uninitialised sources)
+- `templates/` directory added to Docker volume mounts so downloaded template files and metadata persist across container rebuilds
+- Named Docker volume `nikto-data` for `/opt/nikto/` so Nikto database updates survive image rebuilds
+
+### Fixed
+- "Please enter a URL" browser popup appearing even after entering a valid URL on the New Scan form — replaced `type="url"` browser validation with custom JS validation that accepts both `http://` and `https://`
+- Scanner Templates page "Templates" count and "Last Updated" columns not refreshing after an update — page now reloads automatically after a successful update
+- Nikto template integration completely reworked: previously tried to clone the Nikto repo redundantly (Nikto is already installed in the Docker image) and used the wrong `-useproxy` flag; now runs `git pull` on the existing `/opt/nikto/` installation to keep databases current with no extra scanner flags needed
+- Per-source Update button now correctly targets only the selected source instead of all sources for that scanner
+- Pagination Next/Previous buttons loading nothing on click: dashboard scan list now uses a proper `<table>/<tbody>` container so `<tr>` rows render correctly; pagination `hx-target` changed from hardcoded `#scan-table-body` to `closest tbody` so buttons work on both the Dashboard and the Scans page
+- `per_page` value now forwarded in pagination button URLs to keep page boundaries consistent
+- White HARIS logo invisible in light mode — fixed with stacked `drop-shadow` CSS filters creating a visible dark outline
+- `templates/` gitignore pattern anchored to repo root (`/templates/`) to avoid accidentally ignoring `src/templates/` and `src/web/templates/`
+
+### Changed
+- Default scan list page size reduced from 20 to 5
+- Nikto template source changed from `source_type: git` (redundant clone) to `source_type: local` pointing at `/opt/nikto/`
+- `NiktoTemplateAdapter.get_scanner_options()` now correctly returns `{}` — Nikto reads its own database directory natively, no extra flags required
+
 ## 0.2.0 — 2026-03-17
 
 ### Added
