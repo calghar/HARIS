@@ -11,17 +11,15 @@ jobs:
     name: Lint
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - uses: astral-sh/setup-uv@v7
         with:
           enable-cache: true
-
-      - name: Set up Python
-        run: uv python install 3.13
+          python-version: "3.13"
 
       - name: Install dev dependencies
-        run: uv pip install -e ".[dev]"
+        run: uv sync --extra dev
 
       - name: Ruff lint
         run: uv run ruff check src/ tests/
@@ -32,20 +30,17 @@ jobs:
   typecheck:
     name: Type check
     runs-on: ubuntu-latest
-    # Non-blocking initially — tighten once the existing codebase is annotated
     continue-on-error: true
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - uses: astral-sh/setup-uv@v7
         with:
           enable-cache: true
-
-      - name: Set up Python
-        run: uv python install 3.13
+          python-version: "3.13"
 
       - name: Install dependencies
-        run: uv pip install -e ".[dev,web,reporting,llm-anthropic,llm-openai]"
+        run: uv sync --extra dev --extra web --extra reporting --extra llm-anthropic --extra llm-openai
 
       - name: Mypy
         run: uv run mypy src/ --ignore-missing-imports
@@ -54,34 +49,32 @@ jobs:
     name: Tests
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - uses: astral-sh/setup-uv@v7
         with:
           enable-cache: true
-
-      - name: Set up Python
-        run: uv python install 3.13
+          python-version: "3.13"
 
       - name: Install dependencies
         # Excludes scanner extras (sslyze/wapiti3) — scanners are mocked in tests
-        run: uv pip install -e ".[dev,web,reporting,llm-anthropic,llm-openai]"
+        run: uv sync --extra dev --extra web --extra reporting --extra llm-anthropic --extra llm-openai
 
       - name: Run tests
         run: uv run pytest tests/ -v --tb=short --cov=src --cov-report=xml --cov-report=term-missing
 
       - name: Upload coverage
-        uses: codecov/codecov-action@v4
+        uses: codecov/codecov-action@v5
         if: always()
         with:
-          file: ./coverage.xml
+          files: ./coverage.xml
           fail_ci_if_error: false
 
   docker-build:
     name: Docker build
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Build Docker image
         run: docker build -t haris:ci-test .
