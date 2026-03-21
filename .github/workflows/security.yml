@@ -1,0 +1,91 @@
+name: Security
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    - cron: "0 6 * * 1" # Weekly on Monday at 06:00 UTC
+
+jobs:
+  sast:
+    name: SAST (Bandit)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+
+      - name: Set up Python
+        run: uv python install 3.13
+
+      - name: Install Bandit
+        run: uv pip install "bandit[toml]>=1.7.8"
+
+      - name: Run Bandit (medium+ severity)
+        run: |
+          uv run bandit -r src/ -c pyproject.toml -ll -ii \
+            --format json --output bandit-report.json || true
+          uv run bandit -r src/ -c pyproject.toml -ll -ii
+
+      - name: Upload Bandit report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: bandit-report
+          path: bandit-report.json
+
+  dependency-audit:
+    name: Dependency Audit (pip-audit)
+    runs-on: ubuntu-latest
+    # Known CVEs in transitive deps may fire — review before making this blocking
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+
+      - name: Set up Python
+        run: uv python install 3.13
+
+      - name: Install dependencies
+        run: uv pip install -e ".[dev,web,reporting,llm-anthropic,llm-openai]"
+
+      - name: Run pip-audit
+        run: |
+          uv pip install pip-audit
+          uv run pip-audit --format=json --output=pip-audit-report.json || true
+          uv run pip-audit
+
+      - name: Upload pip-audit report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: pip-audit-report
+          path: pip-audit-report.json
+
+  codeql:
+    name: CodeQL
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: github/codeql-action/init@v3
+        with:
+          languages: python
+          queries: security-and-quality
+
+      - uses: github/codeql-action/autobuild@v3
+
+      - uses: github/codeql-action/analyze@v3
+        with:
+          category: python

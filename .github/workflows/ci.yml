@@ -1,0 +1,92 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+
+      - name: Set up Python
+        run: uv python install 3.13
+
+      - name: Install dev dependencies
+        run: uv pip install -e ".[dev]"
+
+      - name: Ruff lint
+        run: uv run ruff check src/ tests/
+
+      - name: Ruff format check
+        run: uv run ruff format --check src/ tests/
+
+  typecheck:
+    name: Type check
+    runs-on: ubuntu-latest
+    # Non-blocking initially — tighten once the existing codebase is annotated
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+
+      - name: Set up Python
+        run: uv python install 3.13
+
+      - name: Install dependencies
+        run: uv pip install -e ".[dev,web,reporting,llm-anthropic,llm-openai]"
+
+      - name: Mypy
+        run: uv run mypy src/ --ignore-missing-imports
+
+  test:
+    name: Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+
+      - name: Set up Python
+        run: uv python install 3.13
+
+      - name: Install dependencies
+        # Excludes scanner extras (sslyze/wapiti3) — scanners are mocked in tests
+        run: uv pip install -e ".[dev,web,reporting,llm-anthropic,llm-openai]"
+
+      - name: Run tests
+        run: uv run pytest tests/ -v --tb=short --cov=src --cov-report=xml --cov-report=term-missing
+
+      - name: Upload coverage
+        uses: codecov/codecov-action@v4
+        if: always()
+        with:
+          file: ./coverage.xml
+          fail_ci_if_error: false
+
+  docker-build:
+    name: Docker build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build Docker image
+        run: docker build -t haris:ci-test .
+
+      - name: Verify web app imports
+        run: |
+          docker run --rm --entrypoint="" haris:ci-test \
+            python -c "from src.web.app import app; print('OK')"
