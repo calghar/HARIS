@@ -90,3 +90,30 @@ The backend auto-detection API (`GET /api/llm/backends`) checks each backend for
 2. Required API key set in environment (e.g., `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`)
 
 The first available backend is selected as the default.
+
+## Model Routing
+
+Route different task types to different models for cost optimisation:
+
+```yaml
+# config/default_config.yaml
+llm:
+  model_routing:
+    enrichment: claude-haiku-4-5       # cheaper model for per-finding enrichment
+    attack_chains: claude-sonnet-4-6   # stronger model for chain detection
+    triage: claude-haiku-4-5
+    summary: claude-haiku-4-5
+    chat: claude-sonnet-4-6
+```
+
+When no routing is configured, all tasks use the default model.
+
+## In-Pipeline Enrichment
+
+Enable LLM enrichment during a scan to add attack narratives, business impact, and exploitation complexity to findings above the severity threshold:
+
+```bash
+python scripts/run_scan.py --url https://example.com --profile quick --yes --llm-enrich
+```
+
+Configure via `llm.enrichment_enabled: true` in `config/default_config.yaml` or the enrichment toggle on the New Scan form.

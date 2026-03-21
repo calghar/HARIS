@@ -6,47 +6,37 @@
   <a href="https://owasp.org/www-project-top-ten/"><img src="https://img.shields.io/badge/OWASP-Top%2010%202025-red.svg" alt="OWASP"></a>
 </p>
 
-Orchestrates multiple black-box security scanners against a web target, correlates their findings, and produces a single prioritised report with business-risk context and a remediation checklist.  Optionally uses LLMs to answer questions about scan results and generate remediation artifacts.
+Orchestrates multiple security scanners, correlates findings, and produces a single prioritised report with business-risk context. Optionally uses LLMs for post-scan analysis and remediation planning.
 
 ## What This Does Differently
 
-Most open-source scanner tools (ZAP, Wapiti, Nuclei) produce isolated reports in their own format.  Teams running three tools against the same target get three separate lists of findings -- many of them duplicates -- with no unified view and no guidance on what to fix first.
+1. **Cross-tool correlation** — findings from all scanners are fingerprinted and merged; duplicates become one confirmed finding.
+2. **Business-risk translation** — plain-language impact statements alongside technical details.
+3. **Prioritised remediation** — fixes grouped and sorted by impact-to-effort ratio.
+4. **Scenario-based profiles** — `pre-launch`, `regression`, `compliance`, etc.
+5. **Reusable scan templates** — named presets with per-scanner overrides, saved and reused from the web UI.
+6. **LLM-powered analysis** — Q&A, Jira tickets, test cases, and enrichment grounded in actual scan data.
+7. **OWASP Top 10 (2025) mapping** — all findings auto-mapped, including Supply Chain Failures and Exceptional Conditions.
 
-HARIS addresses this by:
-
-1. **Cross-tool correlation** -- Findings from all scanners are fingerprinted and merged.  The same XSS reported by Wapiti and Nuclei becomes one finding tagged "confirmed by 2 scanners" instead of two separate entries.
-
-2. **Business-risk translation** -- Every finding includes a plain-language impact statement ("Attackers may execute commands on your server") alongside the technical details.  Reports are readable by product managers, not just security engineers.
-
-3. **Prioritised remediation checklist** -- Instead of per-finding remediation text, the planner groups related fixes, estimates effort (quick win / moderate / significant), and sorts by impact-to-effort ratio.
-
-4. **Scenario-based profiles** -- Rather than "quick" vs "full", profiles map to real workflows: `pre-launch`, `regression`, `compliance`, etc.
-
-5. **Reusable scan configuration templates** -- Save per-scanner options (Nuclei tags/severity, Nikto tuning/plugins, Nmap ports/scripts, Wapiti modules/scope) as named presets.  Five built-in defaults ship out of the box; create, edit, clone, and delete your own from the web UI.
-
-6. **LLM-powered analysis** -- Ask questions about a scan ("Explain the top 3 risks for an exec"), generate Jira tickets, draft stakeholder emails, or create CI test cases -- all grounded in the actual report data.
-
-7. **OWASP Top 10 (2025) mapping** -- All findings are mapped to the latest OWASP Top 10 (2025) edition, including the new Supply Chain Failures and Exceptional Conditions categories.
-
-### Scanners (external tools)
+## Scanners
 
 | Scanner | What It Tests | Install |
-| --------- | --------------- | --------- |
-| Wapiti | SQLi, XSS, SSRF, command injection, CRLF, XXE | `pipx install wapiti3` or `uv tool install wapiti3` |
-| SSLyze | TLS protocols, cipher suites, certificate chain, Heartbleed/ROBOT | `pipx install sslyze` or `uv tool install sslyze` |
+| ------- | ------------- | ------- |
+| Wapiti | SQLi, XSS, SSRF, command injection, CRLF, XXE | `pipx install wapiti3` |
+| SSLyze | TLS protocols, cipher suites, certificate chain, Heartbleed/ROBOT | `pipx install sslyze` |
 | Nmap | Open ports, service versions, exposed databases | system package manager |
-| Nikto | Web server misconfigurations, outdated software, dangerous files | `brew install nikto` or system package manager |
-| Nuclei | CVE detection, default credentials, exposed panels (template-based) | `brew install nuclei` or [github.com/projectdiscovery/nuclei](https://github.com/projectdiscovery/nuclei) |
+| Nikto | Web server misconfigurations, outdated software, dangerous files | `brew install nikto` |
+| Nuclei | CVE detection, default credentials, exposed panels | `brew install nuclei` |
 
-### Checks (built-in, no external tools)
+## Built-in Checks
 
 | Check | What It Tests |
-| ------- | --------------- |
+| ----- | ------------- |
 | header_checks | 7 security headers (HSTS, CSP, X-Frame-Options, etc.), cookie flags, server banner |
 | tls_checks | Certificate expiry, protocol version, cipher strength |
-| misc_checks | CORS policy, HTTP->HTTPS redirect, 14 sensitive paths (.env, .git/config, admin panels) |
-| info_disclosure | Error page stack traces, debug endpoints, HTML comment leaks, version endpoints |
-| cookie_checks | Secure/HttpOnly/SameSite flags, domain scope, expiry, predictable names |
+| misc_checks | CORS policy, HTTP→HTTPS redirect, 14 sensitive paths (.env, .git/config, admin panels) |
+| info_disclosure | Error page leaks, debug endpoints, HTML comments, version endpoints |
+| cookie_checks | Secure/HttpOnly/SameSite flags, domain scope, expiry |
 
 ## Setup
 
@@ -56,214 +46,81 @@ uv venv .venv && source .venv/bin/activate
 uv pip install -e ".[all]"
 ```
 
-External tools (Nmap, Nikto, Nuclei, SSLyze, Wapiti) need separate installation — they are invoked as CLI commands via subprocess.  The `quick` and `regression` profiles work without them.
+External tools (Nmap, Nikto, Nuclei, SSLyze, Wapiti) need separate installation — invoked as CLI commands. For LLM features, set `ANTHROPIC_API_KEY` or `OPENAI_API_KEY`.
 
-For LLM features, install a provider package and set the API key:
-
-```bash
-uv pip install openai          # or: uv pip install anthropic
-export OPENAI_API_KEY="sk-..."  # or: export ANTHROPIC_API_KEY="..."
-```
-
-## Usage: CLI
+## Usage
 
 ```bash
-# Quick surface scan
+# CLI
 python scripts/run_scan.py --url https://example.com --profile quick --yes
-
-# Full audit
-python scripts/run_scan.py --url https://example.com --profile full --yes
-
-# List available profiles and scanners
 python scripts/run_scan.py --list-profiles
-python scripts/run_scan.py --list-scanners
-```
 
-## Usage: LLM Analysis
+# Web dashboard
+python scripts/run_scan.py --web   # http://localhost:8000
 
-```bash
-# Ask a question about a completed scan
-python scripts/run_scan.py llm ask \
-  --scan-id 20250222-143025 \
-  --question "Explain the top 3 findings for an executive"
-
-# Generate a Jira remediation plan
-python scripts/run_scan.py llm remediate --scan-id 20250222-143025 --format jira
-
-# Summarize for developers
-python scripts/run_scan.py llm summarize --scan-id 20250222-143025 --audience developer
-
-# Generate CI test cases
-python scripts/run_scan.py llm test-cases --scan-id 20250222-143025 --framework pytest
-
-# Use Anthropic instead of OpenAI
-python scripts/run_scan.py llm ask --scan-id abc --question "..." --backend anthropic
-```
-
-## Usage: Web Dashboard
-
-```bash
-python scripts/run_scan.py --web
-# Open http://localhost:8000
-```
-
-### Navigation
-
-The top bar provides: **Dashboard** | **Websites** | **Scans** | **Templates** | **New Scan** (CTA button).
-
-### Pages
-
-- **Dashboard** (`/`) -- Paginated scan history with HTMX-powered filters (website, severity), quick action buttons, and a "recently scanned" sidebar.
-- **Websites** (`/websites`) -- Per-target overview with aggregated stats.
-- **Website Detail** (`/website/{hostname}`) -- Visual timeline of scan history showing risk posture changes and finding deltas.  The scan table includes Template and Scanners columns.
-- **Scans** (`/scans`) -- Filterable scan list with template name and scanner name filters alongside the existing website/severity filters.
-- **Templates** (`/templates`) -- Unified hub with two tabs:
-  - *Scan Configurations* -- card grid for managing saved scan presets (create, edit, clone, delete).
-  - *Scanner Templates* -- manage template sources (Nuclei YAML repos, Nikto DBs, Nmap NSE scripts), trigger updates, and view status.
-- **New Scan** (`/scan/new`) -- Template selector dropdown auto-fills the form with saved presets.  Per-scanner advanced options are collapsible.  A "Save as Template" button persists the current settings for reuse.
-- **Settings** (`/settings`) -- Read-only overview of LLM backends, available scanners, and database info.
-
-### Scan detail tabs
-
-- **Findings** with severity/category filters
-- **Multi-turn Chat** with conversation history, quick-action buttons (including "Compare Scans"), and token tracking
-- **AI Insights** showing attack chains, smart triage table, and enrichment summaries (visible when enrichment is enabled)
-- **Structured Actions**: summarize (by audience), explain findings, generate remediation plans (Markdown/Jira/email), CI test cases, and code-level mitigations
-- **Remediation Checklist** with prioritised steps sorted by impact-to-effort ratio
-
-## Usage: Docker
-
-```bash
-docker compose up                      # Web UI on port 8000
+# Docker
+docker compose up
 docker compose run --rm cli --url https://example.com --profile quick --yes
+
+# LLM analysis (after a scan completes)
+python scripts/run_scan.py llm ask --scan-id <id> --question "Top 3 risks for an exec"
+python scripts/run_scan.py llm remediate --scan-id <id> --format jira
+python scripts/run_scan.py llm summarize --scan-id <id> --audience developer
+
+# In-pipeline LLM enrichment
+python scripts/run_scan.py --url https://example.com --profile quick --yes --llm-enrich
+
+# Scanner template updates
+python scripts/run_scan.py update-templates
+python scripts/run_scan.py update-templates --scanner nuclei --list
 ```
 
 ## Scan Profiles
 
-| Profile | Scanners | Duration | Use Case |
-| --------- | ---------- | ---------- | ---------- |
-| `quick` | Built-in checks only | ~1-3 min | First look, no external tools |
-| `pre-launch` | All built-in + Nmap, SSLyze, Wapiti | ~10-30 min | Before production deploy |
-| `full` | Everything including Nikto, Nuclei | ~20-30 min | Thorough due-diligence |
-| `regression` | header_checks, tls_checks, misc_checks | ~30-60s | CI pipeline gate |
-| `compliance` | Built-in + Nmap, SSLyze | ~5-15 min | SOC 2 / PCI-DSS prep |
-
-## Scan Configuration Templates
-
-Scan configuration templates are reusable presets that bundle a scan profile with per-scanner option overrides. Five built-in templates are created on first run:
-
-| Template | Profile | Key Options |
-| -------- | ------- | ----------- |
-| Quick Surface Scan | `quick` | Built-in checks only, fast CI gate |
-| Pre-Launch Audit | `pre-launch` | Nmap common ports, Wapiti folder scope, LLM enrichment |
-| Full OWASP Top 10 | `full` | All scanners, Nuclei CVE/misconfig tags, Nikto tuning, rate-limited |
-| Regression Check | `regression` | Headers + TLS + misc only, high rate limit |
-| Compliance Audit | `compliance` | Nmap + TLS + info disclosure, 60-day cert warning, LLM enrichment |
-
-### Per-scanner options
-
-Each template can override options for any scanner:
-
-- **Nuclei**: `tags`, `severity`, `rate_limit`, `timeout`
-- **Nikto**: `plugins`, `tuning`, `timeout`
-- **Wapiti**: `modules`, `scope`, `max_scan_time`, `max_links`, `timeout`
-- **Nmap**: `ports`, `script_categories`, `timeout`
-- **SSLyze / header_checks / tls_checks / misc_checks / info_disclosure / cookie_checks**: see `src/models/scan_config_template.py` for the full list
-
-### Managing templates
-
-- **Web UI**: `/templates` page -- create, edit, clone, delete, and set a default template.
-- **API**: `GET /api/scan-templates`, `POST /api/scan-templates`, `PUT /api/scan-templates/{id}`, `DELETE /api/scan-templates/{id}`, `POST /api/scan-templates/{id}/set-default`.
-- **New Scan form**: select a template from the dropdown to pre-fill all fields; modify and optionally "Save as Template".
-
-When a scan is started with a template, the `template_id` is recorded on the scan session for traceability.
-
-## Scanner Template Management
-
-Scanner templates are managed centrally and each scanner integrates them differently:
-
-| Scanner | Source type | How templates are used |
-| ------- | ----------- | ---------------------- |
-| Nuclei | `git` — clones `nuclei-templates` repo to `./templates/nuclei/` | Template paths passed as `-t` flags; keeps CVE/misconfiguration rules current |
-| Nikto | `local` — `git pull` on the existing `/opt/nikto/` install | Updates `program/databases/db_*` files in-place; Nikto reads them automatically |
-| Nmap | No upstream source; drop `.nse` files in `templates/nmap/custom/` | Custom scripts passed as `--script` args |
-| Wapiti | No template support; uses bundled modules | — |
-
-```bash
-# Update all template sources
-python scripts/run_scan.py update-templates
-
-# Update only Nuclei templates
-python scripts/run_scan.py update-templates --scanner nuclei
-
-# List current template status
-python scripts/run_scan.py update-templates --list
-```
-
-Configure sources in `config/default_config.yaml` under `template_sources:`. The web dashboard (`/templates` → "Scanner Templates" tab) shows all configured sources and lets you trigger updates per-source or all at once. The `./templates/` directory and the `nikto-data` Docker volume are both persisted so updates survive container rebuilds.
-
-## In-Pipeline LLM Enrichment
-
-Beyond post-scan Q&A, findings can be enriched during the scan:
-
-```bash
-python scripts/run_scan.py --url https://example.com --profile quick --yes --llm-enrich
-```
-
-This adds attack narratives, business impact, and exploitation complexity to findings above the severity threshold. Configure via `llm.enrichment_enabled: true` in `config/default_config.yaml`. The web dashboard has the same toggle on the New Scan form.
+| Profile | Scanners | Use Case |
+| ------- | -------- | -------- |
+| `quick` | Built-in checks only | First look, ~1-3 min |
+| `pre-launch` | Built-in + Nmap, SSLyze, Wapiti | Before production deploy, ~10-30 min |
+| `full` | Everything including Nikto, Nuclei | Full audit, ~20-30 min |
+| `regression` | header_checks, tls_checks, misc_checks | CI gate, ~30-60s |
+| `compliance` | Built-in + Nmap, SSLyze | SOC 2 / PCI-DSS prep, ~5-15 min |
 
 ## Configuration
 
-Copy `.env.example` to `.env` for environment variables. See `config/default_config.yaml` for all options.
-
-### Model Routing
-
-Route different LLM tasks to different models for cost optimization:
-
-```yaml
-# config/default_config.yaml
-llm:
-  model_routing:
-    enrichment: claude-haiku-4-5       # cheaper model for per-finding enrichment
-    attack_chains: claude-sonnet-4-6   # stronger model for chain detection
-    triage: claude-haiku-4-5
-    summary: claude-haiku-4-5
-    chat: claude-sonnet-4-6
-```
-
-When no routing is configured, all tasks use the default model.
+Copy `.env.example` to `.env`. See `config/default_config.yaml` for all options.
 
 | Variable | Purpose |
-| ---------- | --------- |
+| -------- | ------- |
+| `ANTHROPIC_API_KEY` | Anthropic LLM backend |
+| `OPENAI_API_KEY` | OpenAI LLM backend |
+| `OLLAMA_BASE_URL` | Ollama server (default: `http://localhost:11434`) |
 | `HARIS_TARGET_URL` | Default scan target |
 | `HARIS_PROFILE` | Default scan profile |
-| `HARIS_AUTH_HEADER` | Auth header value for target |
-| `ANTHROPIC_API_KEY` | Anthropic/Claude LLM backend |
-| `OPENAI_API_KEY` | OpenAI LLM backend |
-| `OLLAMA_BASE_URL` | Ollama server URL (default: `http://localhost:11434`) |
+| `HARIS_AUTH_HEADER` | Auth header for target |
 
 ## Extending
 
-**Add a scanner:** subclass `BaseScanner`, decorate with `@register_scanner`, implement `scan()` and `parse_results()`.  See `docs/integrating_tools.md`.
+See [`docs/`](docs/) for full developer guides.
 
-**Add a check:** same interface, decorate with `@register_check`.  See `docs/writing_checks.md`.
-
-**Add a report format:** subclass `BaseReporter`, implement `generate()`.  Register in `src/reporting/__init__.py`.
-
-**Add an LLM backend:** subclass `BaseLLMBackend`, implement `complete()`.  Add to `BACKEND_REGISTRY` in `src/llm/base.py`.
+- **Scanner**: subclass `BaseScanner`, `@register_scanner` — [`docs/integrating_tools.md`](docs/integrating_tools.md)
+- **Custom check**: same interface, `@register_check` — [`docs/writing_checks.md`](docs/writing_checks.md)
+- **Report format**: subclass `BaseReporter`, implement `generate()`
+- **LLM backend**: subclass `BaseLLMBackend`, implement `complete()`
+- **Architecture & templates**: [`docs/architecture.md`](docs/architecture.md)
+- **LLM integration**: [`docs/llm_integration.md`](docs/llm_integration.md)
 
 ## Limitations
 
-- Black-box only -- no source code analysis.
-- Authentication support is basic (cookie/header).  Complex auth flows (OAuth, MFA) need manual session setup.
-- LLM features require an API key and incur costs.  They are entirely optional.
-- Findings should be validated by a security professional before acting on them.
+- Black-box only — no source code analysis.
+- Basic auth (cookie/header); complex flows (OAuth, MFA) need manual session setup.
+- LLM features require an API key and incur costs — entirely optional.
+- Validate findings with a security professional before acting on them.
 - External scanner results depend on those tools being installed and up to date.
 
 ## Legal
 
-For authorised testing only.  See [LEGAL_NOTICE.md](LEGAL_NOTICE.md).
+For authorised testing only. See [LEGAL_NOTICE.md](LEGAL_NOTICE.md).
 
 ## License
 
-MIT.  See [LICENSE](LICENSE).
+MIT. See [LICENSE](LICENSE).
