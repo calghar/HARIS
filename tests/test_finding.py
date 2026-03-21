@@ -6,13 +6,19 @@ from src.models import Confidence, Finding, Severity
 class TestSeverity:
     def test_sort_order(self):
         severities = [
-            Severity.LOW, Severity.CRITICAL, Severity.MEDIUM,
-            Severity.INFO, Severity.HIGH,
+            Severity.LOW,
+            Severity.CRITICAL,
+            Severity.MEDIUM,
+            Severity.INFO,
+            Severity.HIGH,
         ]
         sorted_sevs = sorted(severities, key=lambda s: s.sort_key)
         assert sorted_sevs == [
-            Severity.CRITICAL, Severity.HIGH, Severity.MEDIUM,
-            Severity.LOW, Severity.INFO,
+            Severity.CRITICAL,
+            Severity.HIGH,
+            Severity.MEDIUM,
+            Severity.LOW,
+            Severity.INFO,
         ]
 
 

@@ -102,8 +102,8 @@ class SecurityHeaderScanner(BaseScanner):
         try:
             resp = requests.get(
                 target.base_url,
-                timeout=self.options["timeout"],
-                allow_redirects=self.options["follow_redirects"],
+                timeout=self.options.get("timeout", 30),
+                allow_redirects=self.options.get("follow_redirects", True),
                 headers=target.auth.as_headers(),
                 verify=True,
             )
@@ -122,9 +122,7 @@ class SecurityHeaderScanner(BaseScanner):
         # Not used -- findings are created inline during scan
         return []
 
-    def _check_headers(
-        self, resp: requests.Response, target: Target
-    ) -> list[Finding]:
+    def _check_headers(self, resp: requests.Response, target: Target) -> list[Finding]:
         findings: list[Finding] = []
 
         for check in HEADER_CHECKS:
@@ -132,58 +130,62 @@ class SecurityHeaderScanner(BaseScanner):
             value = resp.headers.get(header_name)
 
             if not value:
-                findings.append(Finding(
-                    title=check["title"],
-                    description=(
-                        f"The response from {target.base_url} does not "
-                        f"include the {header_name} header."
-                    ),
-                    severity=check["severity"],
-                    confidence=Confidence.CONFIRMED,
-                    url=target.base_url,
-                    remediation=check["remediation"],
-                    scanner=self.name,
-                    tags=[check["tag"]],
-                ))
+                findings.append(
+                    Finding(
+                        title=check["title"],
+                        description=(
+                            f"The response from {target.base_url} does not "
+                            f"include the {header_name} header."
+                        ),
+                        severity=check["severity"],
+                        confidence=Confidence.CONFIRMED,
+                        url=target.base_url,
+                        remediation=check["remediation"],
+                        scanner=self.name,
+                        tags=[check["tag"]],
+                    )
+                )
 
         return findings
 
-    def _check_cookies(
-        self, resp: requests.Response, target: Target
-    ) -> list[Finding]:
+    def _check_cookies(self, resp: requests.Response, target: Target) -> list[Finding]:
         """Check cookie security flags."""
         findings: list[Finding] = []
 
         for cookie in resp.cookies:
             if not cookie.secure:
-                findings.append(Finding(
-                    title=f"Cookie '{cookie.name}' missing Secure flag",
-                    description=(
-                        f"The cookie '{cookie.name}' is set without the "
-                        f"Secure flag, meaning it can be sent over HTTP."
-                    ),
-                    severity=Severity.MEDIUM,
-                    confidence=Confidence.CONFIRMED,
-                    url=target.base_url,
-                    remediation="Set the Secure flag on all cookies.",
-                    scanner=self.name,
-                    tags=["security_misconfiguration"],
-                ))
+                findings.append(
+                    Finding(
+                        title=f"Cookie '{cookie.name}' missing Secure flag",
+                        description=(
+                            f"The cookie '{cookie.name}' is set without the "
+                            f"Secure flag, meaning it can be sent over HTTP."
+                        ),
+                        severity=Severity.MEDIUM,
+                        confidence=Confidence.CONFIRMED,
+                        url=target.base_url,
+                        remediation="Set the Secure flag on all cookies.",
+                        scanner=self.name,
+                        tags=["security_misconfiguration"],
+                    )
+                )
 
             if not cookie.has_nonstandard_attr("HttpOnly"):
-                findings.append(Finding(
-                    title=f"Cookie '{cookie.name}' missing HttpOnly flag",
-                    description=(
-                        f"The cookie '{cookie.name}' is set without the "
-                        f"HttpOnly flag, making it accessible to JavaScript."
-                    ),
-                    severity=Severity.LOW,
-                    confidence=Confidence.CONFIRMED,
-                    url=target.base_url,
-                    remediation="Set the HttpOnly flag on session cookies.",
-                    scanner=self.name,
-                    tags=["security_misconfiguration"],
-                ))
+                findings.append(
+                    Finding(
+                        title=f"Cookie '{cookie.name}' missing HttpOnly flag",
+                        description=(
+                            f"The cookie '{cookie.name}' is set without the "
+                            f"HttpOnly flag, making it accessible to JavaScript."
+                        ),
+                        severity=Severity.LOW,
+                        confidence=Confidence.CONFIRMED,
+                        url=target.base_url,
+                        remediation="Set the HttpOnly flag on session cookies.",
+                        scanner=self.name,
+                        tags=["security_misconfiguration"],
+                    )
+                )
 
         return findings
 
@@ -196,35 +198,39 @@ class SecurityHeaderScanner(BaseScanner):
         x_powered = resp.headers.get("X-Powered-By", "")
 
         if server and any(c.isdigit() for c in server):
-            findings.append(Finding(
-                title="Server header discloses version information",
-                description=(
-                    f"The Server header contains version details: '{server}'. "
-                    f"This helps attackers identify known vulnerabilities."
-                ),
-                severity=Severity.LOW,
-                confidence=Confidence.CONFIRMED,
-                url=target.base_url,
-                evidence=f"Server: {server}",
-                remediation="Remove version details from the Server header.",
-                scanner=self.name,
-                tags=["security_misconfiguration"],
-            ))
+            findings.append(
+                Finding(
+                    title="Server header discloses version information",
+                    description=(
+                        f"The Server header contains version details: '{server}'. "
+                        f"This helps attackers identify known vulnerabilities."
+                    ),
+                    severity=Severity.LOW,
+                    confidence=Confidence.CONFIRMED,
+                    url=target.base_url,
+                    evidence=f"Server: {server}",
+                    remediation="Remove version details from the Server header.",
+                    scanner=self.name,
+                    tags=["security_misconfiguration"],
+                )
+            )
 
         if x_powered:
-            findings.append(Finding(
-                title="X-Powered-By header present",
-                description=(
-                    f"The X-Powered-By header reveals: '{x_powered}'. "
-                    f"This discloses technology stack information."
-                ),
-                severity=Severity.LOW,
-                confidence=Confidence.CONFIRMED,
-                url=target.base_url,
-                evidence=f"X-Powered-By: {x_powered}",
-                remediation="Remove the X-Powered-By header.",
-                scanner=self.name,
-                tags=["security_misconfiguration"],
-            ))
+            findings.append(
+                Finding(
+                    title="X-Powered-By header present",
+                    description=(
+                        f"The X-Powered-By header reveals: '{x_powered}'. "
+                        f"This discloses technology stack information."
+                    ),
+                    severity=Severity.LOW,
+                    confidence=Confidence.CONFIRMED,
+                    url=target.base_url,
+                    evidence=f"X-Powered-By: {x_powered}",
+                    remediation="Remove the X-Powered-By header.",
+                    scanner=self.name,
+                    tags=["security_misconfiguration"],
+                )
+            )
 
         return findings

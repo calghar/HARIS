@@ -13,7 +13,7 @@ class PromptTemplateLoader:
 
     def __init__(self, template_dir: Path | None = None) -> None:
         self._template_dir = template_dir or _TEMPLATES_DIR
-        self._env = jinja2.Environment(
+        self._env = jinja2.Environment(  # nosec B701 — LLM prompt templates, not HTML
             loader=jinja2.FileSystemLoader(str(self._template_dir)),
             autoescape=False,
             undefined=jinja2.StrictUndefined,

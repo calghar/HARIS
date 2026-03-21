@@ -18,8 +18,7 @@ class TestRemediationPlanner:
                 description="",
                 severity=Severity.MEDIUM,
                 remediation=(
-                    "Add the header: Strict-Transport-Security:"
-                    " max-age=31536000"
+                    "Add the header: Strict-Transport-Security: max-age=31536000"
                 ),
             ),
             Finding(
@@ -27,8 +26,7 @@ class TestRemediationPlanner:
                 description="",
                 severity=Severity.MEDIUM,
                 remediation=(
-                    "Add the header: Strict-Transport-Security:"
-                    " max-age=31536000"
+                    "Add the header: Strict-Transport-Security: max-age=31536000"
                 ),
             ),
         ]
@@ -90,8 +88,7 @@ class TestRemediationPlanner:
                 description="",
                 severity=Severity.MEDIUM,
                 remediation=(
-                    "Add the header: Strict-Transport-Security:"
-                    " max-age=31536000"
+                    "Add the header: Strict-Transport-Security: max-age=31536000"
                 ),
             ),
         ]

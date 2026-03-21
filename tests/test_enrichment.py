@@ -100,7 +100,8 @@ class TestEnrichmentModels:
 class TestFindingEnricher:
     def test_should_enrich_above_threshold(self):
         enricher = FindingEnricher(
-            _mock_backend("{}"), severity_threshold="high",
+            _mock_backend("{}"),
+            severity_threshold="high",
         )
         assert enricher.should_enrich(_make_finding(severity=Severity.CRITICAL))
         assert enricher.should_enrich(_make_finding(severity=Severity.HIGH))
@@ -108,20 +109,24 @@ class TestFindingEnricher:
         assert not enricher.should_enrich(_make_finding(severity=Severity.LOW))
 
     def test_enrich_finding_success(self):
-        response_json = json.dumps({
-            "attack_narrative": "Attacker sends malicious SQL",
-            "business_impact_assessment": "Data breach risk",
-            "exploitation_complexity": "low",
-            "false_positive_likelihood": "low",
-            "related_cwes": ["CWE-89"],
-            "attack_chain_position": "initial_access",
-            "variant_suggestions": ["Check /api/search too"],
-        })
+        response_json = json.dumps(
+            {
+                "attack_narrative": "Attacker sends malicious SQL",
+                "business_impact_assessment": "Data breach risk",
+                "exploitation_complexity": "low",
+                "false_positive_likelihood": "low",
+                "related_cwes": ["CWE-89"],
+                "attack_chain_position": "initial_access",
+                "variant_suggestions": ["Check /api/search too"],
+            }
+        )
         backend = _mock_backend(response_json)
         enricher = FindingEnricher(backend, severity_threshold="high")
 
         result = enricher.enrich_finding(
-            _make_finding(), _make_target(), ["Other finding"],
+            _make_finding(),
+            _make_target(),
+            ["Other finding"],
         )
         assert result is not None
         assert result.finding_id == "F001"
@@ -133,7 +138,8 @@ class TestFindingEnricher:
         backend = _mock_backend("{}")
         enricher = FindingEnricher(backend, severity_threshold="high")
         result = enricher.enrich_finding(
-            _make_finding(severity=Severity.LOW), _make_target(),
+            _make_finding(severity=Severity.LOW),
+            _make_target(),
         )
         assert result is None
         backend.complete.assert_not_called()
@@ -142,20 +148,23 @@ class TestFindingEnricher:
         backend = _mock_backend("not valid json at all")
         enricher = FindingEnricher(backend, severity_threshold="info")
         result = enricher.enrich_finding(
-            _make_finding(), _make_target(),
+            _make_finding(),
+            _make_target(),
         )
         assert result is None
 
     def test_batch_enrich(self):
-        response_json = json.dumps({
-            "attack_narrative": "test",
-            "business_impact_assessment": "test",
-            "exploitation_complexity": "medium",
-            "false_positive_likelihood": "low",
-            "related_cwes": [],
-            "attack_chain_position": "standalone",
-            "variant_suggestions": [],
-        })
+        response_json = json.dumps(
+            {
+                "attack_narrative": "test",
+                "business_impact_assessment": "test",
+                "exploitation_complexity": "medium",
+                "false_positive_likelihood": "low",
+                "related_cwes": [],
+                "attack_chain_position": "standalone",
+                "variant_suggestions": [],
+            }
+        )
         backend = _mock_backend(response_json)
         enricher = FindingEnricher(backend, severity_threshold="high")
 
@@ -180,16 +189,18 @@ class TestFindingEnricher:
 
 class TestLLMCorrelator:
     def test_identify_attack_chains(self):
-        chains_json = json.dumps([
-            {
-                "chain_id": "C1",
-                "name": "SQLi + DB exposure",
-                "description": "Chain description",
-                "finding_ids": ["F001", "F002"],
-                "total_impact": "full compromise",
-                "likelihood": "high",
-            },
-        ])
+        chains_json = json.dumps(
+            [
+                {
+                    "chain_id": "C1",
+                    "name": "SQLi + DB exposure",
+                    "description": "Chain description",
+                    "finding_ids": ["F001", "F002"],
+                    "total_impact": "full compromise",
+                    "likelihood": "high",
+                },
+            ]
+        )
         backend = _mock_backend(chains_json)
         correlator = LLMCorrelator(backend)
 
@@ -210,13 +221,15 @@ class TestLLMCorrelator:
         backend.complete.assert_not_called()
 
     def test_detect_false_positives(self):
-        fp_json = json.dumps([
-            {
-                "finding_id": "F002",
-                "false_positive_likelihood": "high",
-                "rationale": "Weak evidence",
-            },
-        ])
+        fp_json = json.dumps(
+            [
+                {
+                    "finding_id": "F002",
+                    "false_positive_likelihood": "high",
+                    "rationale": "Weak evidence",
+                },
+            ]
+        )
         backend = _mock_backend(fp_json)
         correlator = LLMCorrelator(backend)
 
@@ -227,9 +240,12 @@ class TestLLMCorrelator:
     def test_bad_json_returns_empty(self):
         backend = _mock_backend("not json")
         correlator = LLMCorrelator(backend)
-        assert correlator.identify_attack_chains(
-            [_make_finding(), _make_finding(finding_id="F002")],
-        ) == []
+        assert (
+            correlator.identify_attack_chains(
+                [_make_finding(), _make_finding(finding_id="F002")],
+            )
+            == []
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -239,16 +255,18 @@ class TestLLMCorrelator:
 
 class TestSmartTriager:
     def test_triage_findings(self):
-        triage_json = json.dumps([
-            {
-                "finding_id": "F001",
-                "exploitability_score": 9,
-                "business_priority": 10,
-                "adjusted_severity": "critical",
-                "triage_rationale": "Directly exploitable SQLi",
-                "recommended_timeline": "immediate",
-            },
-        ])
+        triage_json = json.dumps(
+            [
+                {
+                    "finding_id": "F001",
+                    "exploitability_score": 9,
+                    "business_priority": 10,
+                    "adjusted_severity": "critical",
+                    "triage_rationale": "Directly exploitable SQLi",
+                    "recommended_timeline": "immediate",
+                },
+            ]
+        )
         backend = _mock_backend(triage_json)
         triager = SmartTriager(backend)
 
@@ -284,25 +302,30 @@ class TestSmartTriager:
 
 class TestVariantAnalyzer:
     def test_suggest_variants(self):
-        variants_json = json.dumps([
-            {
-                "description": "Check /api/search endpoint",
-                "rationale": "Same parameter pattern",
-                "url_pattern": "/api/search?q=",
-            },
-        ])
+        variants_json = json.dumps(
+            [
+                {
+                    "description": "Check /api/search endpoint",
+                    "rationale": "Same parameter pattern",
+                    "url_pattern": "/api/search?q=",
+                },
+            ]
+        )
         backend = _mock_backend(variants_json)
         analyzer = VariantAnalyzer(backend)
 
         suggestions = analyzer.suggest_variants(
-            _make_finding(), _make_target(),
+            _make_finding(),
+            _make_target(),
         )
         assert len(suggestions) == 1
         assert suggestions[0].url_pattern == "/api/search?q="
 
     def test_variant_suggestion_to_dict(self):
         vs = VariantSuggestion(
-            description="test", rationale="because", url_pattern="/test",
+            description="test",
+            rationale="because",
+            url_pattern="/test",
         )
         d = vs.to_dict()
         assert d["description"] == "test"
@@ -321,7 +344,9 @@ class TestEnrichmentPromptBuilder:
 
     def test_enrich_finding_prompt(self):
         system, prompt = EnrichmentPromptBuilder.enrich_finding(
-            _make_finding(), _make_target(), ["Other vuln"],
+            _make_finding(),
+            _make_target(),
+            ["Other vuln"],
         )
         assert "Test SQLi" in prompt
         assert "example.com" in prompt
@@ -340,14 +365,16 @@ class TestEnrichmentPromptBuilder:
             compliance_frameworks=["pci-dss"],
         )
         system, prompt = EnrichmentPromptBuilder.triage_findings(
-            [_make_finding()], ctx,
+            [_make_finding()],
+            ctx,
         )
         assert "fintech" in prompt
         assert "pci-dss" in prompt
 
     def test_suggest_variants_prompt(self):
         system, prompt = EnrichmentPromptBuilder.suggest_variants(
-            _make_finding(), _make_target(),
+            _make_finding(),
+            _make_target(),
         )
         assert "variant" in prompt.lower()
         assert "manual review" in prompt.lower()

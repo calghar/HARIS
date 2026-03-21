@@ -24,35 +24,46 @@ _SAMESITE_WEAK_VALUES: frozenset[str] = frozenset({"none", ""})
 # These are informational -- they indicate a predictable/guessable session ID
 # name, and may also assist fingerprinting.
 _PREDICTABLE_SESSION_NAMES: list[tuple[str, str]] = [
-    ("PHPSESSID",   "PHP"),
-    ("JSESSIONID",  "Java EE / Tomcat"),
+    ("PHPSESSID", "PHP"),
+    ("JSESSIONID", "Java EE / Tomcat"),
     ("ASP.NET_SessionId", "ASP.NET"),
     ("ASPSESSIONID", "Classic ASP"),
     ("rack.session", "Ruby Rack"),
-    ("connect.sid",  "Node.js / Connect"),
-    ("ci_session",   "CodeIgniter"),
+    ("connect.sid", "Node.js / Connect"),
+    ("ci_session", "CodeIgniter"),
     ("laravel_session", "Laravel"),
     ("django_session", "Django (non-default name variant)"),
-    ("CFID",        "ColdFusion"),
-    ("CFTOKEN",     "ColdFusion"),
+    ("CFID", "ColdFusion"),
+    ("CFTOKEN", "ColdFusion"),
 ]
 
 _PREDICTABLE_NAME_MAP: dict[str, str] = {
-    name.lower(): framework
-    for name, framework in _PREDICTABLE_SESSION_NAMES
+    name.lower(): framework for name, framework in _PREDICTABLE_SESSION_NAMES
 }
 
 # TLDs considered "overly broad" for a Domain attribute.
 # Any cookie whose Domain resolves to only a public suffix is flagged.
-_OVERLY_BROAD_TLDS: frozenset[str] = frozenset({
-    ".com", ".net", ".org", ".io", ".co", ".gov", ".edu",
-    ".com.au", ".co.uk", ".co.nz", ".co.za",
-})
+_OVERLY_BROAD_TLDS: frozenset[str] = frozenset(
+    {
+        ".com",
+        ".net",
+        ".org",
+        ".io",
+        ".co",
+        ".gov",
+        ".edu",
+        ".com.au",
+        ".co.uk",
+        ".co.nz",
+        ".co.za",
+    }
+)
 
 
 # ---------------------------------------------------------------------------
 # Internal helpers
 # ---------------------------------------------------------------------------
+
 
 def _parse_single_set_cookie(raw: str) -> dict[str, str] | None:
     """Parse a single raw ``Set-Cookie`` header into an attribute dict.
@@ -192,6 +203,7 @@ def _cookie_lifetime_seconds(attrs: dict[str, str]) -> int | None:
 # Scanner
 # ---------------------------------------------------------------------------
 
+
 @register_check
 class CookieSecurityScanner(BaseScanner):
     """Deep cookie security analysis.
@@ -243,8 +255,8 @@ class CookieSecurityScanner(BaseScanner):
         try:
             resp = requests.get(
                 target.base_url,
-                timeout=self.options["timeout"],
-                allow_redirects=self.options["follow_redirects"],
+                timeout=self.options.get("timeout", 15),
+                allow_redirects=self.options.get("follow_redirects", True),
                 headers=target.auth.as_headers(),
                 verify=True,
             )
@@ -260,9 +272,7 @@ class CookieSecurityScanner(BaseScanner):
             return result
 
         for cookie_attrs in cookies:
-            result.findings.extend(
-                self._analyse_cookie(cookie_attrs, target)
-            )
+            result.findings.extend(self._analyse_cookie(cookie_attrs, target))
 
         return result
 
@@ -274,9 +284,7 @@ class CookieSecurityScanner(BaseScanner):
     # Per-cookie analysis
     # ------------------------------------------------------------------
 
-    def _analyse_cookie(
-        self, attrs: dict[str, str], target: Target
-    ) -> list[Finding]:
+    def _analyse_cookie(self, attrs: dict[str, str], target: Target) -> list[Finding]:
         """Run all sub-checks for a single cookie.
 
         Args:
@@ -325,25 +333,27 @@ class CookieSecurityScanner(BaseScanner):
             return []
 
         if "secure" not in attrs:
-            return [Finding(
-                title=f"Cookie '{name}' missing Secure flag",
-                description=(
-                    f"The cookie '{name}' on {target.base_url} does not "
-                    f"carry the Secure attribute. Without this flag the "
-                    f"browser will transmit the cookie over plain HTTP, "
-                    f"exposing it to network eavesdroppers."
-                ),
-                severity=Severity.MEDIUM,
-                confidence=Confidence.CONFIRMED,
-                url=target.base_url,
-                evidence=f"Set-Cookie: {name}=...; (no Secure flag)",
-                remediation=(
-                    f"Add the Secure attribute to the '{name}' cookie: "
-                    f"Set-Cookie: {name}=<value>; Secure; ..."
-                ),
-                scanner=self.name,
-                tags=["security_misconfiguration"],
-            )]
+            return [
+                Finding(
+                    title=f"Cookie '{name}' missing Secure flag",
+                    description=(
+                        f"The cookie '{name}' on {target.base_url} does not "
+                        f"carry the Secure attribute. Without this flag the "
+                        f"browser will transmit the cookie over plain HTTP, "
+                        f"exposing it to network eavesdroppers."
+                    ),
+                    severity=Severity.MEDIUM,
+                    confidence=Confidence.CONFIRMED,
+                    url=target.base_url,
+                    evidence=f"Set-Cookie: {name}=...; (no Secure flag)",
+                    remediation=(
+                        f"Add the Secure attribute to the '{name}' cookie: "
+                        f"Set-Cookie: {name}=<value>; Secure; ..."
+                    ),
+                    scanner=self.name,
+                    tags=["security_misconfiguration"],
+                )
+            ]
 
         return []
 
@@ -364,25 +374,27 @@ class CookieSecurityScanner(BaseScanner):
             List of findings (zero or one entry).
         """
         if "httponly" not in attrs:
-            return [Finding(
-                title=f"Cookie '{name}' missing HttpOnly flag",
-                description=(
-                    f"The cookie '{name}' on {target.base_url} is not "
-                    f"marked HttpOnly. Any JavaScript running on the page "
-                    f"(including injected XSS payloads) can read its value "
-                    f"via document.cookie."
-                ),
-                severity=Severity.LOW,
-                confidence=Confidence.CONFIRMED,
-                url=target.base_url,
-                evidence=f"Set-Cookie: {name}=...; (no HttpOnly flag)",
-                remediation=(
-                    f"Add HttpOnly to the '{name}' cookie: "
-                    f"Set-Cookie: {name}=<value>; HttpOnly; ..."
-                ),
-                scanner=self.name,
-                tags=["security_misconfiguration"],
-            )]
+            return [
+                Finding(
+                    title=f"Cookie '{name}' missing HttpOnly flag",
+                    description=(
+                        f"The cookie '{name}' on {target.base_url} is not "
+                        f"marked HttpOnly. Any JavaScript running on the page "
+                        f"(including injected XSS payloads) can read its value "
+                        f"via document.cookie."
+                    ),
+                    severity=Severity.LOW,
+                    confidence=Confidence.CONFIRMED,
+                    url=target.base_url,
+                    evidence=f"Set-Cookie: {name}=...; (no HttpOnly flag)",
+                    remediation=(
+                        f"Add HttpOnly to the '{name}' cookie: "
+                        f"Set-Cookie: {name}=<value>; HttpOnly; ..."
+                    ),
+                    scanner=self.name,
+                    tags=["security_misconfiguration"],
+                )
+            ]
 
         return []
 
@@ -411,58 +423,62 @@ class CookieSecurityScanner(BaseScanner):
         samesite_value = attrs.get("samesite")
 
         if samesite_value is None:
-            return [Finding(
-                title=f"Cookie '{name}' missing SameSite attribute",
-                description=(
-                    f"The cookie '{name}' on {target.base_url} has no "
-                    f"SameSite attribute. While modern browsers default to "
-                    f"'Lax', older browsers send the cookie cross-site, "
-                    f"increasing CSRF risk."
-                ),
-                severity=Severity.LOW,
-                confidence=Confidence.CONFIRMED,
-                url=target.base_url,
-                evidence=f"Set-Cookie: {name}=...; (no SameSite attribute)",
-                remediation=(
-                    f"Explicitly set SameSite on '{name}': "
-                    f"Set-Cookie: {name}=<value>; SameSite=Strict (or Lax)"
-                ),
-                scanner=self.name,
-                tags=["security_misconfiguration", "session_fixation"],
-            )]
+            return [
+                Finding(
+                    title=f"Cookie '{name}' missing SameSite attribute",
+                    description=(
+                        f"The cookie '{name}' on {target.base_url} has no "
+                        f"SameSite attribute. While modern browsers default to "
+                        f"'Lax', older browsers send the cookie cross-site, "
+                        f"increasing CSRF risk."
+                    ),
+                    severity=Severity.LOW,
+                    confidence=Confidence.CONFIRMED,
+                    url=target.base_url,
+                    evidence=f"Set-Cookie: {name}=...; (no SameSite attribute)",
+                    remediation=(
+                        f"Explicitly set SameSite on '{name}': "
+                        f"Set-Cookie: {name}=<value>; SameSite=Strict (or Lax)"
+                    ),
+                    scanner=self.name,
+                    tags=["security_misconfiguration", "session_fixation"],
+                )
+            ]
 
         if samesite_value.lower() in _SAMESITE_WEAK_VALUES:
             has_secure = "secure" in attrs
             severity = Severity.MEDIUM if not has_secure else Severity.LOW
-            return [Finding(
-                title=f"Cookie '{name}' uses weak SameSite=None",
-                description=(
-                    f"The cookie '{name}' on {target.base_url} is set with "
-                    f"SameSite=None, which allows it to be sent in all "
-                    f"cross-site requests. "
-                    + (
-                        "The Secure flag is also absent, which may cause "
-                        "browsers to reject or silently drop the cookie."
-                        if not has_secure
-                        else "Ensure this is intentional for a cross-site use-case."
-                    )
-                ),
-                severity=severity,
-                confidence=Confidence.CONFIRMED,
-                url=target.base_url,
-                evidence=(
-                    f"Set-Cookie: {name}=...; SameSite=None"
-                    + ("" if has_secure else " (Secure flag absent)")
-                ),
-                remediation=(
-                    f"Change SameSite to 'Strict' or 'Lax' for '{name}' "
-                    f"unless cross-site delivery is explicitly required. "
-                    f"If SameSite=None is required, the Secure flag must "
-                    f"also be present."
-                ),
-                scanner=self.name,
-                tags=["security_misconfiguration", "session_fixation"],
-            )]
+            return [
+                Finding(
+                    title=f"Cookie '{name}' uses weak SameSite=None",
+                    description=(
+                        f"The cookie '{name}' on {target.base_url} is set with "
+                        f"SameSite=None, which allows it to be sent in all "
+                        f"cross-site requests. "
+                        + (
+                            "The Secure flag is also absent, which may cause "
+                            "browsers to reject or silently drop the cookie."
+                            if not has_secure
+                            else "Ensure this is intentional for a cross-site use-case."
+                        )
+                    ),
+                    severity=severity,
+                    confidence=Confidence.CONFIRMED,
+                    url=target.base_url,
+                    evidence=(
+                        f"Set-Cookie: {name}=...; SameSite=None"
+                        + ("" if has_secure else " (Secure flag absent)")
+                    ),
+                    remediation=(
+                        f"Change SameSite to 'Strict' or 'Lax' for '{name}' "
+                        f"unless cross-site delivery is explicitly required. "
+                        f"If SameSite=None is required, the Secure flag must "
+                        f"also be present."
+                    ),
+                    scanner=self.name,
+                    tags=["security_misconfiguration", "session_fixation"],
+                )
+            ]
 
         return []
 
@@ -492,27 +508,29 @@ class CookieSecurityScanner(BaseScanner):
             return []
 
         if _is_domain_overly_broad(domain):
-            return [Finding(
-                title=f"Cookie '{name}' has overly broad Domain: {domain}",
-                description=(
-                    f"The cookie '{name}' on {target.base_url} sets "
-                    f"Domain='{domain}', which is a public suffix. "
-                    f"The browser will send this cookie to every host "
-                    f"under that suffix, leaking the cookie value to "
-                    f"unrelated sites."
-                ),
-                severity=Severity.HIGH,
-                confidence=Confidence.CONFIRMED,
-                url=target.base_url,
-                evidence=f"Set-Cookie: {name}=...; Domain={domain}",
-                remediation=(
-                    f"Change the Domain attribute of '{name}' to the full "
-                    f"registrable hostname (e.g. '.example.com') or omit it "
-                    f"entirely to restrict the cookie to the exact origin."
-                ),
-                scanner=self.name,
-                tags=["security_misconfiguration", "session_fixation"],
-            )]
+            return [
+                Finding(
+                    title=f"Cookie '{name}' has overly broad Domain: {domain}",
+                    description=(
+                        f"The cookie '{name}' on {target.base_url} sets "
+                        f"Domain='{domain}', which is a public suffix. "
+                        f"The browser will send this cookie to every host "
+                        f"under that suffix, leaking the cookie value to "
+                        f"unrelated sites."
+                    ),
+                    severity=Severity.HIGH,
+                    confidence=Confidence.CONFIRMED,
+                    url=target.base_url,
+                    evidence=f"Set-Cookie: {name}=...; Domain={domain}",
+                    remediation=(
+                        f"Change the Domain attribute of '{name}' to the full "
+                        f"registrable hostname (e.g. '.example.com') or omit it "
+                        f"entirely to restrict the cookie to the exact origin."
+                    ),
+                    scanner=self.name,
+                    tags=["security_misconfiguration", "session_fixation"],
+                )
+            ]
 
         # Also check if the domain is broader than the target's own hostname.
         # e.g. target is app.example.com but cookie Domain is .example.com.
@@ -524,26 +542,28 @@ class CookieSecurityScanner(BaseScanner):
             and normalised_domain != target_hostname
             and target_hostname.endswith(f".{normalised_domain}")
         ):
-            return [Finding(
-                title=f"Cookie '{name}' Domain is broader than the target host",
-                description=(
-                    f"The cookie '{name}' is set with Domain='{domain}' "
-                    f"while the target host is '{target_hostname}'. "
-                    f"The cookie will be sent to all subdomains under "
-                    f"'{normalised_domain}', not just the issuing host."
-                ),
-                severity=Severity.INFO,
-                confidence=Confidence.CONFIRMED,
-                url=target.base_url,
-                evidence=f"Set-Cookie: {name}=...; Domain={domain}",
-                remediation=(
-                    f"Restrict the Domain attribute of '{name}' to "
-                    f"'{target_hostname}' or remove the attribute entirely "
-                    f"if cross-subdomain access is not required."
-                ),
-                scanner=self.name,
-                tags=["security_misconfiguration"],
-            )]
+            return [
+                Finding(
+                    title=f"Cookie '{name}' Domain is broader than the target host",
+                    description=(
+                        f"The cookie '{name}' is set with Domain='{domain}' "
+                        f"while the target host is '{target_hostname}'. "
+                        f"The cookie will be sent to all subdomains under "
+                        f"'{normalised_domain}', not just the issuing host."
+                    ),
+                    severity=Severity.INFO,
+                    confidence=Confidence.CONFIRMED,
+                    url=target.base_url,
+                    evidence=f"Set-Cookie: {name}=...; Domain={domain}",
+                    remediation=(
+                        f"Restrict the Domain attribute of '{name}' to "
+                        f"'{target_hostname}' or remove the attribute entirely "
+                        f"if cross-subdomain access is not required."
+                    ),
+                    scanner=self.name,
+                    tags=["security_misconfiguration"],
+                )
+            ]
 
         return []
 
@@ -584,28 +604,30 @@ class CookieSecurityScanner(BaseScanner):
             else f"Expires={attrs.get('expires', 'unknown')}"
         )
 
-        return [Finding(
-            title=f"Cookie '{name}' has excessive expiry ({lifetime_days} days)",
-            description=(
-                f"The cookie '{name}' on {target.base_url} expires in "
-                f"{lifetime_days} days ({expiry_source}). "
-                f"The recommended maximum is {threshold_days} days. "
-                f"Long-lived cookies remain valid long after a session ends, "
-                f"increasing the impact of theft or fixation attacks."
-            ),
-            severity=Severity.LOW,
-            confidence=Confidence.CONFIRMED,
-            url=target.base_url,
-            evidence=f"Set-Cookie: {name}=...; {expiry_source}",
-            remediation=(
-                f"Reduce the '{name}' cookie lifetime to at most "
-                f"{threshold_days} days. For session cookies that must "
-                f"persist across browser restarts, implement server-side "
-                f"session expiry and renewal mechanisms."
-            ),
-            scanner=self.name,
-            tags=["security_misconfiguration", "session_fixation"],
-        )]
+        return [
+            Finding(
+                title=f"Cookie '{name}' has excessive expiry ({lifetime_days} days)",
+                description=(
+                    f"The cookie '{name}' on {target.base_url} expires in "
+                    f"{lifetime_days} days ({expiry_source}). "
+                    f"The recommended maximum is {threshold_days} days. "
+                    f"Long-lived cookies remain valid long after a session ends, "
+                    f"increasing the impact of theft or fixation attacks."
+                ),
+                severity=Severity.LOW,
+                confidence=Confidence.CONFIRMED,
+                url=target.base_url,
+                evidence=f"Set-Cookie: {name}=...; {expiry_source}",
+                remediation=(
+                    f"Reduce the '{name}' cookie lifetime to at most "
+                    f"{threshold_days} days. For session cookies that must "
+                    f"persist across browser restarts, implement server-side "
+                    f"session expiry and renewal mechanisms."
+                ),
+                scanner=self.name,
+                tags=["security_misconfiguration", "session_fixation"],
+            )
+        ]
 
     def _check_predictable_name(
         self,
@@ -630,24 +652,26 @@ class CookieSecurityScanner(BaseScanner):
         if not framework:
             return []
 
-        return [Finding(
-            title=f"Predictable session cookie name '{name}' reveals {framework}",
-            description=(
-                f"The cookie name '{name}' is the default session identifier "
-                f"for {framework}. This immediately reveals the back-end "
-                f"technology to any observer, simplifying targeted attacks "
-                f"against known {framework} vulnerabilities."
-            ),
-            severity=Severity.INFO,
-            confidence=Confidence.CONFIRMED,
-            url=target.base_url,
-            evidence=f"Set-Cookie: {name}=...",
-            remediation=(
-                "Rename the session cookie to a generic, non-identifying "
-                "name (e.g. 'sid' or 'session') via the framework's session "
-                "configuration. For PHP: session_name('sid'); for "
-                "Tomcat: set <Context sessionCookieName='sid'/>."
-            ),
-            scanner=self.name,
-            tags=["security_misconfiguration", "session_fixation"],
-        )]
+        return [
+            Finding(
+                title=f"Predictable session cookie name '{name}' reveals {framework}",
+                description=(
+                    f"The cookie name '{name}' is the default session identifier "
+                    f"for {framework}. This immediately reveals the back-end "
+                    f"technology to any observer, simplifying targeted attacks "
+                    f"against known {framework} vulnerabilities."
+                ),
+                severity=Severity.INFO,
+                confidence=Confidence.CONFIRMED,
+                url=target.base_url,
+                evidence=f"Set-Cookie: {name}=...",
+                remediation=(
+                    "Rename the session cookie to a generic, non-identifying "
+                    "name (e.g. 'sid' or 'session') via the framework's session "
+                    "configuration. For PHP: session_name('sid'); for "
+                    "Tomcat: set <Context sessionCookieName='sid'/>."
+                ),
+                scanner=self.name,
+                tags=["security_misconfiguration", "session_fixation"],
+            )
+        ]

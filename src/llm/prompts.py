@@ -139,17 +139,11 @@ class PromptBuilder:
             lines.append("")
 
         # One-line summaries for remaining findings
-        others = [
-            f
-            for f in session.all_findings
-            if f.finding_id not in relevant_ids
-        ]
+        others = [f for f in session.all_findings if f.finding_id not in relevant_ids]
         if others:
             lines.append("## Other Findings (summary only)")
             for f in others:
-                lines.append(
-                    f"- [{f.severity.value.upper()}] {f.title}"
-                )
+                lines.append(f"- [{f.severity.value.upper()}] {f.title}")
             lines.append("")
 
         return "\n".join(lines)
@@ -195,9 +189,7 @@ class PromptBuilder:
         format: str = "jira",
     ) -> tuple[str, str]:
         context = cls._format_session_context(session)
-        instruction = _FORMAT_INSTRUCTIONS.get(
-            format, _FORMAT_INSTRUCTIONS["markdown"]
-        )
+        instruction = _FORMAT_INSTRUCTIONS.get(format, _FORMAT_INSTRUCTIONS["markdown"])
         prompt = render_template(
             "qa/remediation_plan.j2",
             context=context,

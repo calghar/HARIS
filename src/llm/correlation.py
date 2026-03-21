@@ -23,7 +23,8 @@ class LLMCorrelator:
         self._prompts = EnrichmentPromptBuilder()
 
     def identify_attack_chains(
-        self, findings: list[Finding],
+        self,
+        findings: list[Finding],
     ) -> list[AttackChain]:
         """Identify attack chains across the provided findings."""
         if len(findings) < 2:
@@ -44,7 +45,8 @@ class LLMCorrelator:
             return []
 
     def detect_false_positives(
-        self, findings: list[Finding],
+        self,
+        findings: list[Finding],
     ) -> list[dict[str, str]]:
         """Identify findings likely to be false positives."""
         if not findings:
@@ -80,14 +82,16 @@ class LLMCorrelator:
             data: list[dict[str, Any]] = json.loads(text)
             chains: list[AttackChain] = []
             for item in data:
-                chains.append(AttackChain(
-                    chain_id=item.get("chain_id", ""),
-                    name=item.get("name", ""),
-                    description=item.get("description", ""),
-                    finding_ids=item.get("finding_ids", []),
-                    total_impact=item.get("total_impact", ""),
-                    likelihood=item.get("likelihood", ""),
-                ))
+                chains.append(
+                    AttackChain(
+                        chain_id=item.get("chain_id", ""),
+                        name=item.get("name", ""),
+                        description=item.get("description", ""),
+                        finding_ids=item.get("finding_ids", []),
+                        total_impact=item.get("total_impact", ""),
+                        likelihood=item.get("likelihood", ""),
+                    )
+                )
             return chains
         except (json.JSONDecodeError, TypeError):
             logger.warning("Could not parse attack chain response")
@@ -101,6 +105,7 @@ class LLMCorrelator:
             if text.startswith("```"):
                 text = text.split("\n", 1)[1]
                 text = text.rsplit("```", 1)[0]
-            return json.loads(text)
+            parsed: list[dict[str, str]] = json.loads(text)
+            return parsed
         except (json.JSONDecodeError, TypeError):
             return []

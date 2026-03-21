@@ -308,9 +308,12 @@ class NiktoScanner(BaseScanner):
         """
         cmd = [
             "nikto",
-            "-host", target.base_url,
-            "-Format", "json",
-            "-output", output_path,
+            "-host",
+            target.base_url,
+            "-Format",
+            "json",
+            "-output",
+            output_path,
             # Disable interactive prompts and colour codes.
             "-nointeractive",
         ]

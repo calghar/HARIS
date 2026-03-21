@@ -101,7 +101,9 @@ class TestNucleiAdapter:
         (src_dir / "test.yaml").write_text("id: test")
 
         source = TemplateSource(
-            name="official", scanner="nuclei", source_type="git",
+            name="official",
+            scanner="nuclei",
+            source_type="git",
         )
         adapter = NucleiTemplateAdapter()
         opts = adapter.get_scanner_options(tmp_path, [source])
@@ -136,8 +138,10 @@ class TestNucleiAdapter:
     @patch.object(TemplateUpdater, "count_files", return_value=50)
     def test_update_git_source(self, mock_count, mock_ver, mock_git, tmp_path):
         source = TemplateSource(
-            name="official", scanner="nuclei",
-            source_type="git", url="https://example.com/repo.git",
+            name="official",
+            scanner="nuclei",
+            source_type="git",
+            url="https://example.com/repo.git",
         )
         adapter = NucleiTemplateAdapter()
         result = adapter.update(source, tmp_path / "nuclei" / "official")
@@ -158,8 +162,10 @@ class TestNiktoAdapter:
     def test_get_scanner_options_returns_empty(self, tmp_path):
         adapter = NiktoTemplateAdapter()
         source = TemplateSource(
-            name="nikto-local", scanner="nikto",
-            source_type="local", local_path="/opt/nikto",
+            name="nikto-local",
+            scanner="nikto",
+            source_type="local",
+            local_path="/opt/nikto",
         )
         opts = adapter.get_scanner_options(tmp_path, [source])
         assert opts == {}
@@ -167,7 +173,9 @@ class TestNiktoAdapter:
     def test_update_unsupported_source_type(self, tmp_path):
         adapter = NiktoTemplateAdapter()
         source = TemplateSource(
-            name="nikto-url", scanner="nikto", source_type="url",
+            name="nikto-url",
+            scanner="nikto",
+            source_type="url",
         )
         result = adapter.update(source, tmp_path)
         assert not result.success
@@ -177,8 +185,10 @@ class TestNiktoAdapter:
     def test_update_local_no_git(self, mock_which, tmp_path):
         adapter = NiktoTemplateAdapter()
         source = TemplateSource(
-            name="nikto-local", scanner="nikto",
-            source_type="local", local_path=str(tmp_path),
+            name="nikto-local",
+            scanner="nikto",
+            source_type="local",
+            local_path=str(tmp_path),
             branch="master",
         )
         result = adapter.update(source, tmp_path)
@@ -189,7 +199,11 @@ class TestNiktoAdapter:
     @patch.object(TemplateUpdater, "_git_pull", return_value=True)
     @patch.object(TemplateUpdater, "get_git_version", return_value="f1a2b3c")
     def test_update_local_success(
-        self, mock_ver, mock_pull, mock_which, tmp_path,
+        self,
+        mock_ver,
+        mock_pull,
+        mock_which,
+        tmp_path,
     ):
         # Set up a fake nikto directory with program/databases/db_*
         db_dir = tmp_path / "program" / "databases"
@@ -200,8 +214,10 @@ class TestNiktoAdapter:
 
         adapter = NiktoTemplateAdapter()
         source = TemplateSource(
-            name="nikto-local", scanner="nikto",
-            source_type="local", local_path=str(tmp_path),
+            name="nikto-local",
+            scanner="nikto",
+            source_type="local",
+            local_path=str(tmp_path),
             branch="master",
         )
         result = adapter.update(source, tmp_path / "nikto" / "nikto-local")
@@ -214,12 +230,18 @@ class TestNiktoAdapter:
     @patch.object(TemplateUpdater, "get_git_version", return_value="aaa1111")
     @patch.object(TemplateUpdater, "count_files", return_value=12)
     def test_update_git_source(
-        self, mock_count, mock_ver, mock_git, tmp_path,
+        self,
+        mock_count,
+        mock_ver,
+        mock_git,
+        tmp_path,
     ):
         adapter = NiktoTemplateAdapter()
         source = TemplateSource(
-            name="nikto-remote", scanner="nikto",
-            source_type="git", url="https://github.com/sullo/nikto.git",
+            name="nikto-remote",
+            scanner="nikto",
+            source_type="git",
+            url="https://github.com/sullo/nikto.git",
             branch="master",
         )
         result = adapter.update(source, tmp_path / "nikto" / "nikto-remote")
@@ -324,8 +346,10 @@ class TestTemplateManager:
             base_dir=tmp_path,
             sources=[
                 TemplateSource(
-                    name="official", scanner="nuclei",
-                    source_type="git", url="https://example.com/repo.git",
+                    name="official",
+                    scanner="nuclei",
+                    source_type="git",
+                    url="https://example.com/repo.git",
                 ),
             ],
         )
@@ -344,7 +368,9 @@ class TestTemplateManager:
             base_dir=tmp_path,
             sources=[
                 TemplateSource(
-                    name="disabled", scanner="nuclei", enabled=False,
+                    name="disabled",
+                    scanner="nuclei",
+                    enabled=False,
                 ),
             ],
         )
@@ -361,8 +387,11 @@ class TestTemplateUpdateReporter:
     def test_format_cli_success(self):
         results = [
             UpdateResult(
-                scanner="nuclei", source_name="official",
-                success=True, new_version="abc", templates_added=50,
+                scanner="nuclei",
+                source_name="official",
+                success=True,
+                new_version="abc",
+                templates_added=50,
             ),
         ]
         text = TemplateUpdateReporter.format_cli(results)
@@ -372,8 +401,10 @@ class TestTemplateUpdateReporter:
     def test_format_cli_failure(self):
         results = [
             UpdateResult(
-                scanner="nmap", source_name="test",
-                success=False, error="network error",
+                scanner="nmap",
+                source_name="test",
+                success=False,
+                error="network error",
             ),
         ]
         text = TemplateUpdateReporter.format_cli(results)
@@ -424,6 +455,10 @@ class TestTemplateUpdater:
         assert TemplateUpdater.count_files(tmp_path, ["*.yaml"]) == 0
 
     def test_count_files_nonexistent(self, tmp_path):
-        assert TemplateUpdater.count_files(
-            tmp_path / "nope", ["*.yaml"],
-        ) == 0
+        assert (
+            TemplateUpdater.count_files(
+                tmp_path / "nope",
+                ["*.yaml"],
+            )
+            == 0
+        )

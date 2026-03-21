@@ -66,6 +66,9 @@ jobs:
   codeql:
     name: CodeQL
     runs-on: ubuntu-latest
+    # Code scanning requires a public repo or GitHub Advanced Security.
+    # continue-on-error keeps this job visible without blocking the workflow.
+    continue-on-error: true
     permissions:
       actions: read
       contents: read

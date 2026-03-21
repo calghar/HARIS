@@ -22,10 +22,10 @@ from .owasp import OwaspMapping
 from .profiles import ScanProfile
 from .remediation import RemediationStep
 from .risk import BusinessImpact
+from .scan_config_template import ScanConfigTemplate
 from .scanner import ScannerResult
 from .session import ScanSession
 from .target import AuthConfig, Scope, Target
-from .scan_config_template import ScanConfigTemplate
 from .templates import TemplateConfig, TemplateMetadata, TemplateSource, UpdateResult
 
 __all__ = [

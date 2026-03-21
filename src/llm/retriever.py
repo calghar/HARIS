@@ -9,7 +9,6 @@ import sqlite3
 
 from ..models import Finding
 
-
 # Characters that have special meaning in FTS5 query syntax
 _FTS5_SPECIAL = re.compile(r'[*"(){}:\-^~]')
 
@@ -39,8 +38,7 @@ class FindingRetriever:
         )
         for f in findings:
             self._conn.execute(
-                "INSERT INTO finding_fts VALUES "
-                "(?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                "INSERT INTO finding_fts VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (
                     f.finding_id,
                     f.title,
@@ -64,9 +62,7 @@ class FindingRetriever:
         # Join tokens with OR for broader matching
         return " OR ".join(f'"{t}"' for t in tokens if t)
 
-    def retrieve(
-        self, query: str, top_k: int = 10
-    ) -> list[Finding]:
+    def retrieve(self, query: str, top_k: int = 10) -> list[Finding]:
         """Return top-k most relevant findings for a query.
 
         Falls back to including all CRITICAL/HIGH findings if
@@ -87,11 +83,7 @@ class FindingRetriever:
             rows = []
 
         result_ids = {r["finding_id"] for r in rows}
-        results = [
-            self._findings[fid]
-            for fid in result_ids
-            if fid in self._findings
-        ]
+        results = [self._findings[fid] for fid in result_ids if fid in self._findings]
 
         # Fallback: if too few results, add CRITICAL/HIGH findings
         if len(results) < 3:

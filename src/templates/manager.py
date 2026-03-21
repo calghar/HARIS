@@ -54,7 +54,8 @@ class TemplateManager:
         self.base_dir.mkdir(parents=True, exist_ok=True)
         for scanner in _SCANNER_DIRS:
             (self.base_dir / scanner / "custom").mkdir(
-                parents=True, exist_ok=True,
+                parents=True,
+                exist_ok=True,
             )
         logger.info("Template directory initialised at %s", self.base_dir)
 
@@ -106,17 +107,21 @@ class TemplateManager:
 
             adapter = get_adapter(source.scanner)
             if adapter is None:
-                results.append(UpdateResult(
-                    scanner=source.scanner,
-                    source_name=source.name,
-                    success=False,
-                    error=f"No template adapter for scanner '{source.scanner}'",
-                ))
+                results.append(
+                    UpdateResult(
+                        scanner=source.scanner,
+                        source_name=source.name,
+                        success=False,
+                        error=f"No template adapter for scanner '{source.scanner}'",
+                    )
+                )
                 continue
 
             target_dir = self.base_dir / source.scanner / source.name
             logger.info(
-                "Updating templates: %s (%s)", source.name, source.scanner,
+                "Updating templates: %s (%s)",
+                source.name,
+                source.scanner,
             )
 
             result = adapter.update(source, target_dir, force=force)
@@ -150,8 +155,7 @@ class TemplateManager:
             return {}
 
         scanner_sources = [
-            s for s in self.sources
-            if s.scanner == scanner_name and s.enabled
+            s for s in self.sources if s.scanner == scanner_name and s.enabled
         ]
         if not scanner_sources:
             return {}
@@ -181,9 +185,7 @@ class TemplateManager:
             return {}
         try:
             raw = json.loads(self._metadata_path.read_text())
-            return {
-                k: TemplateMetadata(**v) for k, v in raw.items()
-            }
+            return {k: TemplateMetadata(**v) for k, v in raw.items()}
         except Exception as exc:
             logger.warning("Could not load template metadata: %s", exc)
             return {}

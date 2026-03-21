@@ -41,9 +41,7 @@ class ScanEngine:
         llm_config: dict[str, Any] | None = None,
     ) -> None:
         self.scanners: list[BaseScanner] = scanners or []
-        self.session_id = session_id or datetime.now(UTC).strftime(
-            "%Y%m%d-%H%M%S"
-        )
+        self.session_id = session_id or datetime.now(UTC).strftime("%Y%m%d-%H%M%S")
         self._correlator = FindingCorrelator()
         self._planner = RemediationPlanner()
         self._template_manager = template_manager
@@ -140,9 +138,7 @@ class ScanEngine:
             session.all_findings.extend(result.findings)
 
             if result.errors:
-                session.errors.extend(
-                    f"[{scanner.name}] {e}" for e in result.errors
-                )
+                session.errors.extend(f"[{scanner.name}] {e}" for e in result.errors)
 
             logger.info(
                 "Scanner %s finished: %d findings, %d errors in %.1fs",
@@ -214,14 +210,19 @@ class ScanEngine:
             from ..llm.router import ModelRouter
             from ..llm.triage import SmartTriager
 
+            if self._llm_backend is None:
+                logger.warning("LLM backend is not configured; skipping enrichment")
+                return
             routing = self._llm_config.get("model_routing", {})
             router = ModelRouter(self._llm_backend, routing)
 
             threshold = self._llm_config.get(
-                "enrich_severity_threshold", "high",
+                "enrich_severity_threshold",
+                "high",
             )
             max_tokens = self._llm_config.get(
-                "max_tokens_per_finding", 1024,
+                "max_tokens_per_finding",
+                1024,
             )
 
             # 1) Enrich individual findings
@@ -231,7 +232,8 @@ class ScanEngine:
                 max_tokens=max_tokens,
             )
             session.llm_enrichments = enricher.batch_enrich(
-                session.all_findings, session.target,
+                session.all_findings,
+                session.target,
             )
 
             # 2) Identify attack chains
@@ -246,37 +248,31 @@ class ScanEngine:
             triage_ctx = self._llm_config.get("triage_context", {})
             triager = SmartTriager(router.for_task("triage"))
             session.triaged_findings = triager.triage_findings(
-                session.all_findings, triage_ctx,
+                session.all_findings,
+                triage_ctx,
             )
 
             # 4) False positive detection
             fp_correlator = LLMCorrelator(
                 router.for_task("false_positives"),
             )
-            session.false_positive_assessments = (
-                fp_correlator.detect_false_positives(
-                    session.all_findings,
-                )
+            session.false_positive_assessments = fp_correlator.detect_false_positives(
+                session.all_findings,
             )
 
             # 5) Executive priorities
-            session.executive_priorities = (
-                triager.generate_executive_priorities(
-                    session.all_findings,
-                )
+            session.executive_priorities = triager.generate_executive_priorities(
+                session.all_findings,
             )
 
             logger.info(
-                "LLM enrichment complete: %d enrichments, "
-                "%d attack chains, %d triaged",
+                "LLM enrichment complete: %d enrichments, %d attack chains, %d triaged",
                 len(session.llm_enrichments),
                 len(session.attack_chains),
                 len(session.triaged_findings),
             )
         except ImportError:
-            logger.warning(
-                "LLM enrichment modules not available — skipping"
-            )
+            logger.warning("LLM enrichment modules not available — skipping")
         except Exception:
             logger.exception("LLM enrichment failed — continuing without it")
 

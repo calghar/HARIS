@@ -54,6 +54,7 @@ class BaseScannerTemplateAdapter(abc.ABC):
 # Nuclei
 # ------------------------------------------------------------------
 
+
 class NucleiTemplateAdapter(BaseScannerTemplateAdapter):
     """Manages nuclei-templates: YAML template files."""
 
@@ -72,14 +73,18 @@ class NucleiTemplateAdapter(BaseScannerTemplateAdapter):
         if source.source_type == "git":
             if not force and (target_dir / ".git").is_dir():
                 ok = updater.git_clone_or_pull(
-                    source.url, target_dir, source.branch,
+                    source.url,
+                    target_dir,
+                    source.branch,
                 )
             else:
                 # Force: wipe and re-clone
                 if force and target_dir.is_dir():
                     shutil.rmtree(target_dir)
                 ok = updater.git_clone_or_pull(
-                    source.url, target_dir, source.branch,
+                    source.url,
+                    target_dir,
+                    source.branch,
                 )
         else:
             ok = False
@@ -125,6 +130,7 @@ class NucleiTemplateAdapter(BaseScannerTemplateAdapter):
 # ------------------------------------------------------------------
 # Nikto
 # ------------------------------------------------------------------
+
 
 class NiktoTemplateAdapter(BaseScannerTemplateAdapter):
     """Manages nikto databases by updating the local nikto installation."""
@@ -180,7 +186,10 @@ class NiktoTemplateAdapter(BaseScannerTemplateAdapter):
         )
 
     def _update_git(
-        self, source: TemplateSource, target_dir: Path, force: bool,
+        self,
+        source: TemplateSource,
+        target_dir: Path,
+        force: bool,
     ) -> UpdateResult:
         """Clone or pull nikto from a remote git repository."""
         updater = TemplateUpdater()
@@ -191,7 +200,8 @@ class NiktoTemplateAdapter(BaseScannerTemplateAdapter):
         new_version = updater.get_git_version(target_dir) if ok else ""
         db_dir = target_dir / "program" / "databases"
         count = updater.count_files(
-            db_dir if db_dir.is_dir() else target_dir, self.file_patterns,
+            db_dir if db_dir.is_dir() else target_dir,
+            self.file_patterns,
         )
         return UpdateResult(
             scanner=self.scanner_name,
@@ -217,6 +227,7 @@ class NiktoTemplateAdapter(BaseScannerTemplateAdapter):
 # Nmap
 # ------------------------------------------------------------------
 
+
 class NmapTemplateAdapter(BaseScannerTemplateAdapter):
     """Manages NSE (Nmap Scripting Engine) scripts."""
 
@@ -236,7 +247,9 @@ class NmapTemplateAdapter(BaseScannerTemplateAdapter):
             if force and target_dir.is_dir():
                 shutil.rmtree(target_dir)
             ok = updater.git_clone_or_pull(
-                source.url, target_dir, source.branch,
+                source.url,
+                target_dir,
+                source.branch,
             )
         elif source.source_type == "url":
             ok = updater.download_file(source.url, target_dir / "custom.nse")
@@ -270,14 +283,18 @@ class NmapTemplateAdapter(BaseScannerTemplateAdapter):
 
         if not scripts:
             return {}
-        return {"extra_args": [
-            "--script", ",".join(scripts),
-        ]}
+        return {
+            "extra_args": [
+                "--script",
+                ",".join(scripts),
+            ]
+        }
 
 
 # ------------------------------------------------------------------
 # Wapiti
 # ------------------------------------------------------------------
+
 
 class WapitiTemplateAdapter(BaseScannerTemplateAdapter):
     """Manages wapiti modules and custom payloads."""
@@ -298,7 +315,9 @@ class WapitiTemplateAdapter(BaseScannerTemplateAdapter):
             if force and target_dir.is_dir():
                 shutil.rmtree(target_dir)
             ok = updater.git_clone_or_pull(
-                source.url, target_dir, source.branch,
+                source.url,
+                target_dir,
+                source.branch,
             )
         else:
             ok = False

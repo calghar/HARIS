@@ -11,9 +11,7 @@ from ..models.templates import TemplateSource
 logger = logging.getLogger(__name__)
 
 DEFAULT_CONFIG_PATH = (
-    Path(__file__).resolve().parent.parent.parent
-    / "config"
-    / "default_config.yaml"
+    Path(__file__).resolve().parent.parent.parent / "config" / "default_config.yaml"
 )
 
 
@@ -83,9 +81,7 @@ def _build_config(raw: dict[str, Any]) -> Config:
         max_depth=scope_raw.get("max_depth", 5),
         rate_limit_rps=scope_raw.get("rate_limit_rps", 10.0),
         max_requests=scope_raw.get("max_requests", 10_000),
-        allowed_methods=scope_raw.get(
-            "allowed_methods", ["GET", "HEAD", "OPTIONS"]
-        ),
+        allowed_methods=scope_raw.get("allowed_methods", ["GET", "HEAD", "OPTIONS"]),
     )
 
     # Build auth
@@ -129,8 +125,7 @@ def _build_config(raw: dict[str, Any]) -> Config:
     # Build template sources
     template_sources_raw = raw.get("template_sources", [])
     template_sources = [
-        TemplateSource(**ts) for ts in template_sources_raw
-        if isinstance(ts, dict)
+        TemplateSource(**ts) for ts in template_sources_raw if isinstance(ts, dict)
     ]
 
     # Build LLM config
@@ -140,7 +135,8 @@ def _build_config(raw: dict[str, Any]) -> Config:
         model=llm_raw.get("model", ""),
         enrichment_enabled=llm_raw.get("enrichment_enabled", False),
         enrich_severity_threshold=llm_raw.get(
-            "enrich_severity_threshold", "high",
+            "enrich_severity_threshold",
+            "high",
         ),
         max_tokens_per_finding=llm_raw.get("max_tokens_per_finding", 1024),
         triage_context=llm_raw.get("triage_context", {}),
@@ -163,21 +159,21 @@ def _default_scanners_for_profile(profile: str) -> list[ScannerConfig]:
     """Return the default set of scanners for a given profile."""
     profiles: dict[str, list[ScannerConfig]] = {
         "quick": [
-            ScannerConfig("header_checks"),
-            ScannerConfig("tls_checks"),
-            ScannerConfig("misc_checks"),
+            ScannerConfig(name="header_checks"),
+            ScannerConfig(name="tls_checks"),
+            ScannerConfig(name="misc_checks"),
         ],
         "full": [
-            ScannerConfig("header_checks"),
-            ScannerConfig("tls_checks"),
-            ScannerConfig("misc_checks"),
-            ScannerConfig("nmap"),
-            ScannerConfig("sslyze"),
-            ScannerConfig("wapiti"),
+            ScannerConfig(name="header_checks"),
+            ScannerConfig(name="tls_checks"),
+            ScannerConfig(name="misc_checks"),
+            ScannerConfig(name="nmap"),
+            ScannerConfig(name="sslyze"),
+            ScannerConfig(name="wapiti"),
         ],
         "regression": [
-            ScannerConfig("header_checks"),
-            ScannerConfig("tls_checks"),
+            ScannerConfig(name="header_checks"),
+            ScannerConfig(name="tls_checks"),
         ],
     }
     return profiles.get(profile, profiles["full"])
@@ -186,11 +182,7 @@ def _default_scanners_for_profile(profile: str) -> list[ScannerConfig]:
 def _deep_merge(base: dict, override: dict) -> None:
     """Recursively merge *override* into *base* in place."""
     for key, value in override.items():
-        if (
-            key in base
-            and isinstance(base[key], dict)
-            and isinstance(value, dict)
-        ):
+        if key in base and isinstance(base[key], dict) and isinstance(value, dict):
             _deep_merge(base[key], value)
         else:
             base[key] = value

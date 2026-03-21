@@ -83,7 +83,8 @@ CREATE INDEX IF NOT EXISTS idx_remediation_session ON remediation_steps(session_
 _SCHEMA_V2_SQL = """\
 CREATE TABLE IF NOT EXISTS llm_enrichments (
     id                      INTEGER PRIMARY KEY AUTOINCREMENT,
-    session_id              TEXT NOT NULL REFERENCES scans(session_id) ON DELETE CASCADE,
+    session_id              TEXT NOT NULL
+        REFERENCES scans(session_id) ON DELETE CASCADE,
     finding_id              TEXT NOT NULL,
     attack_narrative        TEXT NOT NULL DEFAULT '',
     business_impact_assessment TEXT NOT NULL DEFAULT '',
@@ -180,9 +181,7 @@ class ScanStore:
         with self._connect() as conn:
             conn.executescript(_SCHEMA_SQL)
             # Check/set schema version
-            row = conn.execute(
-                "SELECT version FROM schema_version LIMIT 1"
-            ).fetchone()
+            row = conn.execute("SELECT version FROM schema_version LIMIT 1").fetchone()
             if row is None:
                 conn.execute(
                     "INSERT INTO schema_version (version) VALUES (?)",
@@ -216,17 +215,19 @@ class ScanStore:
         """Persist a complete scan session (upsert)."""
         with self._connect() as conn:
             # Serialize target as JSON for reconstruction
-            target_json = json.dumps({
-                "base_url": session.target.base_url,
-                "scope": {
-                    "allowed_domains": session.target.scope.allowed_domains,
-                    "excluded_paths": session.target.scope.excluded_paths,
-                    "max_depth": session.target.scope.max_depth,
-                    "rate_limit_rps": session.target.scope.rate_limit_rps,
-                    "max_requests": session.target.scope.max_requests,
-                    "allowed_methods": session.target.scope.allowed_methods,
-                },
-            })
+            target_json = json.dumps(
+                {
+                    "base_url": session.target.base_url,
+                    "scope": {
+                        "allowed_domains": session.target.scope.allowed_domains,
+                        "excluded_paths": session.target.scope.excluded_paths,
+                        "max_depth": session.target.scope.max_depth,
+                        "rate_limit_rps": session.target.scope.rate_limit_rps,
+                        "max_requests": session.target.scope.max_requests,
+                        "allowed_methods": session.target.scope.allowed_methods,
+                    },
+                }
+            )
 
             conn.execute(
                 """INSERT OR REPLACE INTO scans
@@ -483,26 +484,28 @@ class ScanStore:
 
         findings = []
         for row in finding_rows:
-            findings.append(Finding(
-                finding_id=row["finding_id"],
-                title=row["title"],
-                description=row["description"],
-                severity=Severity(row["severity"]),
-                confidence=Confidence(row["confidence"]),
-                owasp_category=row["owasp_category"],
-                cwe_id=row["cwe_id"],
-                url=row["url"],
-                parameter=row["parameter"],
-                method=row["method"],
-                evidence=row["evidence"],
-                request_example=row["request_example"],
-                response_snippet=row["response_snippet"],
-                remediation=row["remediation"],
-                references=json.loads(row["references_json"]),
-                scanner=row["scanner"],
-                found_at=row["found_at"],
-                tags=json.loads(row["tags_json"]),
-            ))
+            findings.append(
+                Finding(
+                    finding_id=row["finding_id"],
+                    title=row["title"],
+                    description=row["description"],
+                    severity=Severity(row["severity"]),
+                    confidence=Confidence(row["confidence"]),
+                    owasp_category=row["owasp_category"],
+                    cwe_id=row["cwe_id"],
+                    url=row["url"],
+                    parameter=row["parameter"],
+                    method=row["method"],
+                    evidence=row["evidence"],
+                    request_example=row["request_example"],
+                    response_snippet=row["response_snippet"],
+                    remediation=row["remediation"],
+                    references=json.loads(row["references_json"]),
+                    scanner=row["scanner"],
+                    found_at=row["found_at"],
+                    tags=json.loads(row["tags_json"]),
+                )
+            )
 
         # Reconstruct remediation steps
         from ..models import Effort
@@ -510,14 +513,16 @@ class ScanStore:
 
         remediation_steps = []
         for row in remediation_rows:
-            remediation_steps.append(RemediationStep(
-                title=row["title"],
-                description=row["description"],
-                effort=Effort(row["effort"]),
-                impact=FindingSeverity(row["impact"]),
-                finding_count=row["finding_count"],
-                category=row["category"],
-            ))
+            remediation_steps.append(
+                RemediationStep(
+                    title=row["title"],
+                    description=row["description"],
+                    effort=Effort(row["effort"]),
+                    impact=FindingSeverity(row["impact"]),
+                    finding_count=row["finding_count"],
+                    category=row["category"],
+                )
+            )
 
         # Reconstruct LLM enrichments
         llm_enrichments: dict[str, EnrichedFinding] = {}
@@ -525,18 +530,12 @@ class ScanStore:
             llm_enrichments[row["finding_id"]] = EnrichedFinding(
                 finding_id=row["finding_id"],
                 attack_narrative=row["attack_narrative"],
-                business_impact_assessment=row[
-                    "business_impact_assessment"
-                ],
+                business_impact_assessment=row["business_impact_assessment"],
                 exploitation_complexity=row["exploitation_complexity"],
-                false_positive_likelihood=row[
-                    "false_positive_likelihood"
-                ],
+                false_positive_likelihood=row["false_positive_likelihood"],
                 related_cwes=json.loads(row["related_cwes"]),
                 attack_chain_position=row["attack_chain_position"],
-                variant_suggestions=json.loads(
-                    row["variant_suggestions"]
-                ),
+                variant_suggestions=json.loads(row["variant_suggestions"]),
             )
 
         attack_chains = [
@@ -582,17 +581,17 @@ class ScanStore:
             triaged_findings=triaged_findings,
             false_positive_assessments=json.loads(
                 scan_row["false_positive_assessments"]
-                if "false_positive_assessments" in scan_row.keys()
+                if "false_positive_assessments" in scan_row.keys()  # noqa: SIM118
                 else "[]"
             ),
             executive_priorities=(
                 scan_row["executive_priorities"]
-                if "executive_priorities" in scan_row.keys()
+                if "executive_priorities" in scan_row.keys()  # noqa: SIM118
                 else ""
             ),
             template_id=(
                 scan_row["template_id"]
-                if "template_id" in scan_row.keys()
+                if "template_id" in scan_row.keys()  # noqa: SIM118
                 else ""
             ),
         )
@@ -658,13 +657,11 @@ class ScanStore:
     def dashboard_summary(self) -> dict[str, Any]:
         """Return high-level dashboard statistics."""
         with self._connect() as conn:
-            total_scans = conn.execute(
-                "SELECT COUNT(*) AS c FROM scans"
-            ).fetchone()["c"]
+            total_scans = conn.execute("SELECT COUNT(*) AS c FROM scans").fetchone()[
+                "c"
+            ]
 
-            urls = conn.execute(
-                "SELECT DISTINCT target_url FROM scans"
-            ).fetchall()
+            urls = conn.execute("SELECT DISTINCT target_url FROM scans").fetchall()
 
             critical_findings = conn.execute(
                 """SELECT f.finding_id, f.title, f.severity, f.url,
@@ -719,12 +716,14 @@ class ScanStore:
             host = self._hostname(row["target_url"])
             if host not in seen:
                 seen.add(host)
-                recent_websites.append({
-                    "hostname": host,
-                    "risk_posture": row["risk_posture"],
-                    "finding_count": row["finding_count"],
-                    "last_scanned": row["started_at"],
-                })
+                recent_websites.append(
+                    {
+                        "hostname": host,
+                        "risk_posture": row["risk_posture"],
+                        "finding_count": row["finding_count"],
+                        "last_scanned": row["started_at"],
+                    }
+                )
                 if len(recent_websites) >= 5:
                     break
 
@@ -962,7 +961,8 @@ class ScanStore:
             conn.commit()
 
     def get_scan_config_template(
-        self, template_id: str,
+        self,
+        template_id: str,
     ) -> ScanConfigTemplate | None:
         """Load a single scan config template by ID."""
         with self._connect() as conn:
@@ -1013,12 +1013,9 @@ class ScanStore:
     def set_default_scan_config_template(self, template_id: str) -> None:
         """Mark one template as default, clearing any previous default."""
         with self._connect() as conn:
+            conn.execute("UPDATE scan_config_templates SET is_default = 0")
             conn.execute(
-                "UPDATE scan_config_templates SET is_default = 0"
-            )
-            conn.execute(
-                "UPDATE scan_config_templates SET is_default = 1 "
-                "WHERE template_id = ?",
+                "UPDATE scan_config_templates SET is_default = 1 WHERE template_id = ?",
                 (template_id,),
             )
             conn.commit()
@@ -1078,8 +1075,7 @@ class ScanStore:
                 template_id="builtin-01",
                 name="Quick Surface Scan",
                 description=(
-                    "Fast built-in checks only. Good for first look "
-                    "or CI gates."
+                    "Fast built-in checks only. Good for first look or CI gates."
                 ),
                 profile="quick",
                 rate_limit_rps=10.0,
@@ -1131,7 +1127,9 @@ class ScanStore:
                 scanner_options={
                     "nuclei": {
                         "tags": [
-                            "cve", "misconfig", "exposure",
+                            "cve",
+                            "misconfig",
+                            "exposure",
                             "default-login",
                         ],
                         "severity": ["critical", "high", "medium"],
@@ -1140,7 +1138,9 @@ class ScanStore:
                     "nikto": {
                         "tuning": "123bde",
                         "plugins": [
-                            "@@DEFAULT", "shellshock", "headers",
+                            "@@DEFAULT",
+                            "shellshock",
+                            "headers",
                             "springboot",
                         ],
                     },
@@ -1151,12 +1151,12 @@ class ScanStore:
                         "max_links": 1000,
                     },
                     "nmap": {
-                        "ports": (
-                            "80,443,8080,8443,8000,8888,"
-                            "3000,5000,9090,9443"
-                        ),
+                        "ports": ("80,443,8080,8443,8000,8888,3000,5000,9090,9443"),
                         "script_categories": [
-                            "default", "safe", "vuln", "discovery",
+                            "default",
+                            "safe",
+                            "vuln",
+                            "discovery",
                         ],
                     },
                 },
@@ -1187,8 +1187,7 @@ class ScanStore:
                 template_id="builtin-05",
                 name="Compliance Audit",
                 description=(
-                    "Focused on SOC 2 / ISO 27001 / PCI-DSS "
-                    "control verification."
+                    "Focused on SOC 2 / ISO 27001 / PCI-DSS control verification."
                 ),
                 profile="compliance",
                 rate_limit_rps=10.0,
@@ -1198,7 +1197,10 @@ class ScanStore:
                     "nmap": {
                         "ports": "80,443,8080,8443,22,3389",
                         "script_categories": [
-                            "default", "safe", "vuln", "auth",
+                            "default",
+                            "safe",
+                            "vuln",
+                            "auth",
                         ],
                     },
                     "tls_checks": {"cert_expiry_warn_days": 60},

@@ -35,6 +35,7 @@ def all_registered() -> dict[str, type[BaseScanner]]:
 # Class decorators
 # ---------------------------------------------------------------
 
+
 def register_scanner(cls: type[BaseScanner]) -> type[BaseScanner]:
     """Register *cls* in the global scanner registry under ``cls.name``.
 
@@ -60,6 +61,7 @@ def register_check(cls: type[BaseScanner]) -> type[BaseScanner]:
 # ---------------------------------------------------------------
 # Method / function decorators
 # ---------------------------------------------------------------
+
 
 def timed[F: Callable[..., Any]](func: F) -> F:
     """Log the wall-clock time of a function call.
@@ -95,7 +97,8 @@ def handle_scanner_errors[F: Callable[..., Any]](func: F) -> F:
     @functools.wraps(func)
     def wrapper(self: BaseScanner, *args: Any, **kwargs: Any) -> ScannerResult:
         try:
-            return func(self, *args, **kwargs)
+            result: ScannerResult = func(self, *args, **kwargs)
+            return result
         except Exception as exc:
             logger.exception(
                 "Scanner %s raised %s: %s", self.name, type(exc).__name__, exc

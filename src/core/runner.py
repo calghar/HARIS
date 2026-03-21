@@ -105,6 +105,7 @@ class ScanRunner:
             return None
         try:
             from ..templates.manager import TemplateManager
+
             return TemplateManager(
                 base_dir=self._config.template_dir,
                 sources=self._config.template_sources,
@@ -118,6 +119,7 @@ class ScanRunner:
             return None, {}
         try:
             from ..llm.base import create_backend
+
             backend_name = self._llm_backend_name or self._config.llm.backend
             model_kwargs: dict[str, Any] = {}
             if self._config.llm.model:
@@ -150,32 +152,36 @@ def build_scan_list(
     for scan in memory_scans.values():
         seen_ids.add(scan["scan_id"])
         session: ScanSession | None = scan.get("session")
-        results.append({
-            "scan_id": scan["scan_id"],
-            "target_url": scan["target_url"],
-            "profile": scan.get("profile", ""),
-            "status": scan["status"],
-            "started_at": scan.get("started_at", ""),
-            "finished_at": scan.get("finished_at"),
-            "risk_posture": session.risk_posture.value if session else None,
-            "total_findings": len(session.all_findings) if session else 0,
-            "error": scan.get("error"),
-        })
+        results.append(
+            {
+                "scan_id": scan["scan_id"],
+                "target_url": scan["target_url"],
+                "profile": scan.get("profile", ""),
+                "status": scan["status"],
+                "started_at": scan.get("started_at", ""),
+                "finished_at": scan.get("finished_at"),
+                "risk_posture": session.risk_posture.value if session else None,
+                "total_findings": len(session.all_findings) if session else 0,
+                "error": scan.get("error"),
+            }
+        )
 
     try:
         for row in store.list_sessions():
             if row["session_id"] not in seen_ids:
-                results.append({
-                    "scan_id": row["session_id"],
-                    "target_url": row["target_url"],
-                    "profile": row["profile_name"],
-                    "status": "completed",
-                    "started_at": row["started_at"],
-                    "finished_at": None,
-                    "risk_posture": row["risk_posture"],
-                    "total_findings": row["finding_count"],
-                    "error": None,
-                })
+                results.append(
+                    {
+                        "scan_id": row["session_id"],
+                        "target_url": row["target_url"],
+                        "profile": row["profile_name"],
+                        "status": "completed",
+                        "started_at": row["started_at"],
+                        "finished_at": None,
+                        "risk_posture": row["risk_posture"],
+                        "total_findings": row["finding_count"],
+                        "error": None,
+                    }
+                )
     except Exception as exc:
         logger.warning("Could not load scan history from database: %s", exc)
 

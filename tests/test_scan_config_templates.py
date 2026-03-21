@@ -2,14 +2,9 @@
 
 from __future__ import annotations
 
-import sqlite3
-
-import pytest
-
 from src.db.store import ScanStore
 from src.models import RiskPosture, ScanSession, Target
 from src.models.scan_config_template import ScanConfigTemplate
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -109,9 +104,7 @@ class TestSaveAndLoadTemplate:
         assert loaded.llm_enrichment is True
         assert loaded.llm_backend == "anthropic"
         assert loaded.tags == ["ci", "smoke"]
-        assert loaded.scanner_options == {
-            "nuclei": {"tags": ["cve"], "rate_limit": 50}
-        }
+        assert loaded.scanner_options == {"nuclei": {"tags": ["cve"], "rate_limit": 50}}
         assert loaded.created_at == "2025-01-01T00:00:00"
         assert loaded.updated_at == "2025-01-01T00:00:00"
 
@@ -122,9 +115,7 @@ class TestSaveAndLoadTemplate:
 
 
 class TestListTemplates:
-    def test_list_templates_ordering_default_first_then_alphabetical(
-        self, tmp_path
-    ):
+    def test_list_templates_ordering_default_first_then_alphabetical(self, tmp_path):
         store = ScanStore(tmp_path / "test.db")
         # Clear out seeded defaults so we control the full list.
         with store._connect() as conn:
@@ -256,9 +247,7 @@ class TestSetDefaultTemplate:
             conn.commit()
 
         for i in range(1, 4):
-            store.save_scan_config_template(
-                _make_template(f"tpl-{i}", f"Template {i}")
-            )
+            store.save_scan_config_template(_make_template(f"tpl-{i}", f"Template {i}"))
 
         # Set each in turn and check uniqueness of default.
         for target_id in ["tpl-1", "tpl-2", "tpl-3"]:
@@ -350,9 +339,7 @@ class TestTemplateLinkedToScan:
         store.save_session(session)
 
         sessions = store.list_sessions()
-        match = next(
-            (s for s in sessions if s["session_id"] == "scan-list-link"), None
-        )
+        match = next((s for s in sessions if s["session_id"] == "scan-list-link"), None)
         assert match is not None
         assert match["template_id"] == "tpl-list-link"
 
@@ -414,16 +401,12 @@ class TestScannerOptionsRoundtrip:
         ordered_options = {
             "nuclei": {"tags": ["z-tag", "a-tag", "m-tag"]},
         }
-        tpl = _make_template(
-            "tpl-ordered", scanner_options=ordered_options
-        )
+        tpl = _make_template("tpl-ordered", scanner_options=ordered_options)
         store.save_scan_config_template(tpl)
 
         loaded = store.get_scan_config_template("tpl-ordered")
         assert loaded is not None
-        assert loaded.scanner_options["nuclei"]["tags"] == [
-            "z-tag", "a-tag", "m-tag"
-        ]
+        assert loaded.scanner_options["nuclei"]["tags"] == ["z-tag", "a-tag", "m-tag"]
 
 
 class TestSchemaV4Migration:
@@ -445,10 +428,7 @@ class TestSchemaV4Migration:
 
         with store._connect() as conn:
             cols = {
-                row[1]
-                for row in conn.execute(
-                    "PRAGMA table_info(scans)"
-                ).fetchall()
+                row[1] for row in conn.execute("PRAGMA table_info(scans)").fetchall()
             }
 
         assert "template_id" in cols
@@ -463,9 +443,7 @@ class TestSchemaV4Migration:
 
         assert version == 4
 
-    def test_scan_config_templates_schema_has_expected_columns(
-        self, tmp_path
-    ):
+    def test_scan_config_templates_schema_has_expected_columns(self, tmp_path):
         store = ScanStore(tmp_path / "test.db")
 
         with store._connect() as conn:
@@ -528,7 +506,7 @@ class TestSeedDefaultTemplates:
 
     def test_seed_does_not_run_twice(self, tmp_path):
         """Initialising a second store against the same DB must not duplicate."""
-        store1 = ScanStore(tmp_path / "shared.db")
+        ScanStore(tmp_path / "shared.db")
         store2 = ScanStore(tmp_path / "shared.db")
 
         templates = store2.list_scan_config_templates()
@@ -548,9 +526,7 @@ class TestSeedDefaultTemplates:
 class TestListSessionsPaginatedTemplateFilter:
     def _seed_sessions(self, store: ScanStore) -> None:
         """Save three sessions — two linked to builtin-01, one unlinked."""
-        for i, tpl_id in enumerate(
-            ["builtin-01", "builtin-01", "builtin-02"]
-        ):
+        for i, tpl_id in enumerate(["builtin-01", "builtin-01", "builtin-02"]):
             session = _make_session(
                 session_id=f"filter-scan-{i:03d}",
                 target_url="https://example.com",
@@ -562,9 +538,7 @@ class TestListSessionsPaginatedTemplateFilter:
         store = ScanStore(tmp_path / "test.db")
         self._seed_sessions(store)
 
-        results, total = store.list_sessions_paginated(
-            template_id="builtin-01"
-        )
+        results, total = store.list_sessions_paginated(template_id="builtin-01")
 
         assert total == 2
         assert all(r["template_id"] == "builtin-01" for r in results)
@@ -573,9 +547,7 @@ class TestListSessionsPaginatedTemplateFilter:
         store = ScanStore(tmp_path / "test.db")
         self._seed_sessions(store)
 
-        results, total = store.list_sessions_paginated(
-            template_id="builtin-99"
-        )
+        results, total = store.list_sessions_paginated(template_id="builtin-99")
 
         assert total == 0
         assert results == []
@@ -613,9 +585,7 @@ class TestListSessionsPaginatedTemplateFilter:
         _, total = store.list_sessions_paginated()
         assert total == 3
 
-    def test_template_filter_result_includes_template_id_field(
-        self, tmp_path
-    ):
+    def test_template_filter_result_includes_template_id_field(self, tmp_path):
         store = ScanStore(tmp_path / "test.db")
         self._seed_sessions(store)
 
@@ -632,9 +602,7 @@ class TestUpsertTemplate:
         tpl = _make_template("tpl-upsert", "Original Name", profile="quick")
         store.save_scan_config_template(tpl)
 
-        updated = tpl.model_copy(
-            update={"name": "Updated Name", "profile": "full"}
-        )
+        updated = tpl.model_copy(update={"name": "Updated Name", "profile": "full"})
         store.save_scan_config_template(updated)
 
         loaded = store.get_scan_config_template("tpl-upsert")

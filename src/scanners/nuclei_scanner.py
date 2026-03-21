@@ -424,11 +424,13 @@ class NucleiScanner(BaseScanner):
         """
         cmd = [
             "nuclei",
-            "-u", target.base_url,
+            "-u",
+            target.base_url,
             # JSONL output so we can stream-parse line by line.
             "-jsonl",
             # Rate limiting to respect scope constraints.
-            "-rate-limit", str(self.options["rate_limit"]),
+            "-rate-limit",
+            str(self.options["rate_limit"]),
             # Disable automatic updates during a scan run.
             "-no-update-templates",
             # Suppress progress bar / ANSI codes for clean stdout.

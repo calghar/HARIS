@@ -4,12 +4,13 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
 
-import pytest
-
 from src.llm.router import ModelRouter
 
 
-def _make_default_backend(name: str = "anthropic", model: str = "default-model") -> MagicMock:
+def _make_default_backend(
+    name: str = "anthropic",
+    model: str = "default-model",
+) -> MagicMock:
     """Build a minimal mock backend that ModelRouter will inspect."""
     backend = MagicMock()
     backend.name = name
@@ -48,7 +49,10 @@ class TestModelRouterRouting:
         default = _make_default_backend(name="anthropic", model="default-model")
         routed_backend = MagicMock()
 
-        with patch("src.llm.router.create_backend", return_value=routed_backend) as mock_create:
+        with patch(
+            "src.llm.router.create_backend",
+            return_value=routed_backend,
+        ) as mock_create:
             router = ModelRouter(
                 default_backend=default,
                 routing={"summary": "fast-model"},
@@ -152,12 +156,15 @@ class TestModelRouterCache:
 
         call_results = [ValueError("first attempt fails"), routed_backend]
 
-        with patch("src.llm.router.create_backend", side_effect=call_results) as mock_create:
+        with patch(
+            "src.llm.router.create_backend",
+            side_effect=call_results,
+        ) as mock_create:
             router = ModelRouter(
                 default_backend=default,
                 routing={"summary": "fast-model"},
             )
-            first = router.for_task("summary")   # triggers fallback
+            first = router.for_task("summary")  # triggers fallback
             second = router.for_task("summary")  # tries again, succeeds
 
         assert first is default

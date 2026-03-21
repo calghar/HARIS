@@ -8,6 +8,7 @@ import json
 import logging
 import os
 import time
+from collections.abc import Callable
 from typing import Any
 
 from ..models.llm import LLMResponse
@@ -28,7 +29,7 @@ def _is_retryable(exc: Exception) -> bool:
     return isinstance(status, int) and status in _RETRYABLE_CODES
 
 
-def _retry_on_transient(func):  # noqa: ANN001, ANN202
+def _retry_on_transient(func: Callable[..., Any]) -> Callable[..., Any]:
     @functools.wraps(func)
     def wrapper(*args: Any, **kwargs: Any) -> Any:
         last_exc: Exception | None = None
@@ -39,30 +40,30 @@ def _retry_on_transient(func):  # noqa: ANN001, ANN202
                 if not _is_retryable(exc):
                     raise
                 last_exc = exc
-                delay = _BASE_DELAY * (2 ** attempt)
+                delay = _BASE_DELAY * (2**attempt)
                 logger.warning(
                     "Transient error (attempt %d/%d), retrying in %.1fs: %s",
-                    attempt + 1, _MAX_RETRIES, delay, exc,
+                    attempt + 1,
+                    _MAX_RETRIES,
+                    delay,
+                    exc,
                 )
                 time.sleep(delay)
         raise last_exc  # type: ignore[misc]
+
     return wrapper
 
 
 class ResponseCache:
     """Simple in-memory LLM response cache with TTL eviction."""
 
-    def __init__(
-        self, max_entries: int = 200, ttl_seconds: float = 3600
-    ) -> None:
+    def __init__(self, max_entries: int = 200, ttl_seconds: float = 3600) -> None:
         self._cache: dict[str, tuple[float, LLMResponse]] = {}
         self._max = max_entries
         self._ttl = ttl_seconds
 
     @staticmethod
-    def _key(
-        prompt: str, system: str, model: str, temperature: float
-    ) -> str:
+    def _key(prompt: str, system: str, model: str, temperature: float) -> str:
         raw = f"{system}|{prompt}|{model}|{temperature}"
         return hashlib.sha256(raw.encode()).hexdigest()
 
@@ -184,9 +185,7 @@ class OpenAIBackend(BaseLLMBackend):
         max_tokens: int,
     ) -> LLMResponse:
         """Shared completion logic for single and multi-turn."""
-        cache_key = _response_cache._key_messages(
-            messages, "", self.model, temperature
-        )
+        cache_key = _response_cache._key_messages(messages, "", self.model, temperature)
         cached = _response_cache.get(cache_key)
         if cached is not None:
             return cached
@@ -326,8 +325,7 @@ class AnthropicBackend(BaseLLMBackend):
             "prompt_tokens": response.usage.input_tokens,
             "completion_tokens": response.usage.output_tokens,
             "total_tokens": (
-                response.usage.input_tokens
-                + response.usage.output_tokens
+                response.usage.input_tokens + response.usage.output_tokens
             ),
         }
 
@@ -349,9 +347,7 @@ class AnthropicBackend(BaseLLMBackend):
         max_tokens: int = 2048,
     ) -> LLMResponse:
         messages = [{"role": "user", "content": prompt}]
-        return self._call_anthropic(
-            messages, system, temperature, max_tokens
-        )
+        return self._call_anthropic(messages, system, temperature, max_tokens)
 
     @_retry_on_transient
     def complete_messages(
@@ -362,9 +358,7 @@ class AnthropicBackend(BaseLLMBackend):
         temperature: float = 0.2,
         max_tokens: int = 2048,
     ) -> LLMResponse:
-        return self._call_anthropic(
-            messages, system, temperature, max_tokens
-        )
+        return self._call_anthropic(messages, system, temperature, max_tokens)
 
     def is_available(self) -> bool:
         try:
@@ -425,8 +419,7 @@ class OllamaBackend(BaseLLMBackend):
                 "prompt_tokens": result.get("prompt_eval_count", 0),
                 "completion_tokens": result.get("eval_count", 0),
                 "total_tokens": (
-                    result.get("prompt_eval_count", 0)
-                    + result.get("eval_count", 0)
+                    result.get("prompt_eval_count", 0) + result.get("eval_count", 0)
                 ),
             },
         )
@@ -444,9 +437,7 @@ class OllamaBackend(BaseLLMBackend):
 
         ollama_messages: list[dict[str, str]] = []
         if system:
-            ollama_messages.append(
-                {"role": "system", "content": system}
-            )
+            ollama_messages.append({"role": "system", "content": system})
         ollama_messages.extend(messages)
 
         payload: dict[str, Any] = {
@@ -475,8 +466,7 @@ class OllamaBackend(BaseLLMBackend):
                 "prompt_tokens": result.get("prompt_eval_count", 0),
                 "completion_tokens": result.get("eval_count", 0),
                 "total_tokens": (
-                    result.get("prompt_eval_count", 0)
-                    + result.get("eval_count", 0)
+                    result.get("prompt_eval_count", 0) + result.get("eval_count", 0)
                 ),
             },
         )
@@ -513,19 +503,23 @@ def get_available_backends() -> list[dict[str, Any]]:
     results: list[dict[str, Any]] = []
     for name, (package, env_var) in _BACKEND_REQUIREMENTS.items():
         if importlib.util.find_spec(package) is None:
-            results.append({
-                "name": name,
-                "available": False,
-                "reason": f"Python package '{package}' is not installed",
-            })
+            results.append(
+                {
+                    "name": name,
+                    "available": False,
+                    "reason": f"Python package '{package}' is not installed",
+                }
+            )
             continue
 
         if env_var and not os.environ.get(env_var):
-            results.append({
-                "name": name,
-                "available": False,
-                "reason": f"Environment variable {env_var} is not set",
-            })
+            results.append(
+                {
+                    "name": name,
+                    "available": False,
+                    "reason": f"Environment variable {env_var} is not set",
+                }
+            )
             continue
 
         results.append({"name": name, "available": True, "reason": ""})
@@ -537,7 +531,7 @@ def get_default_backend_name() -> str:
     """Return the name of the first available backend, or 'anthropic' as fallback."""
     for entry in get_available_backends():
         if entry["available"]:
-            return entry["name"]
+            return str(entry["name"])
     return "anthropic"
 
 

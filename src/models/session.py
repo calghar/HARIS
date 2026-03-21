@@ -24,16 +24,10 @@ class ScanSession(BaseModel):
     profile_name: str = ""
     profile_intro: str = ""
     scanners_used: list[str] = Field(default_factory=list)
-    scanner_results: list[ScannerResult] = Field(
-        default_factory=list
-    )
+    scanner_results: list[ScannerResult] = Field(default_factory=list)
     all_findings: list[Finding] = Field(default_factory=list)
-    correlated: list[CorrelatedFinding] = Field(
-        default_factory=list
-    )
-    remediation_steps: list[RemediationStep] = Field(
-        default_factory=list
-    )
+    correlated: list[CorrelatedFinding] = Field(default_factory=list)
+    remediation_steps: list[RemediationStep] = Field(default_factory=list)
     risk_posture: RiskPosture = RiskPosture.EXCELLENT
     risk_posture_text: str = ""
     errors: list[str] = Field(default_factory=list)
@@ -66,9 +60,7 @@ class ScanSession(BaseModel):
     def findings_by_severity(
         self,
     ) -> dict[Severity, list[Finding]]:
-        grouped: dict[Severity, list[Finding]] = {
-            s: [] for s in Severity
-        }
+        grouped: dict[Severity, list[Finding]] = {s: [] for s in Severity}
         for f in self.all_findings:
             grouped[f.severity].append(f)
         return grouped
@@ -89,9 +81,7 @@ class ScanSession(BaseModel):
     @property
     def multi_confirmed_count(self) -> int:
         """Number of findings confirmed by 2+ scanners."""
-        return sum(
-            1 for c in self.correlated if c.multi_confirmed
-        )
+        return sum(1 for c in self.correlated if c.multi_confirmed)
 
     def summary(self) -> dict[str, Any]:
         return {
@@ -102,8 +92,7 @@ class ScanSession(BaseModel):
             "multi_confirmed": self.multi_confirmed_count,
             "risk_posture": self.risk_posture.value,
             "by_severity": {
-                s.value: len(fs)
-                for s, fs in self.findings_by_severity.items()
+                s.value: len(fs) for s, fs in self.findings_by_severity.items()
             },
             "scanners_used": self.scanners_used,
             "remediation_steps": len(self.remediation_steps),

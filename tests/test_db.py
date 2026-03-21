@@ -188,9 +188,7 @@ class TestScanStore:
         store = ScanStore(tmp_path / "test.db")
         store.save_session(_make_session())
 
-        findings = store.get_findings(
-            "test-db-001", owasp_category="Injection"
-        )
+        findings = store.get_findings("test-db-001", owasp_category="Injection")
         assert len(findings) == 1
         assert findings[0]["finding_id"] == "f001"
 
@@ -230,7 +228,7 @@ class TestScanStore:
             session = ScanSession(
                 session_id=f"multi-{i:03d}",
                 target=target,
-                started_at=f"2025-02-22T{10+i}:00:00+00:00",
+                started_at=f"2025-02-22T{10 + i}:00:00+00:00",
             )
             store.save_session(session)
 
@@ -306,7 +304,11 @@ class TestScanStore:
         session = _make_session()
 
         session.false_positive_assessments = [
-            {"finding_id": "f002", "assessment": "likely_fp", "reason": "Standard header"},
+            {
+                "finding_id": "f002",
+                "assessment": "likely_fp",
+                "reason": "Standard header",
+            },
         ]
         session.executive_priorities = "Fix SQL injection immediately."
 

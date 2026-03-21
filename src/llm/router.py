@@ -6,7 +6,6 @@ default model when no routing is configured for a task type.
 """
 
 import logging
-from typing import Any
 
 from .base import BaseLLMBackend, create_backend
 
@@ -48,9 +47,7 @@ class ModelRouter:
             return self._cache[task_type]
 
         try:
-            backend = create_backend(
-                self._default.name, model=model
-            )
+            backend = create_backend(self._default.name, model=model)
             self._cache[task_type] = backend
             logger.debug(
                 "Routed task %s to model %s",
@@ -60,8 +57,7 @@ class ModelRouter:
             return backend
         except Exception:
             logger.warning(
-                "Failed to create routed backend for %s "
-                "(%s) — using default",
+                "Failed to create routed backend for %s (%s) — using default",
                 task_type,
                 model,
             )

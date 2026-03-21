@@ -31,17 +31,13 @@ class Scope(BaseModel):
 
         # Check domain allowlist
         if self.allowed_domains and not any(
-            hostname == d or hostname.endswith(f".{d}")
-            for d in self.allowed_domains
+            hostname == d or hostname.endswith(f".{d}") for d in self.allowed_domains
         ):
             return False
 
         # Check excluded paths
         path = parsed.path
-        return all(
-            not re.search(pattern, path)
-            for pattern in self.excluded_paths
-        )
+        return all(not re.search(pattern, path) for pattern in self.excluded_paths)
 
 
 class AuthConfig(BaseModel):
@@ -69,9 +65,7 @@ class AuthConfig(BaseModel):
         if self.method == "header" and self.header_value:
             headers[self.header_name] = self.header_value
         elif self.method == "cookie" and self.cookie_value:
-            headers["Cookie"] = (
-                f"{self.cookie_name}={self.cookie_value}"
-            )
+            headers["Cookie"] = f"{self.cookie_name}={self.cookie_value}"
         return headers
 
 

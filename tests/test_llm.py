@@ -203,9 +203,7 @@ class TestReportQA:
             "findings": [f.to_dict() for f in session.all_findings],
         }
 
-        with tempfile.NamedTemporaryFile(
-            mode="w", suffix=".json", delete=False
-        ) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
             json.dump(report, f)
             f.flush()
             path = Path(f.name)

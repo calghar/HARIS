@@ -1,6 +1,5 @@
 """Tests for the Target and Scope models."""
 
-
 from src.models import AuthConfig, Scope, Target
 
 
@@ -28,9 +27,7 @@ class TestScope:
             allowed_domains=["example.com"],
             excluded_paths=[r"/api/v\d+/internal"],
         )
-        assert not scope.is_url_in_scope(
-            "https://example.com/api/v2/internal"
-        )
+        assert not scope.is_url_in_scope("https://example.com/api/v2/internal")
         assert scope.is_url_in_scope("https://example.com/api/v2/public")
 
     def test_empty_allowed_domains_allows_all(self):

@@ -35,20 +35,30 @@ class TemplateUpdater:
 
     @staticmethod
     def _git_clone(
-        git: str, repo_url: str, target_dir: Path, branch: str,
+        git: str,
+        repo_url: str,
+        target_dir: Path,
+        branch: str,
     ) -> bool:
         target_dir.mkdir(parents=True, exist_ok=True)
         cmd = [
-            git, "clone",
-            "--depth", "1",
-            "--branch", branch,
+            git,
+            "clone",
+            "--depth",
+            "1",
+            "--branch",
+            branch,
             "--single-branch",
             repo_url,
             str(target_dir),
         ]
         try:
             subprocess.run(
-                cmd, capture_output=True, text=True, timeout=300, check=True,
+                cmd,
+                capture_output=True,
+                text=True,
+                timeout=300,
+                check=True,
             )
             logger.info("Cloned %s -> %s", repo_url, target_dir)
             return True
@@ -60,14 +70,18 @@ class TemplateUpdater:
     def _git_pull(git: str, target_dir: Path, branch: str) -> bool:
         try:
             subprocess.run(
-                [git, "-C", str(target_dir), "fetch", "--depth", "1",
-                 "origin", branch],
-                capture_output=True, text=True, timeout=120, check=True,
+                [git, "-C", str(target_dir), "fetch", "--depth", "1", "origin", branch],
+                capture_output=True,
+                text=True,
+                timeout=120,
+                check=True,
             )
             subprocess.run(
-                [git, "-C", str(target_dir), "reset", "--hard",
-                 f"origin/{branch}"],
-                capture_output=True, text=True, timeout=30, check=True,
+                [git, "-C", str(target_dir), "reset", "--hard", f"origin/{branch}"],
+                capture_output=True,
+                text=True,
+                timeout=30,
+                check=True,
             )
             logger.info("Updated %s (branch %s)", target_dir, branch)
             return True
@@ -88,7 +102,10 @@ class TemplateUpdater:
         try:
             result = subprocess.run(
                 [git, "-C", str(repo_dir), "rev-parse", "--short", "HEAD"],
-                capture_output=True, text=True, timeout=10, check=True,
+                capture_output=True,
+                text=True,
+                timeout=10,
+                check=True,
             )
             return result.stdout.strip()
         except Exception:
@@ -107,7 +124,7 @@ class TemplateUpdater:
         target_path.parent.mkdir(parents=True, exist_ok=True)
         try:
             req = urllib.request.Request(url)
-            with urllib.request.urlopen(req, timeout=60) as resp:
+            with urllib.request.urlopen(req, timeout=60) as resp:  # nosec B310
                 target_path.write_bytes(resp.read())
             logger.info("Downloaded %s -> %s", url, target_path)
             return True

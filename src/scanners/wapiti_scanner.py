@@ -85,12 +85,23 @@ class WapitiScanner(BaseScanner):
             if returncode != 0:
                 # Filter out the usage banner from error output
                 err_lines = [
-                    line for line in stderr.splitlines()
+                    line
+                    for line in stderr.splitlines()
                     if line.strip()
-                    and not line.strip().startswith((
-                        "usage:", "[", "██",
-                        "╔", "╗", "║", "╚", "╝", "╠", "╣",
-                    ))
+                    and not line.strip().startswith(
+                        (
+                            "usage:",
+                            "[",
+                            "██",
+                            "╔",
+                            "╗",
+                            "║",
+                            "╚",
+                            "╝",
+                            "╠",
+                            "╣",
+                        )
+                    )
                     and "wapiti [-h]" not in line
                 ]
                 err_msg = (
@@ -98,9 +109,7 @@ class WapitiScanner(BaseScanner):
                     if err_lines
                     else f"exit code {returncode}"
                 )
-                result.errors.append(
-                    f"wapiti exited with code {returncode}: {err_msg}"
-                )
+                result.errors.append(f"wapiti exited with code {returncode}: {err_msg}")
 
             if raw:
                 result.findings = self.parse_results(raw)
@@ -177,13 +186,20 @@ class WapitiScanner(BaseScanner):
         """Construct the wapiti CLI command."""
         cmd = [
             "wapiti",
-            "--url", target.base_url,
-            "--format", "json",
-            "--output", output_path,
-            "--scope", self.options["scope"],
-            "--timeout", str(self.options["timeout"]),
-            "--max-scan-time", str(self.options["max_scan_time"]),
-            "--max-links-per-page", str(self.options["max_links"]),
+            "--url",
+            target.base_url,
+            "--format",
+            "json",
+            "--output",
+            output_path,
+            "--scope",
+            self.options["scope"],
+            "--timeout",
+            str(self.options["timeout"]),
+            "--max-scan-time",
+            str(self.options["max_scan_time"]),
+            "--max-links-per-page",
+            str(self.options["max_links"]),
             "--flush-session",
         ]
 

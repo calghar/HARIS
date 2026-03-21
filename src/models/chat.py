@@ -20,15 +20,11 @@ class Conversation(BaseModel):
     conversation_id: str
     scan_id: str
     messages: list[ChatMessage] = Field(default_factory=list)
-    created_at: str = Field(
-        default_factory=lambda: datetime.now(UTC).isoformat()
-    )
+    created_at: str = Field(default_factory=lambda: datetime.now(UTC).isoformat())
     backend_name: str = ""
     total_tokens: int = 0
 
-    def add_message(
-        self, role: str, content: str, token_count: int = 0
-    ) -> ChatMessage:
+    def add_message(self, role: str, content: str, token_count: int = 0) -> ChatMessage:
         """Append a message and update token totals."""
         msg = ChatMessage(
             role=role,

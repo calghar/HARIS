@@ -61,7 +61,8 @@ class VariantAnalyzer:
             return self._parse_suggestions(response.text)
         except Exception:
             logger.warning(
-                "Variant analysis failed for %s", finding.finding_id,
+                "Variant analysis failed for %s",
+                finding.finding_id,
                 exc_info=True,
             )
             return []

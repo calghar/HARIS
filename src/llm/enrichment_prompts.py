@@ -29,7 +29,8 @@ class EnrichmentPromptBuilder:
 
     @classmethod
     def identify_attack_chains(
-        cls, findings: list[Finding],
+        cls,
+        findings: list[Finding],
     ) -> tuple[str, str]:
         prompt = render_template(
             "enrichment/identify_attack_chains.j2",
@@ -39,7 +40,8 @@ class EnrichmentPromptBuilder:
 
     @classmethod
     def assess_false_positives(
-        cls, findings: list[Finding],
+        cls,
+        findings: list[Finding],
     ) -> tuple[str, str]:
         prompt = render_template(
             "enrichment/assess_false_positives.j2",
@@ -49,7 +51,9 @@ class EnrichmentPromptBuilder:
 
     @classmethod
     def suggest_variants(
-        cls, finding: Finding, target: Target,
+        cls,
+        finding: Finding,
+        target: Target,
     ) -> tuple[str, str]:
         prompt = render_template(
             "enrichment/suggest_variants.j2",
@@ -70,11 +74,10 @@ class EnrichmentPromptBuilder:
         if context.data_sensitivity:
             ctx_parts.append(f"Data sensitivity: {context.data_sensitivity}")
         if context.compliance_frameworks:
-            ctx_parts.append(
-                f"Compliance: {', '.join(context.compliance_frameworks)}"
-            )
-        ctx_text = "\n".join(ctx_parts) if ctx_parts else \
-            "No specific context provided."
+            ctx_parts.append(f"Compliance: {', '.join(context.compliance_frameworks)}")
+        ctx_text = (
+            "\n".join(ctx_parts) if ctx_parts else "No specific context provided."
+        )
 
         prompt = render_template(
             "enrichment/triage_findings.j2",

@@ -9,7 +9,6 @@ import pytest
 from src.llm.retriever import FindingRetriever
 from src.models import Confidence, Finding, Severity
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -52,11 +51,36 @@ def _finding(
 def test_build_index_and_retrieve():
     """Keyword in title/description must surface the matching finding."""
     findings = [
-        _finding("SQL Injection in login", "The login form is injectable", Severity.CRITICAL, finding_id="f001"),
-        _finding("Missing HSTS header", "Response lacks Strict-Transport-Security", Severity.MEDIUM, finding_id="f002"),
-        _finding("Open redirect on checkout", "Redirect parameter not validated", Severity.HIGH, finding_id="f003"),
-        _finding("Exposed .git directory", "The .git folder is publicly accessible", Severity.HIGH, finding_id="f004"),
-        _finding("Weak cookie flags", "Session cookie missing HttpOnly flag", Severity.LOW, finding_id="f005"),
+        _finding(
+            "SQL Injection in login",
+            "The login form is injectable",
+            Severity.CRITICAL,
+            finding_id="f001",
+        ),
+        _finding(
+            "Missing HSTS header",
+            "Response lacks Strict-Transport-Security",
+            Severity.MEDIUM,
+            finding_id="f002",
+        ),
+        _finding(
+            "Open redirect on checkout",
+            "Redirect parameter not validated",
+            Severity.HIGH,
+            finding_id="f003",
+        ),
+        _finding(
+            "Exposed .git directory",
+            "The .git folder is publicly accessible",
+            Severity.HIGH,
+            finding_id="f004",
+        ),
+        _finding(
+            "Weak cookie flags",
+            "Session cookie missing HttpOnly flag",
+            Severity.LOW,
+            finding_id="f005",
+        ),
     ]
     retriever = FindingRetriever(findings)
     try:
@@ -70,7 +94,12 @@ def test_build_index_and_retrieve():
 def test_retrieve_returns_at_most_top_k():
     """retrieve() must never return more items than top_k."""
     findings = [
-        _finding(f"Finding {i}", f"description {i}", Severity.MEDIUM, finding_id=f"f{i:03d}")
+        _finding(
+            f"Finding {i}",
+            f"description {i}",
+            Severity.MEDIUM,
+            finding_id=f"f{i:03d}",
+        )
         for i in range(20)
     ]
     retriever = FindingRetriever(findings)
@@ -89,9 +118,24 @@ def test_retrieve_returns_at_most_top_k():
 def test_empty_query_returns_fallback():
     """A query that matches nothing must fall back to CRITICAL/HIGH findings."""
     findings = [
-        _finding("Critical auth bypass", "Unauthenticated access to admin", Severity.CRITICAL, finding_id="crit1"),
-        _finding("High XSS stored", "Persistent XSS in comments", Severity.HIGH, finding_id="high1"),
-        _finding("Info banner disclosure", "Server version in headers", Severity.INFO, finding_id="info1"),
+        _finding(
+            "Critical auth bypass",
+            "Unauthenticated access to admin",
+            Severity.CRITICAL,
+            finding_id="crit1",
+        ),
+        _finding(
+            "High XSS stored",
+            "Persistent XSS in comments",
+            Severity.HIGH,
+            finding_id="high1",
+        ),
+        _finding(
+            "Info banner disclosure",
+            "Server version in headers",
+            Severity.INFO,
+            finding_id="info1",
+        ),
     ]
     retriever = FindingRetriever(findings)
     try:
@@ -108,10 +152,20 @@ def test_empty_query_returns_fallback():
 def test_fallback_capped_at_top_k():
     """Fallback must not exceed top_k even when many CRITICAL/HIGH findings exist."""
     findings = [
-        _finding(f"Critical finding {i}", f"critical vuln {i}", Severity.CRITICAL, finding_id=f"c{i:03d}")
+        _finding(
+            f"Critical finding {i}",
+            f"critical vuln {i}",
+            Severity.CRITICAL,
+            finding_id=f"c{i:03d}",
+        )
         for i in range(10)
     ] + [
-        _finding(f"High finding {i}", f"high vuln {i}", Severity.HIGH, finding_id=f"h{i:03d}")
+        _finding(
+            f"High finding {i}",
+            f"high vuln {i}",
+            Severity.HIGH,
+            finding_id=f"h{i:03d}",
+        )
         for i in range(10)
     ]
     retriever = FindingRetriever(findings)
@@ -125,10 +179,30 @@ def test_fallback_capped_at_top_k():
 def test_fallback_not_triggered_when_enough_fts_results():
     """Fallback must not add findings when FTS already returned >= 3 results."""
     findings = [
-        _finding("SQL Injection alpha", "injectable parameter alpha", Severity.MEDIUM, finding_id="m1"),
-        _finding("SQL Injection beta", "injectable parameter beta", Severity.MEDIUM, finding_id="m2"),
-        _finding("SQL Injection gamma", "injectable parameter gamma", Severity.MEDIUM, finding_id="m3"),
-        _finding("Critical unrelated", "something completely different", Severity.CRITICAL, finding_id="crit_extra"),
+        _finding(
+            "SQL Injection alpha",
+            "injectable parameter alpha",
+            Severity.MEDIUM,
+            finding_id="m1",
+        ),
+        _finding(
+            "SQL Injection beta",
+            "injectable parameter beta",
+            Severity.MEDIUM,
+            finding_id="m2",
+        ),
+        _finding(
+            "SQL Injection gamma",
+            "injectable parameter gamma",
+            Severity.MEDIUM,
+            finding_id="m3",
+        ),
+        _finding(
+            "Critical unrelated",
+            "something completely different",
+            Severity.CRITICAL,
+            finding_id="crit_extra",
+        ),
     ]
     retriever = FindingRetriever(findings)
     try:
@@ -149,12 +223,19 @@ def test_fallback_not_triggered_when_enough_fts_results():
 
 
 def test_close_cleans_up():
-    """After close(), the underlying connection should be closed and operations raise."""
-    findings = [_finding("XSS reflected", "Reflected XSS in search param", Severity.HIGH)]
+    """After close(), the underlying connection should be closed
+    and operations raise."""
+    findings = [
+        _finding(
+            "XSS reflected",
+            "Reflected XSS in search param",
+            Severity.HIGH,
+        )
+    ]
     retriever = FindingRetriever(findings)
     retriever.close()
 
-    with pytest.raises(Exception):
+    with pytest.raises((sqlite3.ProgrammingError, sqlite3.OperationalError)):
         retriever.retrieve("XSS")
 
 
@@ -166,8 +247,18 @@ def test_close_cleans_up():
 def test_fts_special_chars_escaped():
     """Queries containing FTS5 metacharacters must not raise an exception."""
     findings = [
-        _finding("Auth bypass", "Authentication bypass via token manipulation", Severity.CRITICAL, finding_id="a1"),
-        _finding("Open redirect", "Redirect to external domain", Severity.HIGH, finding_id="a2"),
+        _finding(
+            "Auth bypass",
+            "Authentication bypass via token manipulation",
+            Severity.CRITICAL,
+            finding_id="a1",
+        ),
+        _finding(
+            "Open redirect",
+            "Redirect to external domain",
+            Severity.HIGH,
+            finding_id="a2",
+        ),
     ]
     retriever = FindingRetriever(findings)
     try:
@@ -221,8 +312,18 @@ def test_empty_findings_list_returns_empty():
 def test_retrieve_deduplicates_findings():
     """Each finding_id must appear at most once in results."""
     findings = [
-        _finding("Duplicate title", "same description injectable", Severity.HIGH, finding_id="dup1"),
-        _finding("Another finding", "injectable parameter here", Severity.MEDIUM, finding_id="dup2"),
+        _finding(
+            "Duplicate title",
+            "same description injectable",
+            Severity.HIGH,
+            finding_id="dup1",
+        ),
+        _finding(
+            "Another finding",
+            "injectable parameter here",
+            Severity.MEDIUM,
+            finding_id="dup2",
+        ),
     ]
     retriever = FindingRetriever(findings)
     try:
@@ -234,10 +335,21 @@ def test_retrieve_deduplicates_findings():
 
 
 def test_single_finding_triggers_fallback_if_critical():
-    """A single CRITICAL finding returned by FTS (< 3) does not re-add itself via fallback."""
+    """A single CRITICAL finding returned by FTS (< 3) does not
+    re-add itself via fallback."""
     findings = [
-        _finding("Critical RCE", "Remote code execution via deserialization", Severity.CRITICAL, finding_id="rce1"),
-        _finding("Medium info leak", "Information disclosure in headers", Severity.MEDIUM, finding_id="med1"),
+        _finding(
+            "Critical RCE",
+            "Remote code execution via deserialization",
+            Severity.CRITICAL,
+            finding_id="rce1",
+        ),
+        _finding(
+            "Medium info leak",
+            "Information disclosure in headers",
+            Severity.MEDIUM,
+            finding_id="med1",
+        ),
     ]
     retriever = FindingRetriever(findings)
     try:

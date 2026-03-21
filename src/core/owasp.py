@@ -33,7 +33,6 @@ OWASP_MAPPINGS: dict[str, OwaspMapping] = {
         description="Server-Side Request Forgery",
         typical_cwes=("CWE-918",),
     ),
-
     # A02 - Security Misconfiguration
     "security_misconfiguration": OwaspMapping(
         category=OwaspCategory.A02_SECURITY_MISCONFIGURATION,
@@ -60,7 +59,6 @@ OWASP_MAPPINGS: dict[str, OwaspMapping] = {
         description="Missing or misconfigured security headers",
         typical_cwes=("CWE-693",),
     ),
-
     # A03 - Software Supply Chain Failures
     "outdated_component": OwaspMapping(
         category=OwaspCategory.A03_SUPPLY_CHAIN_FAILURES,
@@ -77,7 +75,6 @@ OWASP_MAPPINGS: dict[str, OwaspMapping] = {
         description="Software supply chain failure or compromise",
         typical_cwes=("CWE-1104", "CWE-829"),
     ),
-
     # A04 - Cryptographic Failures
     "weak_tls": OwaspMapping(
         category=OwaspCategory.A04_CRYPTOGRAPHIC_FAILURES,
@@ -99,7 +96,6 @@ OWASP_MAPPINGS: dict[str, OwaspMapping] = {
         description="Weak cipher suites accepted",
         typical_cwes=("CWE-326",),
     ),
-
     # A05 - Injection
     "sql_injection": OwaspMapping(
         category=OwaspCategory.A05_INJECTION,
@@ -131,14 +127,12 @@ OWASP_MAPPINGS: dict[str, OwaspMapping] = {
         description="Unvalidated redirect or forward",
         typical_cwes=("CWE-601",),
     ),
-
     # A06 - Insecure Design
     "insecure_design": OwaspMapping(
         category=OwaspCategory.A06_INSECURE_DESIGN,
         description="Design-level security flaw",
         typical_cwes=("CWE-840",),
     ),
-
     # A07 - Authentication Failures
     "weak_password_policy": OwaspMapping(
         category=OwaspCategory.A07_AUTH_FAILURES,
@@ -155,7 +149,6 @@ OWASP_MAPPINGS: dict[str, OwaspMapping] = {
         description="Missing CSRF protection on state-changing forms",
         typical_cwes=("CWE-352",),
     ),
-
     # A08 - Software or Data Integrity Failures
     "insecure_deserialization": OwaspMapping(
         category=OwaspCategory.A08_INTEGRITY_FAILURES,
@@ -167,14 +160,12 @@ OWASP_MAPPINGS: dict[str, OwaspMapping] = {
         description="Missing Subresource Integrity on external scripts",
         typical_cwes=("CWE-353",),
     ),
-
     # A09 - Security Logging and Alerting Failures
     "logging_failure": OwaspMapping(
         category=OwaspCategory.A09_LOGGING_FAILURES,
         description="Insufficient logging or monitoring",
         typical_cwes=("CWE-778",),
     ),
-
     # A10 - Mishandling of Exceptional Conditions
     "improper_error_handling": OwaspMapping(
         category=OwaspCategory.A10_EXCEPTIONAL_CONDITIONS,
@@ -189,8 +180,7 @@ OWASP_MAPPINGS: dict[str, OwaspMapping] = {
     "uncaught_exception": OwaspMapping(
         category=OwaspCategory.A10_EXCEPTIONAL_CONDITIONS,
         description=(
-            "Uncaught exception leading to information disclosure"
-            " or denial of service"
+            "Uncaught exception leading to information disclosure or denial of service"
         ),
         typical_cwes=("CWE-248",),
     ),

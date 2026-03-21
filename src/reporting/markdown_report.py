@@ -58,12 +58,14 @@ class MarkdownReporter(BaseReporter):
         if session.profile_intro:
             lines.append(f"{session.profile_intro}\n")
 
-        lines.extend([
-            f"The assessment identified **{total} finding(s)**",
-            f"({session.multi_confirmed_count} confirmed by multiple scanners):\n",
-            "| Severity | Count |",
-            "|----------|-------|",
-        ])
+        lines.extend(
+            [
+                f"The assessment identified **{total} finding(s)**",
+                f"({session.multi_confirmed_count} confirmed by multiple scanners):\n",
+                "| Severity | Count |",
+                "|----------|-------|",
+            ]
+        )
 
         for sev in Severity:
             count = len(by_sev[sev])
@@ -167,9 +169,7 @@ class MarkdownReporter(BaseReporter):
             parts.append(f"\n**Evidence:**\n```\n{f.evidence}\n```")
 
         if f.request_example:
-            parts.append(
-                f"\n**Reproduction:**\n```bash\n{f.request_example}\n```"
-            )
+            parts.append(f"\n**Reproduction:**\n```bash\n{f.request_example}\n```")
 
         if f.remediation:
             parts.append(f"\n**Remediation:** {f.remediation}")

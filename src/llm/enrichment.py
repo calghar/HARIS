@@ -10,7 +10,11 @@ from .enrichment_prompts import EnrichmentPromptBuilder
 logger = logging.getLogger(__name__)
 
 _SEVERITY_RANK = {
-    "critical": 0, "high": 1, "medium": 2, "low": 3, "info": 4,
+    "critical": 0,
+    "high": 1,
+    "medium": 2,
+    "low": 3,
+    "info": 4,
 }
 
 
@@ -51,7 +55,9 @@ class FindingEnricher:
             return None
 
         system, prompt = self._prompts.enrich_finding(
-            finding, target, sibling_titles or [],
+            finding,
+            target,
+            sibling_titles or [],
         )
 
         try:
@@ -64,7 +70,8 @@ class FindingEnricher:
             return self._parse_enrichment(finding.finding_id, response.text)
         except Exception:
             logger.warning(
-                "Failed to enrich finding %s", finding.finding_id,
+                "Failed to enrich finding %s",
+                finding.finding_id,
                 exc_info=True,
             )
             return None
@@ -87,7 +94,8 @@ class FindingEnricher:
 
     @staticmethod
     def _parse_enrichment(
-        finding_id: str, raw_text: str,
+        finding_id: str,
+        raw_text: str,
     ) -> EnrichedFinding | None:
         """Parse LLM JSON response into an EnrichedFinding."""
         try:
@@ -102,13 +110,16 @@ class FindingEnricher:
                 finding_id=finding_id,
                 attack_narrative=data.get("attack_narrative", ""),
                 business_impact_assessment=data.get(
-                    "business_impact_assessment", "",
+                    "business_impact_assessment",
+                    "",
                 ),
                 exploitation_complexity=data.get(
-                    "exploitation_complexity", "",
+                    "exploitation_complexity",
+                    "",
                 ),
                 false_positive_likelihood=data.get(
-                    "false_positive_likelihood", "",
+                    "false_positive_likelihood",
+                    "",
                 ),
                 related_cwes=data.get("related_cwes", []),
                 attack_chain_position=data.get("attack_chain_position", ""),
@@ -116,6 +127,7 @@ class FindingEnricher:
             )
         except (json.JSONDecodeError, KeyError):
             logger.warning(
-                "Could not parse enrichment for %s", finding_id,
+                "Could not parse enrichment for %s",
+                finding_id,
             )
             return None

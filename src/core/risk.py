@@ -28,8 +28,7 @@ _BUSINESS_IMPACT: dict[str, BusinessImpact] = {
         ),
         who_is_affected="The organisation — infrastructure details are exposed",
         worst_case=(
-            "Server compromise via known default credentials "
-            "or exposed admin tools"
+            "Server compromise via known default credentials or exposed admin tools"
         ),
     ),
     OwaspCategory.A03_SUPPLY_CHAIN_FAILURES.value: BusinessImpact(
@@ -106,12 +105,11 @@ _BUSINESS_IMPACT: dict[str, BusinessImpact] = {
         ),
         who_is_affected="The organisation — breach response is delayed",
         worst_case="Prolonged undetected breach, regulatory penalties for late"
-                    "disclosure",
+        "disclosure",
     ),
     OwaspCategory.A10_EXCEPTIONAL_CONDITIONS.value: BusinessImpact(
         headline=(
-            "The system may behave unsafely when it encounters "
-            "unexpected conditions"
+            "The system may behave unsafely when it encounters unexpected conditions"
         ),
         explanation=(
             "When the application encounters errors, resource limits, or "
@@ -123,8 +121,7 @@ _BUSINESS_IMPACT: dict[str, BusinessImpact] = {
             "All users — error conditions can expose data or disable protections"
         ),
         worst_case=(
-            "Security bypass during error state, denial of service, "
-            "information leakage"
+            "Security bypass during error state, denial of service, information leakage"
         ),
     ),
 }
@@ -132,8 +129,7 @@ _BUSINESS_IMPACT: dict[str, BusinessImpact] = {
 _FALLBACK_IMPACT = BusinessImpact(
     headline="A security issue was identified",
     explanation=(
-        "This finding indicates a potential security weakness "
-        "that should be reviewed."
+        "This finding indicates a potential security weakness that should be reviewed."
     ),
     who_is_affected="Depends on the specific vulnerability",
     worst_case="Varies — review the technical details for specifics",

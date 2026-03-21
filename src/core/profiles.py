@@ -13,9 +13,14 @@ PROFILES: dict[str, ScanProfile] = {
             "Runs all available scanners with moderate aggressiveness."
         ),
         scanners=[
-            "header_checks", "tls_checks", "misc_checks",
-            "info_disclosure", "cookie_checks",
-            "nmap", "sslyze", "wapiti",
+            "header_checks",
+            "tls_checks",
+            "misc_checks",
+            "info_disclosure",
+            "cookie_checks",
+            "nmap",
+            "sslyze",
+            "wapiti",
         ],
         report_intro=(
             "This pre-launch security audit evaluates the application's "
@@ -34,8 +39,11 @@ PROFILES: dict[str, ScanProfile] = {
             "external scanners are not installed."
         ),
         scanners=[
-            "header_checks", "tls_checks", "misc_checks",
-            "info_disclosure", "cookie_checks",
+            "header_checks",
+            "tls_checks",
+            "misc_checks",
+            "info_disclosure",
+            "cookie_checks",
         ],
         report_intro=(
             "This quick surface scan checks security headers, TLS "
@@ -57,9 +65,16 @@ PROFILES: dict[str, ScanProfile] = {
             "scanner integrations.  Includes active injection testing."
         ),
         scanners=[
-            "header_checks", "tls_checks", "misc_checks",
-            "info_disclosure", "cookie_checks",
-            "nmap", "sslyze", "wapiti", "nikto", "nuclei",
+            "header_checks",
+            "tls_checks",
+            "misc_checks",
+            "info_disclosure",
+            "cookie_checks",
+            "nmap",
+            "sslyze",
+            "wapiti",
+            "nikto",
+            "nuclei",
         ],
         report_intro=(
             "This full OWASP Top 10 audit exercises every available "
@@ -78,7 +93,9 @@ PROFILES: dict[str, ScanProfile] = {
             "exposed paths.  Fast enough for CI."
         ),
         scanners=[
-            "header_checks", "tls_checks", "misc_checks",
+            "header_checks",
+            "tls_checks",
+            "misc_checks",
         ],
         report_intro=(
             "This regression scan checks whether security controls "
@@ -97,9 +114,13 @@ PROFILES: dict[str, ScanProfile] = {
             "disclosure, and port exposure."
         ),
         scanners=[
-            "header_checks", "tls_checks", "misc_checks",
-            "info_disclosure", "cookie_checks",
-            "nmap", "sslyze",
+            "header_checks",
+            "tls_checks",
+            "misc_checks",
+            "info_disclosure",
+            "cookie_checks",
+            "nmap",
+            "sslyze",
         ],
         report_intro=(
             "This compliance-focused scan evaluates the target against "

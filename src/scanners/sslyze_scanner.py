@@ -37,7 +37,8 @@ class SSLyzeScanner(BaseScanner):
             cmd = [
                 "sslyze",
                 hostname_port,
-                "--json_out", str(output_file),
+                "--json_out",
+                str(output_file),
                 "--quiet",
             ]
 
@@ -76,9 +77,7 @@ class SSLyzeScanner(BaseScanner):
 
         for server_result in data.get("server_scan_results", []):
             scan_result = server_result.get("scan_result", {})
-            hostname = (
-                server_result.get("server_location", {}).get("hostname", "")
-            )
+            hostname = server_result.get("server_location", {}).get("hostname", "")
 
             findings.extend(self._check_protocols(scan_result, hostname))
             findings.extend(self._check_certificate(scan_result, hostname))
@@ -86,9 +85,7 @@ class SSLyzeScanner(BaseScanner):
 
         return findings
 
-    def _check_protocols(
-        self, scan_result: dict, hostname: str
-    ) -> list[Finding]:
+    def _check_protocols(self, scan_result: dict, hostname: str) -> list[Finding]:
         """Flag deprecated TLS/SSL protocols."""
         findings: list[Finding] = []
         deprecated_protos = {
@@ -109,32 +106,32 @@ class SSLyzeScanner(BaseScanner):
                     c.get("cipher_suite", {}).get("name", "unknown")
                     for c in accepted[:5]
                 ]
-                findings.append(Finding(
-                    title=f"Deprecated protocol {proto_name} supported",
-                    description=(
-                        f"The server accepts connections via {proto_name}, "
-                        f"which is deprecated and has known vulnerabilities."
-                    ),
-                    severity=severity,
-                    confidence=Confidence.CONFIRMED,
-                    url=f"https://{hostname}/",
-                    evidence=f"Accepted ciphers: {', '.join(cipher_names)}",
-                    remediation=(
-                        f"Disable {proto_name} on the server. Only TLS 1.2 "
-                        f"and TLS 1.3 should be enabled."
-                    ),
-                    references=[
-                        "https://www.ssllabs.com/ssltest/",
-                    ],
-                    scanner=self.name,
-                    tags=["weak_tls"],
-                ))
+                findings.append(
+                    Finding(
+                        title=f"Deprecated protocol {proto_name} supported",
+                        description=(
+                            f"The server accepts connections via {proto_name}, "
+                            f"which is deprecated and has known vulnerabilities."
+                        ),
+                        severity=severity,
+                        confidence=Confidence.CONFIRMED,
+                        url=f"https://{hostname}/",
+                        evidence=f"Accepted ciphers: {', '.join(cipher_names)}",
+                        remediation=(
+                            f"Disable {proto_name} on the server. Only TLS 1.2 "
+                            f"and TLS 1.3 should be enabled."
+                        ),
+                        references=[
+                            "https://www.ssllabs.com/ssltest/",
+                        ],
+                        scanner=self.name,
+                        tags=["weak_tls"],
+                    )
+                )
 
         return findings
 
-    def _check_certificate(
-        self, scan_result: dict, hostname: str
-    ) -> list[Finding]:
+    def _check_certificate(self, scan_result: dict, hostname: str) -> list[Finding]:
         """Check certificate validity and chain issues."""
         findings: list[Finding] = []
         cert_info = scan_result.get("certificate_info", {})
@@ -150,45 +147,48 @@ class SSLyzeScanner(BaseScanner):
             for pvr in path_results:
                 if pvr.get("was_validation_successful") is False:
                     trust_store = pvr.get("trust_store", {}).get("name", "")
-                    findings.append(Finding(
-                        title="Certificate not trusted",
+                    findings.append(
+                        Finding(
+                            title="Certificate not trusted",
+                            description=(
+                                f"Certificate chain validation failed for "
+                                f"trust store: {trust_store}."
+                            ),
+                            severity=Severity.HIGH,
+                            confidence=Confidence.CONFIRMED,
+                            url=f"https://{hostname}/",
+                            remediation=(
+                                "Ensure a valid certificate chain from a trusted CA."
+                            ),
+                            scanner=self.name,
+                            tags=["weak_tls"],
+                        )
+                    )
+                    break  # one finding per deployment is enough
+
+            # Check hostname match
+            if not deployment.get("leaf_certificate_subject_matches_hostname", True):
+                findings.append(
+                    Finding(
+                        title="Certificate hostname mismatch",
                         description=(
-                            f"Certificate chain validation failed for "
-                            f"trust store: {trust_store}."
+                            "The certificate's subject does not match the "
+                            f"server hostname ({hostname})."
                         ),
                         severity=Severity.HIGH,
                         confidence=Confidence.CONFIRMED,
                         url=f"https://{hostname}/",
                         remediation=(
-                            "Ensure a valid certificate chain "
-                            "from a trusted CA."
+                            "Use a certificate that covers the target hostname."
                         ),
                         scanner=self.name,
                         tags=["weak_tls"],
-                    ))
-                    break  # one finding per deployment is enough
-
-            # Check hostname match
-            if not deployment.get("leaf_certificate_subject_matches_hostname", True):
-                findings.append(Finding(
-                    title="Certificate hostname mismatch",
-                    description=(
-                        "The certificate's subject does not match the "
-                        f"server hostname ({hostname})."
-                    ),
-                    severity=Severity.HIGH,
-                    confidence=Confidence.CONFIRMED,
-                    url=f"https://{hostname}/",
-                    remediation="Use a certificate that covers the target hostname.",
-                    scanner=self.name,
-                    tags=["weak_tls"],
-                ))
+                    )
+                )
 
         return findings
 
-    def _check_vulnerabilities(
-        self, scan_result: dict, hostname: str
-    ) -> list[Finding]:
+    def _check_vulnerabilities(self, scan_result: dict, hostname: str) -> list[Finding]:
         """Check for known TLS vulnerabilities (Heartbleed, ROBOT, etc.)."""
         findings: list[Finding] = []
 
@@ -224,25 +224,31 @@ class SSLyzeScanner(BaseScanner):
 
             result_obj = check_data.get("result", {})
 
-            if "vulnerable_values" in check_info:
-                is_vuln = result_obj.get(
-                    check_info["result_field"], ""
-                ) in check_info["vulnerable_values"]
+            vulnerable_values = check_info.get("vulnerable_values")
+            if vulnerable_values is not None:
+                assert isinstance(vulnerable_values, list)
+                is_vuln = (
+                    result_obj.get(str(check_info["result_field"]), "")
+                    in vulnerable_values
+                )
             else:
-                is_vuln = result_obj.get(check_info["result_field"], False)
+                is_vuln = result_obj.get(str(check_info["result_field"]), False)
 
             if is_vuln:
-                findings.append(Finding(
-                    title=check_info["title"],
-                    description=(
-                        f"Server is vulnerable to {check_name}."
-                    ),
-                    severity=check_info["severity"],
-                    confidence=Confidence.CONFIRMED,
-                    url=f"https://{hostname}/",
-                    remediation="Update the TLS library and server software.",
-                    scanner=self.name,
-                    tags=["weak_tls"],
-                ))
+                title = str(check_info["title"])
+                severity = check_info["severity"]
+                assert isinstance(severity, Severity)
+                findings.append(
+                    Finding(
+                        title=title,
+                        description=(f"Server is vulnerable to {check_name}."),
+                        severity=severity,
+                        confidence=Confidence.CONFIRMED,
+                        url=f"https://{hostname}/",
+                        remediation="Update the TLS library and server software.",
+                        scanner=self.name,
+                        tags=["weak_tls"],
+                    )
+                )
 
         return findings

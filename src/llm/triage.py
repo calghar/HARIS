@@ -69,7 +69,10 @@ class SmartTriager:
 
         try:
             response = self.backend.complete(
-                prompt, system=system, temperature=0.2, max_tokens=2048,
+                prompt,
+                system=system,
+                temperature=0.2,
+                max_tokens=2048,
             )
             return response.text
         except Exception:
@@ -86,9 +89,7 @@ class SmartTriager:
         findings: list[Finding],
     ) -> list[TriagedFinding]:
         """Parse LLM JSON into TriagedFinding objects."""
-        severity_by_id = {
-            f.finding_id: f.severity for f in findings
-        }
+        severity_by_id = {f.finding_id: f.severity for f in findings}
 
         try:
             text = raw_text.strip()
@@ -112,21 +113,24 @@ class SmartTriager:
                     original,
                 )
 
-                results.append(TriagedFinding(
-                    finding_id=fid,
-                    original_severity=original,
-                    adjusted_severity=adjusted,
-                    exploitability_score=int(
-                        item.get("exploitability_score", 5),
-                    ),
-                    business_priority=int(
-                        item.get("business_priority", 5),
-                    ),
-                    triage_rationale=item.get("triage_rationale", ""),
-                    recommended_timeline=item.get(
-                        "recommended_timeline", "",
-                    ),
-                ))
+                results.append(
+                    TriagedFinding(
+                        finding_id=fid,
+                        original_severity=original,
+                        adjusted_severity=adjusted,
+                        exploitability_score=int(
+                            item.get("exploitability_score", 5),
+                        ),
+                        business_priority=int(
+                            item.get("business_priority", 5),
+                        ),
+                        triage_rationale=item.get("triage_rationale", ""),
+                        recommended_timeline=item.get(
+                            "recommended_timeline",
+                            "",
+                        ),
+                    )
+                )
 
             return results
         except (TypeError, ValueError):

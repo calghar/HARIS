@@ -87,12 +87,13 @@ class HTMLReporter(BaseReporter):
     def _md_to_html(self, md_text: str) -> str:
         """Convert Markdown to HTML, with graceful fallback."""
         try:
-            import markdown
+            import markdown  # type: ignore[import-untyped]
 
-            return markdown.markdown(
+            result: str = markdown.markdown(
                 md_text,
                 extensions=["tables", "fenced_code"],
             )
+            return result
         except ImportError:
             # Fallback: wrap in <pre> with basic escaping
             return f"<pre>{html.escape(md_text)}</pre>"

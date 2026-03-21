@@ -41,12 +41,8 @@ class Finding(BaseModel):
 
     # Metadata
     scanner: str = ""
-    found_at: str = Field(
-        default_factory=lambda: datetime.now(UTC).isoformat()
-    )
-    finding_id: str = Field(
-        default_factory=lambda: uuid.uuid4().hex[:12]
-    )
+    found_at: str = Field(default_factory=lambda: datetime.now(UTC).isoformat())
+    finding_id: str = Field(default_factory=lambda: uuid.uuid4().hex[:12])
     tags: list[str] = Field(default_factory=list)
     raw_data: dict[str, Any] = Field(default_factory=dict)
 

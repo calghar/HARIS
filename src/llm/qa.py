@@ -52,9 +52,7 @@ class ReportQA:
     ) -> LLMResponse:
         """Generate a report summary for the specified audience."""
         system, prompt = self._builder.summarize_report(session, audience)
-        return self.backend.complete(
-            prompt, system=system, temperature=temperature
-        )
+        return self.backend.complete(prompt, system=system, temperature=temperature)
 
     def explain_finding(
         self,
@@ -66,12 +64,8 @@ class ReportQA:
         """Explain a specific finding by its ID."""
         finding = self._find_by_id(session, finding_id)
         if finding is None:
-            return LLMResponse(
-                text=f"Finding '{finding_id}' not found in this scan."
-            )
-        system, prompt = self._builder.explain_finding(
-            finding, session, audience
-        )
+            return LLMResponse(text=f"Finding '{finding_id}' not found in this scan.")
+        system, prompt = self._builder.explain_finding(finding, session, audience)
         return self.backend.complete(prompt, system=system)
 
     def remediation_plan(
@@ -81,9 +75,7 @@ class ReportQA:
         format: str = "markdown",
     ) -> LLMResponse:
         """Generate a remediation plan in the specified format."""
-        system, prompt = self._builder.propose_remediation_plan(
-            session, format
-        )
+        system, prompt = self._builder.propose_remediation_plan(session, format)
         return self.backend.complete(prompt, system=system)
 
     def filter_findings(
@@ -102,9 +94,7 @@ class ReportQA:
         framework: str = "generic",
     ) -> LLMResponse:
         """Generate CI security test cases from findings."""
-        system, prompt = self._builder.generate_test_cases(
-            session, framework
-        )
+        system, prompt = self._builder.generate_test_cases(session, framework)
         return self.backend.complete(prompt, system=system)
 
     def suggest_mitigations(
@@ -161,33 +151,20 @@ class ReportQA:
                 relevant = retriever.retrieve(question, top_k=10)
             finally:
                 retriever.close()
-            context = PromptBuilder._format_selective_context(
-                session, relevant
-            )
+            context = PromptBuilder._format_selective_context(session, relevant)
         else:
             context = PromptBuilder._format_session_context(session)
 
-        context_msg = (
-            "Here is the scan report context:\n\n" + context
-        )
-        ack_msg = (
-            "I've reviewed the scan report. "
-            "What would you like to know?"
-        )
+        context_msg = "Here is the scan report context:\n\n" + context
+        ack_msg = "I've reviewed the scan report. What would you like to know?"
         messages: list[dict[str, str]] = [
             {"role": "user", "content": context_msg},
             {"role": "assistant", "content": ack_msg},
         ]
         # Append recent history (trim oldest if over limit)
-        recent = (
-            history[-max_history:]
-            if len(history) > max_history
-            else history
-        )
+        recent = history[-max_history:] if len(history) > max_history else history
         for msg in recent:
-            messages.append(
-                {"role": msg.role, "content": msg.content}
-            )
+            messages.append({"role": msg.role, "content": msg.content})
         # Append the new question
         messages.append({"role": "user", "content": question})
         return messages
@@ -197,15 +174,11 @@ class ReportQA:
         session: ScanSession,
     ) -> LLMResponse:
         """Draft an email summarising the risk posture."""
-        system, prompt = self._builder.propose_remediation_plan(
-            session, format="email"
-        )
+        system, prompt = self._builder.propose_remediation_plan(session, format="email")
         return self.backend.complete(prompt, system=system)
 
     @staticmethod
-    def _find_by_id(
-        session: ScanSession, finding_id: str
-    ) -> Finding | None:
+    def _find_by_id(session: ScanSession, finding_id: str) -> Finding | None:
         """Look up a finding by ID within a session."""
         for f in session.all_findings:
             if f.finding_id == finding_id:
@@ -225,9 +198,7 @@ class ReportQA:
         path = Path(report_path)
         raw = json.loads(path.read_text(encoding="utf-8"))
 
-        findings = [
-            Finding.from_dict(f) for f in raw.get("findings", [])
-        ]
+        findings = [Finding.from_dict(f) for f in raw.get("findings", [])]
 
         from ..models import RiskPosture, ScanSession
 
@@ -247,7 +218,6 @@ class ReportQA:
         )
 
         return cls(backend=backend), session
-
 
     @classmethod
     def from_db(

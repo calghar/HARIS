@@ -41,9 +41,7 @@ class Config(BaseModel):
     scanners: list[ScannerConfig] = Field(default_factory=list)
     profile: str = "full"
     output_dir: str = "./reports"
-    report_formats: list[str] = Field(
-        default_factory=lambda: ["markdown", "json"]
-    )
+    report_formats: list[str] = Field(default_factory=lambda: ["markdown", "json"])
     log_level: str = "INFO"
 
     # Template management

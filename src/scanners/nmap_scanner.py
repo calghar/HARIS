@@ -1,5 +1,5 @@
 import logging
-import xml.etree.ElementTree as ET
+import xml.etree.ElementTree as ET  # noqa: N817
 from typing import Any
 
 from ..core.decorators import register_scanner
@@ -70,7 +70,7 @@ class NmapScanner(BaseScanner):
         findings: list[Finding] = []
 
         try:
-            root = ET.fromstring(raw_output)
+            root = ET.fromstring(raw_output)  # nosec B314 — nmap output is trusted local tool data
         except ET.ParseError as exc:
             logger.error("Failed to parse Nmap XML: %s", exc)
             return findings
@@ -85,9 +85,7 @@ class NmapScanner(BaseScanner):
 
             hostname_el = host.find(".//hostname")
             hostname = (
-                hostname_el.get("name", ip_addr)
-                if hostname_el is not None
-                else ip_addr
+                hostname_el.get("name", ip_addr) if hostname_el is not None else ip_addr
             )
 
             ports_el = host.find("ports")
@@ -146,8 +144,10 @@ class NmapScanner(BaseScanner):
                 # Flag potentially dangerous services
                 findings.extend(
                     self._flag_risky_service(
-                        hostname, port_id,
-                        service_name, service_product,
+                        hostname,
+                        port_id,
+                        service_name,
+                        service_product,
                     )
                 )
 
@@ -155,7 +155,9 @@ class NmapScanner(BaseScanner):
                 if service_version:
                     findings.extend(
                         self._flag_version_info(
-                            hostname, port_id, service_product,
+                            hostname,
+                            port_id,
+                            service_product,
                             service_version,
                         )
                     )
@@ -186,22 +188,24 @@ class NmapScanner(BaseScanner):
 
         for svc, reason in risky.items():
             if svc in service_lower or svc in (product or "").lower():
-                findings.append(Finding(
-                    title=f"Exposed {svc} service on port {port}",
-                    description=(
-                        f"{svc.upper()} service detected on "
-                        f"{hostname}:{port}. {reason}."
-                    ),
-                    severity=Severity.HIGH,
-                    confidence=Confidence.CONFIRMED,
-                    url=f"{hostname}:{port}",
-                    remediation=(
-                        f"Restrict access to {svc} via firewall rules "
-                        f"or bind it to localhost."
-                    ),
-                    scanner=self.name,
-                    tags=["security_misconfiguration"],
-                ))
+                findings.append(
+                    Finding(
+                        title=f"Exposed {svc} service on port {port}",
+                        description=(
+                            f"{svc.upper()} service detected on "
+                            f"{hostname}:{port}. {reason}."
+                        ),
+                        severity=Severity.HIGH,
+                        confidence=Confidence.CONFIRMED,
+                        url=f"{hostname}:{port}",
+                        remediation=(
+                            f"Restrict access to {svc} via firewall rules "
+                            f"or bind it to localhost."
+                        ),
+                        scanner=self.name,
+                        tags=["security_misconfiguration"],
+                    )
+                )
                 break
 
         return findings
@@ -217,33 +221,37 @@ class NmapScanner(BaseScanner):
         findings: list[Finding] = []
 
         if product and version:
-            findings.append(Finding(
-                title=f"Server version disclosed: {product} {version}",
-                description=(
-                    f"The server on {hostname}:{port} discloses its "
-                    f"software version ({product} {version}). This "
-                    f"information aids attackers in identifying known "
-                    f"vulnerabilities for that version."
-                ),
-                severity=Severity.LOW,
-                confidence=Confidence.CONFIRMED,
-                url=f"{hostname}:{port}",
-                evidence=f"{product} {version}",
-                remediation=(
-                    "Suppress version information in server banners "
-                    "and HTTP headers."
-                ),
-                scanner=self.name,
-                tags=["outdated_server"],
-            ))
+            findings.append(
+                Finding(
+                    title=f"Server version disclosed: {product} {version}",
+                    description=(
+                        f"The server on {hostname}:{port} discloses its "
+                        f"software version ({product} {version}). This "
+                        f"information aids attackers in identifying known "
+                        f"vulnerabilities for that version."
+                    ),
+                    severity=Severity.LOW,
+                    confidence=Confidence.CONFIRMED,
+                    url=f"{hostname}:{port}",
+                    evidence=f"{product} {version}",
+                    remediation=(
+                        "Suppress version information in server banners "
+                        "and HTTP headers."
+                    ),
+                    scanner=self.name,
+                    tags=["outdated_server"],
+                )
+            )
 
         return findings
 
     def _build_command(self, target: Target, output_path: str) -> list[str]:
         cmd = [
             "nmap",
-            "-oX", output_path,
-            "-p", self.options["ports"],
+            "-oX",
+            output_path,
+            "-p",
+            self.options["ports"],
         ]
         cmd.extend(self.options.get("extra_args", []))
         cmd.append(target.hostname)

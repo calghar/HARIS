@@ -19,8 +19,7 @@ def get_scanner(name: str) -> type:
     """Look up a scanner class by name."""
     if name not in SCANNER_REGISTRY:
         raise KeyError(
-            f"Unknown scanner {name!r}. "
-            f"Available: {', '.join(SCANNER_REGISTRY)}"
+            f"Unknown scanner {name!r}. Available: {', '.join(SCANNER_REGISTRY)}"
         )
     return SCANNER_REGISTRY[name]
 
