@@ -37,7 +37,8 @@ class ScanConfigTemplate(BaseModel):
     # Merged over default_config.yaml defaults during scan execution.
     #
     # Supported keys per scanner:
-    #   nuclei:  tags, severity, rate_limit, timeout
+    #   nuclei:  template_dirs, tags, severity, rate_limit, timeout,
+    #            max_host_errors, exclude_tags, concurrency, bulk_size
     #   nikto:   plugins, tuning, timeout
     #   wapiti:  modules, scope, max_scan_time, max_links, timeout
     #   nmap:    ports, script_categories, timeout

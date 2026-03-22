@@ -27,6 +27,7 @@ RUN ARCH=$(dpkg --print-architecture) \
     && unzip -o /tmp/nuclei.zip -d /usr/local/bin/ \
     && chmod +x /usr/local/bin/nuclei \
     && rm /tmp/nuclei.zip \
+    && nuclei -update-templates \
     || echo "nuclei install failed — scanner will be unavailable"
 
 WORKDIR /app

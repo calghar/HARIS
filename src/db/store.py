@@ -11,6 +11,7 @@ from ..models import (
     Finding,
     RemediationStep,
     RiskPosture,
+    ScannerResult,
     ScanSession,
     Target,
 )
@@ -19,7 +20,7 @@ from ..models.scan_config_template import ScanConfigTemplate
 
 logger = logging.getLogger(__name__)
 
-_SCHEMA_VERSION = 4
+_SCHEMA_VERSION = 5
 
 _SCHEMA_SQL = """\
 CREATE TABLE IF NOT EXISTS schema_version (
@@ -154,6 +155,18 @@ CREATE INDEX IF NOT EXISTS idx_scans_template ON scans(template_id);
 """
 
 
+_SCHEMA_V5_SQL = """\
+CREATE TABLE IF NOT EXISTS scanner_results (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    session_id    TEXT NOT NULL REFERENCES scans(session_id) ON DELETE CASCADE,
+    scanner_name  TEXT NOT NULL,
+    errors_json   TEXT NOT NULL DEFAULT '[]',
+    metadata_json TEXT NOT NULL DEFAULT '{}'
+);
+CREATE INDEX IF NOT EXISTS idx_scanner_results_session ON scanner_results(session_id);
+"""
+
+
 class ScanStore:
     """SQLite storage for scan sessions and findings.
 
@@ -190,6 +203,7 @@ class ScanStore:
                 conn.executescript(_SCHEMA_V2_SQL)
                 conn.executescript(_SCHEMA_V3_SQL)
                 conn.executescript(_SCHEMA_V4_SQL)
+                conn.executescript(_SCHEMA_V5_SQL)
             else:
                 current = row["version"]
                 if current < 2:
@@ -198,6 +212,8 @@ class ScanStore:
                     conn.executescript(_SCHEMA_V3_SQL)
                 if current < 4:
                     conn.executescript(_SCHEMA_V4_SQL)
+                if current < 5:
+                    conn.executescript(_SCHEMA_V5_SQL)
                 if current < _SCHEMA_VERSION:
                     conn.execute(
                         "UPDATE schema_version SET version = ?",
@@ -391,6 +407,25 @@ class ScanStore:
                     ),
                 )
 
+            # Insert scanner results
+            conn.execute(
+                "DELETE FROM scanner_results WHERE session_id = ?",
+                (session.session_id,),
+            )
+            for sr in session.scanner_results:
+                conn.execute(
+                    """INSERT INTO scanner_results
+                       (session_id, scanner_name, errors_json,
+                        metadata_json)
+                       VALUES (?, ?, ?, ?)""",
+                    (
+                        session.session_id,
+                        sr.scanner_name,
+                        json.dumps(sr.errors),
+                        json.dumps(sr.metadata),
+                    ),
+                )
+
             conn.commit()
         logger.info(
             "Saved session %s (%d findings, %d remediation steps)",
@@ -472,6 +507,11 @@ class ScanStore:
 
             triage_rows = conn.execute(
                 "SELECT * FROM triaged_findings WHERE session_id = ?",
+                (session_id,),
+            ).fetchall()
+
+            scanner_result_rows = conn.execute(
+                "SELECT * FROM scanner_results WHERE session_id = ?",
                 (session_id,),
             ).fetchall()
 
@@ -563,6 +603,42 @@ class ScanStore:
             for row in triage_rows
         ]
 
+        # Reconstruct scanner results
+        scanners_used = json.loads(scan_row["scanners_used"])
+        session_errors = json.loads(scan_row["errors"])
+
+        if scanner_result_rows:
+            # New-style: load from dedicated table
+            scanner_results = []
+            for row in scanner_result_rows:
+                name = row["scanner_name"]
+                sr_findings = [f for f in findings if f.scanner == name]
+                scanner_results.append(
+                    ScannerResult(
+                        scanner_name=name,
+                        findings=sr_findings,
+                        errors=json.loads(row["errors_json"]),
+                        metadata=json.loads(row["metadata_json"]),
+                    )
+                )
+        else:
+            # Legacy fallback: reconstruct from findings + scanners_used
+            scanner_results = []
+            for name in scanners_used:
+                sr_findings = [f for f in findings if f.scanner == name]
+                sr_errors = [
+                    e.removeprefix(f"[{name}] ")
+                    for e in session_errors
+                    if e.startswith(f"[{name}]")
+                ]
+                scanner_results.append(
+                    ScannerResult(
+                        scanner_name=name,
+                        findings=sr_findings,
+                        errors=sr_errors,
+                    )
+                )
+
         return ScanSession(
             session_id=scan_row["session_id"],
             target=target,
@@ -570,12 +646,13 @@ class ScanStore:
             finished_at=scan_row["finished_at"],
             profile_name=scan_row["profile_name"],
             profile_intro=scan_row["profile_intro"],
-            scanners_used=json.loads(scan_row["scanners_used"]),
+            scanners_used=scanners_used,
+            scanner_results=scanner_results,
             all_findings=findings,
             remediation_steps=remediation_steps,
             risk_posture=RiskPosture(scan_row["risk_posture"]),
             risk_posture_text=scan_row["risk_posture_text"],
-            errors=json.loads(scan_row["errors"]),
+            errors=session_errors,
             llm_enrichments=llm_enrichments,
             attack_chains=attack_chains,
             triaged_findings=triaged_findings,
@@ -1126,17 +1203,26 @@ class ScanStore:
                 llm_enrichment=True,
                 scanner_options={
                     "nuclei": {
-                        "tags": [
-                            "cve",
-                            "misconfig",
-                            "exposure",
-                            "default-login",
+                        "template_dirs": [
+                            "http/exposures",
+                            "http/exposed-panels",
+                            "http/vulnerabilities",
+                            "http/default-logins",
+                            "http/takeovers",
+                            "dast",
                         ],
-                        "severity": ["critical", "high", "medium"],
+                        "severity": [
+                            "critical",
+                            "high",
+                            "medium",
+                            "low",
+                            "info",
+                        ],
+                        "exclude_tags": ["dos", "fuzz"],
                         "rate_limit": 100,
                     },
                     "nikto": {
-                        "tuning": "123bde",
+                        "tuning": ["1", "2", "3", "b", "d", "e"],
                         "plugins": [
                             "@@DEFAULT",
                             "shellshock",

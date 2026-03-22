@@ -433,7 +433,7 @@ class TestSchemaV4Migration:
 
         assert "template_id" in cols
 
-    def test_schema_version_is_4(self, tmp_path):
+    def test_schema_version_is_current(self, tmp_path):
         store = ScanStore(tmp_path / "test.db")
 
         with store._connect() as conn:
@@ -441,7 +441,7 @@ class TestSchemaV4Migration:
                 "SELECT version FROM schema_version LIMIT 1"
             ).fetchone()["version"]
 
-        assert version == 4
+        assert version == 5
 
     def test_scan_config_templates_schema_has_expected_columns(self, tmp_path):
         store = ScanStore(tmp_path / "test.db")

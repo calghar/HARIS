@@ -10,13 +10,14 @@ from ..models import Confidence, Finding, ScannerResult, Severity, Target
 
 logger = logging.getLogger(__name__)
 
-# Map Wapiti severity levels to our internal model
-_WAPITI_SEVERITY_MAP: dict[str, Severity] = {
-    "critical": Severity.CRITICAL,
-    "high": Severity.HIGH,
-    "medium": Severity.MEDIUM,
-    "low": Severity.LOW,
-    "info": Severity.INFO,
+# Map Wapiti integer severity levels to our internal model.
+# Wapiti 3.x uses integers: 0=INFO, 1=LOW, 2=MEDIUM, 3=HIGH, 4=CRITICAL.
+_WAPITI_SEVERITY_MAP: dict[int, Severity] = {
+    4: Severity.CRITICAL,
+    3: Severity.HIGH,
+    2: Severity.MEDIUM,
+    1: Severity.LOW,
+    0: Severity.INFO,
 }
 
 # Map Wapiti vulnerability categories to our OWASP tag keywords
@@ -135,9 +136,13 @@ class WapitiScanner(BaseScanner):
 
             for vuln in vulns:
                 severity = _WAPITI_SEVERITY_MAP.get(
-                    vuln.get("level", "info").lower(),
+                    vuln.get("level", 0),
                     Severity.INFO,
                 )
+
+                wstg = vuln.get("wstg", "")
+                if isinstance(wstg, list):
+                    wstg = ", ".join(str(w) for w in wstg)
 
                 finding = Finding(
                     title=f"{category_name}: {vuln.get('info', 'N/A')[:80]}",
@@ -145,11 +150,11 @@ class WapitiScanner(BaseScanner):
                     severity=severity,
                     confidence=Confidence.FIRM,
                     url=vuln.get("path", ""),
-                    parameter=vuln.get("parameter", ""),
+                    parameter=vuln.get("parameter") or "",
                     method=vuln.get("method", "GET"),
                     evidence=vuln.get("info", ""),
                     request_example=vuln.get("curl_command", ""),
-                    remediation=vuln.get("wstg", ""),
+                    remediation=wstg,
                     references=[
                         ref
                         for ref in vuln.get("references", {}).values()

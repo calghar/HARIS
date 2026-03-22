@@ -100,6 +100,22 @@ _NUCLEI_TAG_MAP: dict[str, list[str]] = {
     "tech": ["security_misconfiguration"],
 }
 
+# Default template directories for selective scanning.
+# Focused on checks NOT already covered by other HARIS scanners:
+#   SKIP ssl (38)                — SSLyze + tls_checks cover TLS deeply
+#   SKIP http/misconfiguration (920) — header_checks + cookie_checks + misc_checks
+#   SKIP http/technologies (866) — info-only fingerprinting, Nmap does this
+#   SKIP http/cves (3830)        — too slow for unknown targets; add via template_dirs
+# Users can add any of the above via template_dirs in scan config templates.
+DEFAULT_TEMPLATE_DIRS: list[str] = [
+    "http/exposures",  # 683 — exposed files, backups, cloud storage, secrets
+    "http/exposed-panels",  # 1351 — admin panels, CMS logins, management UIs
+    "http/vulnerabilities",  # 934 — injection, XSS, SSRF beyond Wapiti
+    "http/default-logins",  # 270 — default credentials (unique to nuclei)
+    "http/takeovers",  # 74  — subdomain takeover detection
+    "dast",  # 249 — dynamic application security testing
+]
+
 # Confidence levels keyed by Nuclei severity: higher severity => higher confidence.
 _NUCLEI_CONFIDENCE_MAP: dict[str, Confidence] = {
     "critical": Confidence.CONFIRMED,
@@ -173,18 +189,29 @@ class NucleiScanner(BaseScanner):
 
     ``timeout`` (int, default 600)
         Maximum seconds to wait for the nuclei run to complete.
+    ``template_dirs`` (list[str], default [])
+        Relative directory names within nuclei's built-in template tree
+        (e.g. ``["http/misconfiguration", "http/cves", "ssl"]``).
+        Maps to nuclei ``-t`` flags.  When no ``templates``,
+        ``template_dirs``, or ``tags`` are specified, falls back to
+        :data:`DEFAULT_TEMPLATE_DIRS`.
     ``templates`` (list[str], default [])
-        Explicit template paths or directories to run.  When empty, nuclei
-        uses its default installed template set.
+        Explicit absolute template paths to run (typically injected by
+        the TemplateManager for custom template repositories).
     ``tags`` (list[str], default [])
         Only run templates whose ``tags`` field contains one of these values
         (maps to nuclei ``-tags`` flag).
     ``severity`` (list[str], default [])
         Restrict output to specific severity levels, e.g. ``["high", "critical"]``
         (maps to nuclei ``-severity`` flag).
+    ``exclude_tags`` (list[str], default [])
+        Exclude templates with these tags (maps to nuclei ``-etags`` flag).
     ``rate_limit`` (int, default 150)
         Maximum HTTP requests per second sent to the target
         (maps to nuclei ``-rate-limit`` flag).
+    ``max_host_errors`` (int, default 500)
+        Maximum errors on a single host before nuclei skips it
+        (maps to nuclei ``-mhe`` flag).
     ``extra_args`` (list[str], default [])
         Additional CLI flags appended verbatim to the nuclei command.
 
@@ -203,11 +230,16 @@ class NucleiScanner(BaseScanner):
 
     def __init__(self, options: dict[str, Any] | None = None) -> None:
         super().__init__(options)
-        self.options.setdefault("timeout", 600)
+        self.options.setdefault("timeout", 1800)
         self.options.setdefault("templates", [])
         self.options.setdefault("tags", [])
         self.options.setdefault("severity", [])
-        self.options.setdefault("rate_limit", 150)
+        self.options.setdefault("exclude_tags", [])
+        self.options.setdefault("rate_limit", 100)
+        self.options.setdefault("max_host_errors", 500)
+        self.options.setdefault("concurrency", 15)
+        self.options.setdefault("bulk_size", 15)
+        self.options.setdefault("template_dirs", [])
         self.options.setdefault("extra_args", [])
 
     @handle_scanner_errors
@@ -232,23 +264,31 @@ class NucleiScanner(BaseScanner):
             )
 
         cmd = self._build_command(target)
+        logger.info("nuclei command: %s", " ".join(cmd))
         returncode, stdout, stderr = self._run_command(
             cmd, timeout=self.options["timeout"]
         )
+        logger.info(
+            "nuclei exit=%d stdout_lines=%d stderr_len=%d",
+            returncode,
+            len(stdout.splitlines()),
+            len(stderr),
+        )
+        if stderr.strip():
+            logger.debug("nuclei stderr: %s", stderr.strip()[:2000])
 
         result = ScannerResult(
             scanner_name=self.name,
             raw_output=stdout,
         )
 
-        # Nuclei exits 0 when no findings, 1 when findings were emitted,
-        # and >1 on genuine errors.
-        if returncode > 1 and not stdout.strip():
+        has_fatal = "FTL" in stderr or "no templates provided" in stderr
+        if returncode > 1 or (returncode != 0 and has_fatal):
+            err_detail = stderr.strip() or stdout.strip()
             result.errors.append(
-                f"nuclei exited with code {returncode}: {stderr[:500]}"
+                f"nuclei exited with code {returncode}: {err_detail[:500]}"
             )
-
-        if stdout.strip():
+        elif stdout.strip():
             result.findings = self.parse_results(stdout)
 
         return result
@@ -426,28 +466,56 @@ class NucleiScanner(BaseScanner):
             "nuclei",
             "-u",
             target.base_url,
-            # JSONL output so we can stream-parse line by line.
             "-jsonl",
-            # Rate limiting to respect scope constraints.
+            "-duc",
+            "-silent",
+            "-system-resolvers",
+            "-tls-impersonate",
+            "-fh2",
+            "-no-interactsh",
+            "-fhr",
+            "-retries",
+            "2",
+            "-nmhe",
             "-rate-limit",
             str(self.options["rate_limit"]),
-            # Disable automatic updates during a scan run.
-            "-no-update-templates",
-            # Suppress progress bar / ANSI codes for clean stdout.
-            "-silent",
+            "-c",
+            str(self.options["concurrency"]),
+            "-bs",
+            str(self.options["bulk_size"]),
+            "-timeout",
+            str(self.options.get("timeout_per_request", 30)),
         ]
 
-        # Template selection: explicit paths take precedence over tag filters.
-        for template_path in self.options.get("templates", []):
-            cmd.extend(["-t", template_path])
+        has_template_selection = False
+        user_template_dirs = self.options.get("template_dirs", [])
 
-        # Tag filter: run only templates with matching tags.
+        # template_dirs takes precedence: skip TemplateManager repo paths
+        # to avoid loading the entire 12k+ template tree.
+        if not user_template_dirs:
+            for template_path in self.options.get("templates", []):
+                cmd.extend(["-t", template_path])
+                has_template_selection = True
+
+        for tdir in user_template_dirs:
+            cmd.extend(["-t", tdir])
+            has_template_selection = True
+
         if self.options.get("tags"):
             cmd.extend(["-tags", ",".join(self.options["tags"])])
+            has_template_selection = True
+
+        if not has_template_selection:
+            for tdir in DEFAULT_TEMPLATE_DIRS:
+                cmd.extend(["-t", tdir])
 
         # Severity filter: limit to the specified levels.
         if self.options.get("severity"):
             cmd.extend(["-severity", ",".join(self.options["severity"])])
+
+        # Exclude specific template tags.
+        if self.options.get("exclude_tags"):
+            cmd.extend(["-etags", ",".join(self.options["exclude_tags"])])
 
         # Forward auth headers to nuclei via -H flags.
         auth_headers = target.auth.as_headers()

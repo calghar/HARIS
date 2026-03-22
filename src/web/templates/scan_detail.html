@@ -537,7 +537,7 @@ function explainFinding(findingId) {
         <td>{{ result.scanner_name }}</td>
         <td>{{ result.findings | length }}</td>
         <td>{% if result.errors %}<span style="color:var(--critical);">{{ result.errors | length }}</span>{% else %}0{% endif %}</td>
-        <td>{{ result.metadata.get('elapsed_seconds', '—') }}s</td>
+        <td>{% if result.metadata.get('elapsed_seconds') is not none %}{{ result.metadata.get('elapsed_seconds') }}s{% else %}—{% endif %}</td>
       </tr>
       {% endfor %}
     </tbody>

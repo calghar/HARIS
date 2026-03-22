@@ -49,20 +49,23 @@
 
         <!-- Scanner options summary -->
         {% if tpl.scanner_options %}
-        <p class="text-sm" style="color:var(--fg-muted); margin-bottom:.6rem; font-size:.78rem;">
-          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" width="12" height="12" style="vertical-align:middle; opacity:.6; margin-right:.25rem;"><rect x="2" y="3" width="12" height="10" rx="1.5"/><path d="M5 7h6M5 10h4"/></svg>
+        <div style="margin-bottom:.6rem; font-size:.75rem; color:var(--fg-muted); display:flex; flex-wrap:wrap; gap:.35rem .8rem; align-items:baseline;">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" width="12" height="12" style="opacity:.6; flex-shrink:0; margin-top:2px;"><rect x="2" y="3" width="12" height="10" rx="1.5"/><path d="M5 7h6M5 10h4"/></svg>
           {% for scanner_name, opts in tpl.scanner_options.items() %}
-            {% if not loop.first %} | {% endif %}
-            <strong style="color:var(--fg); font-weight:600;">{{ scanner_name }}</strong>:
             {% if opts is mapping %}
-              {% set parts = [] %}
-              {% for k, v in opts.items() %}{% if parts.append(k ~ '=' ~ v) %}{% endif %}{% endfor %}
-              {{ parts | join(', ') if parts else '—' }}
-            {% else %}
-              {{ opts }}
+            <span>
+              <strong style="color:var(--fg); font-weight:600;">{{ scanner_name }}</strong>:
+              {% for k, v in opts.items() %}
+                {% if v is iterable and v is not string %}
+                  {{ k }}={{ v | join(', ') }}{% if not loop.last %};{% endif %}
+                {% else %}
+                  {{ k }}={{ v }}{% if not loop.last %};{% endif %}
+                {% endif %}
+              {% endfor %}
+            </span>
             {% endif %}
           {% endfor %}
-        </p>
+        </div>
         {% endif %}
 
         <!-- Rate / requests -->

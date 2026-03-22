@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import logging.handlers
 import re
 import uuid
 from concurrent.futures import ThreadPoolExecutor
@@ -34,11 +35,34 @@ TEMPLATES_DIR = BASE_DIR / "templates"
 STATIC_DIR = BASE_DIR / "static"
 REPORTS_DIR = Path("./reports")
 ASSETS_DIR = Path(__file__).resolve().parents[2] / "assets"
+LOG_DIR = Path("./data/logs")
+LOG_DIR.mkdir(parents=True, exist_ok=True)
+
+_log_fmt = logging.Formatter(
+    "%(asctime)s %(levelname)-5s [%(name)s] %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+)
+_file_handler = logging.handlers.RotatingFileHandler(
+    LOG_DIR / "haris.log",
+    maxBytes=5 * 1024 * 1024,
+    backupCount=3,
+)
+_file_handler.setFormatter(_log_fmt)
+_file_handler.setLevel(logging.DEBUG)
+
+_stream_handler = logging.StreamHandler()
+_stream_handler.setFormatter(_log_fmt)
+_stream_handler.setLevel(logging.INFO)
+
+logging.basicConfig(
+    level=logging.INFO,
+    handlers=[_file_handler, _stream_handler],
+)
 
 app = FastAPI(
     title="HARIS",
     description="Black-box web security audit dashboard",
-    version="0.1.0",
+    version="0.4.0",
 )
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 app.mount("/assets", StaticFiles(directory=str(ASSETS_DIR)), name="assets")

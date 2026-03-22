@@ -1,5 +1,37 @@
 # Changelog
 
+## 0.4.0 — 2026-03-22
+
+### Added
+
+- Nuclei directory-based template selection (`template_dirs` option) for precise control over which template categories to scan
+- `DEFAULT_TEMPLATE_DIRS` constant covering 6 template categories that complement other HARIS scanners (exposures, exposed-panels, vulnerabilities, default-logins, takeovers, DAST)
+- Template Directories, Exclude Tags, and Max Host Errors options in the Nuclei scanner UI panel
+- Structured rotating file logger (`data/logs/haris.log`, 5 MB rotation, 3 backups)
+- Nuclei command and exit status logging for scan debugging
+- `scanner_results` DB table (schema v5) to persist per-scanner errors and metadata
+- 10 new nuclei scanner unit tests
+
+### Fixed
+
+- Nuclei returning 0 findings against Cloudflare-protected HTTPS sites — added `-fh2` flag for HTTP/2 negotiation
+- Nuclei host-skipping after 30 errors — disabled via `-nmhe` (no max-host-error) flag
+- Nuclei loading entire 12k+ template repo when TemplateManager repo paths merged with `template_dirs` — `template_dirs` now takes precedence
+- Nuclei templates using JavaScript/flow protocol stages filtered out by `-pt http,ssl` — removed `-pt` flag (template directories already scope protocol)
+- Nuclei scan timeout too short for large template sets — raised default from 600s to 1800s
+- Nuclei flaky connections causing missed findings — added `-retries 2`
+- Wapiti scanner crash on integer severity levels, None parameters, and list wstg fields
+- Nikto tuning handling when value is a list vs string
+- Scanner options accordion panels not expanding on click — replaced `<details>` elements with div-based JS toggle for browser compatibility
+- Label accessibility warnings on template form (8 violations)
+- Scanner results tab showing no data for completed scans (legacy fallback reconstruction)
+
+### Changed
+
+- Builtin-03 "Full OWASP Top 10" uses `template_dirs` instead of tag-based selection, includes all severity levels
+- Scanner option panels now render server-side based on profile (Jinja) instead of relying solely on JS
+- Database schema upgraded to v5
+
 ## 0.3.0 — 2026-03-21
 
 ### Added

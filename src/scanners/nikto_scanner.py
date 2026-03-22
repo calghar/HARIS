@@ -320,6 +320,8 @@ class NiktoScanner(BaseScanner):
 
         # Apply tuning filter if configured.
         tuning = self.options.get("tuning", "")
+        if isinstance(tuning, list):
+            tuning = "".join(tuning)
         if tuning:
             cmd.extend(["-Tuning", tuning])
 
