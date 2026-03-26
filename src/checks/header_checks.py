@@ -96,7 +96,7 @@ class SecurityHeaderScanner(BaseScanner):
         self.options.setdefault("timeout", 30)
         self.options.setdefault("follow_redirects", True)
 
-    def scan(self, target: Target) -> ScannerResult:
+    def scan(self, target: Target, context: Any = None) -> ScannerResult:  # noqa: ARG002
         result = ScannerResult(scanner_name=self.name)
 
         try:

@@ -1,30 +1,12 @@
-"""Nuclei scanner adapter.
-
-Nuclei is a fast, template-based vulnerability scanner from ProjectDiscovery.
-Templates cover a broad surface area including:
-
-- CVEs (network and HTTP-based)
-- Exposed administrative panels and login pages
-- Default credentials
-- Misconfigurations (cloud, web, network)
-- Exposed files and sensitive data disclosure
-- DNS misconfigurations
-- Technology fingerprinting
-
-Each template has an associated severity (info/low/medium/high/critical) and
-can carry arbitrary classification tags, CVE IDs, and CVSS scores in its
-metadata, which are all included in the JSONL output this adapter consumes.
-
-Homepage: https://github.com/projectdiscovery/nuclei
-"""
-
 import json
 import logging
+import tempfile
 from typing import Any
 
 from ..core.decorators import handle_scanner_errors, register_scanner
 from ..core.scanner import BaseScanner
 from ..models import Confidence, Finding, ScannerResult, Severity, Target
+from ..models.scan_context import ScanContext
 
 logger = logging.getLogger(__name__)
 
@@ -103,18 +85,97 @@ _NUCLEI_TAG_MAP: dict[str, list[str]] = {
 # Default template directories for selective scanning.
 # Focused on checks NOT already covered by other HARIS scanners:
 #   SKIP ssl (38)                — SSLyze + tls_checks cover TLS deeply
-#   SKIP http/misconfiguration (920) — header_checks + cookie_checks + misc_checks
-#   SKIP http/technologies (866) — info-only fingerprinting, Nmap does this
-#   SKIP http/cves (3830)        — too slow for unknown targets; add via template_dirs
+#   SKIP http/technologies (866) — used in Phase 1 only
 # Users can add any of the above via template_dirs in scan config templates.
 DEFAULT_TEMPLATE_DIRS: list[str] = [
+    "http/cves",  # 3830 — known CVE checks (largest, most impactful)
     "http/exposures",  # 683 — exposed files, backups, cloud storage, secrets
     "http/exposed-panels",  # 1351 — admin panels, CMS logins, management UIs
     "http/vulnerabilities",  # 934 — injection, XSS, SSRF beyond Wapiti
     "http/default-logins",  # 270 — default credentials (unique to nuclei)
     "http/takeovers",  # 74  — subdomain takeover detection
+    "http/misconfiguration",  # 920 — misconfigs, security headers, CORS, etc.
     "dast",  # 249 — dynamic application security testing
 ]
+
+# Template directory used for technology fingerprinting (Phase 1).
+TECH_FINGERPRINT_DIR = "http/technologies"
+
+# ---------------------------------------------------------------------------
+# Technology → Nuclei tag/workflow mapping
+# ---------------------------------------------------------------------------
+# Maps detected technology keywords to Nuclei tags and optional workflow files.
+# The scanner uses this to create a targeted Phase 2 template selection.
+TECH_TAG_MAP: dict[str, list[str]] = {
+    "wordpress": ["wordpress", "wp-plugin", "wp-theme"],
+    "drupal": ["drupal"],
+    "joomla": ["joomla"],
+    "magento": ["magento"],
+    "shopify": ["shopify"],
+    "apache": ["apache"],
+    "nginx": ["nginx"],
+    "iis": ["iis"],
+    "tomcat": ["tomcat", "apache-tomcat"],
+    "php": ["php"],
+    "asp.net": ["asp"],
+    "nodejs": ["nodejs"],
+    "express": ["express", "nodejs"],
+    "django": ["django", "python"],
+    "flask": ["flask", "python"],
+    "laravel": ["laravel", "php"],
+    "rails": ["rails", "ruby"],
+    "spring": ["spring", "java"],
+    "jenkins": ["jenkins"],
+    "gitlab": ["gitlab"],
+    "grafana": ["grafana"],
+    "jira": ["jira", "atlassian"],
+    "confluence": ["confluence", "atlassian"],
+    "elasticsearch": ["elasticsearch", "elastic"],
+    "kibana": ["kibana", "elastic"],
+    "docker": ["docker"],
+    "kubernetes": ["kubernetes", "k8s"],
+    "aws": ["aws", "amazon"],
+    "azure": ["azure"],
+    "gcp": ["gcp", "google"],
+    "cloudflare": ["cloudflare"],
+    "react": ["react"],
+    "nextjs": ["nextjs"],
+    "angular": ["angular"],
+    "vue": ["vue"],
+    "weblogic": ["weblogic", "oracle"],
+    "websphere": ["websphere", "ibm"],
+    "coldfusion": ["coldfusion", "adobe"],
+    "sap": ["sap"],
+    "citrix": ["citrix"],
+    "fortinet": ["fortinet"],
+    "sonicwall": ["sonicwall"],
+    "paloalto": ["paloalto"],
+    "vmware": ["vmware"],
+    "zimbra": ["zimbra"],
+    "moodle": ["moodle"],
+    "typo3": ["typo3"],
+    "ghost": ["ghost"],
+    "struts": ["struts", "apache-struts"],
+}
+
+# Map tech → workflow YAML file (relative to nuclei-templates root)
+TECH_WORKFLOW_MAP: dict[str, str] = {
+    "wordpress": "workflows/wordpress-workflow.yaml",
+    "drupal": "workflows/drupal-workflow.yaml",
+    "joomla": "workflows/joomla-workflow.yaml",
+    "magento": "workflows/magento-workflow.yaml",
+    "apache": "workflows/apache-workflow.yaml",
+    "tomcat": "workflows/apache-tomcat-workflow.yaml",
+    "jenkins": "workflows/jenkins-workflow.yaml",
+    "gitlab": "workflows/gitlab-workflow.yaml",
+    "grafana": "workflows/grafana-workflow.yaml",
+    "jira": "workflows/jira-workflow.yaml",
+    "confluence": "workflows/confluence-workflow.yaml",
+    "spring": "workflows/springboot-workflow.yaml",
+    "weblogic": "workflows/weblogic-workflow.yaml",
+    "zimbra": "workflows/zimbra-workflow.yaml",
+    "moodle": "workflows/moodle-workflow.yaml",
+}
 
 # Confidence levels keyed by Nuclei severity: higher severity => higher confidence.
 _NUCLEI_CONFIDENCE_MAP: dict[str, Confidence] = {
@@ -178,50 +239,56 @@ def _derive_tags(
 class NucleiScanner(BaseScanner):
     """Adapter for the Nuclei template-based vulnerability scanner.
 
-    Invokes ``nuclei`` as a subprocess with JSON-Lines (``-jsonl``) output,
-    then parses each result line into a :class:`~core.finding.Finding`.
+    Uses a **multi-phase scanning strategy**:
+
+    1. **Phase 1 — Tech fingerprinting** (``http/technologies/`` templates):
+       Identifies the target's technology stack quickly.
+    2. **Phase 2a — Broad scan**: Runs default template directories (exposures,
+       misconfigs, panels, default-logins, takeovers, DAST) without tag
+       filtering for full vulnerability coverage.
+    3. **Phase 2b — Tech-targeted scan**: If specific technologies were detected,
+       runs templates matching tech-specific tags and workflows.
+
+    Cross-scanner intelligence from :class:`~src.models.scan_context.ScanContext`
+    further refines template selection using Nmap service detection,
+    Nikto server headers, and Wapiti crawl results.
 
     Requires ``nuclei`` to be installed and on PATH.
     Install: ``go install github.com/projectdiscovery/nuclei/v3/cmd/nuclei@latest``
-    or download a pre-built binary from https://github.com/projectdiscovery/nuclei/releases
 
     Options (pass via constructor or :meth:`configure`):
 
-    ``timeout`` (int, default 600)
+    ``timeout`` (int, default 3600)
         Maximum seconds to wait for the nuclei run to complete.
     ``template_dirs`` (list[str], default [])
-        Relative directory names within nuclei's built-in template tree
-        (e.g. ``["http/misconfiguration", "http/cves", "ssl"]``).
-        Maps to nuclei ``-t`` flags.  When no ``templates``,
-        ``template_dirs``, or ``tags`` are specified, falls back to
-        :data:`DEFAULT_TEMPLATE_DIRS`.
+        Relative directory names within nuclei's built-in template tree.
+        When set, overrides the default two-phase strategy.
     ``templates`` (list[str], default [])
-        Explicit absolute template paths to run (typically injected by
-        the TemplateManager for custom template repositories).
+        Explicit absolute template paths (from TemplateManager).
     ``tags`` (list[str], default [])
-        Only run templates whose ``tags`` field contains one of these values
-        (maps to nuclei ``-tags`` flag).
+        Only run templates matching these tags (``-tags`` flag).
     ``severity`` (list[str], default [])
-        Restrict output to specific severity levels, e.g. ``["high", "critical"]``
-        (maps to nuclei ``-severity`` flag).
+        Restrict to specific severity levels (``-severity`` flag).
     ``exclude_tags`` (list[str], default [])
-        Exclude templates with these tags (maps to nuclei ``-etags`` flag).
-    ``rate_limit`` (int, default 150)
-        Maximum HTTP requests per second sent to the target
-        (maps to nuclei ``-rate-limit`` flag).
+        Exclude templates with these tags (``-etags`` flag).
+    ``rate_limit`` (int, default 100)
+        Maximum HTTP requests per second (``-rate-limit`` flag).
     ``max_host_errors`` (int, default 500)
-        Maximum errors on a single host before nuclei skips it
-        (maps to nuclei ``-mhe`` flag).
+        Maximum errors before skipping a host.
+    ``enable_interactsh`` (bool, default False)
+        Enable OOB interaction server for blind vulnerability detection.
+    ``skip_tech_detection`` (bool, default False)
+        Skip Phase 1 tech fingerprinting (use only cross-scanner context).
     ``extra_args`` (list[str], default [])
-        Additional CLI flags appended verbatim to the nuclei command.
+        Additional CLI flags appended verbatim.
 
     Example::
 
         scanner = NucleiScanner(options={
             "severity": ["high", "critical"],
-            "tags": ["cve", "misconfig"],
+            "enable_interactsh": True,
         })
-        result = scanner.scan(target)
+        result = scanner.scan(target, context=scan_context)
     """
 
     name = "nuclei"
@@ -230,32 +297,50 @@ class NucleiScanner(BaseScanner):
 
     def __init__(self, options: dict[str, Any] | None = None) -> None:
         super().__init__(options)
-        self.options.setdefault("timeout", 1800)
+        self.options.setdefault("timeout", 3600)
         self.options.setdefault("templates", [])
         self.options.setdefault("tags", [])
         self.options.setdefault("severity", [])
         self.options.setdefault("exclude_tags", [])
         self.options.setdefault("rate_limit", 100)
         self.options.setdefault("max_host_errors", 500)
-        self.options.setdefault("concurrency", 15)
-        self.options.setdefault("bulk_size", 15)
+        self.options.setdefault("concurrency", 10)
+        self.options.setdefault("bulk_size", 10)
         self.options.setdefault("template_dirs", [])
         self.options.setdefault("extra_args", [])
+        self.options.setdefault("enable_interactsh", False)
+        self.options.setdefault("skip_tech_detection", False)
 
     @handle_scanner_errors
-    def scan(self, target: Target) -> ScannerResult:
-        """Run Nuclei against *target* and return parsed findings.
+    def scan(self, target: Target, context: ScanContext | None = None) -> ScannerResult:
+        """Run a multi-phase Nuclei scan against *target*.
 
-        Nuclei is invoked with ``-jsonl`` so each output line is a
-        self-contained JSON object.  The method collects all output on stdout
-        (no intermediate file needed) and passes it to :meth:`parse_results`.
+        **Phase 1** — Technology fingerprinting (fast, info-only):
+        Runs ``http/technologies/`` templates to detect the target's
+        tech stack.  Results are merged into *context* for later use.
+
+        **Phase 2a** — Broad vulnerability scan:
+        Runs the default template directories (exposures, panels,
+        vulnerabilities, misconfigs, takeovers, default-logins, DAST)
+        WITHOUT any tag filter, ensuring full coverage.
+
+        **Phase 2b** — Tech-targeted scan (conditional):
+        If Phase 1 or cross-scanner context detected specific technologies,
+        runs templates matching tech-specific tags and workflows
+        (e.g. ``-tags wordpress`` + ``workflows/wordpress-workflow.yaml``).
+        Only runs when meaningful tech was detected.
+
+        If the user has explicitly set ``template_dirs``, ``templates``,
+        or ``tags``, those override the multi-phase strategy entirely.
 
         Args:
-            target: The :class:`~core.target.Target` to scan.
+            target: The :class:`~models.target.Target` to scan.
+            context: Optional :class:`~models.scan_context.ScanContext`
+                with intelligence from earlier scanners.
 
         Returns:
-            A :class:`~core.scanner.ScannerResult` containing findings and
-            any errors encountered during the scan.
+            A :class:`~models.scanner.ScannerResult` containing findings
+            from both phases and any errors encountered.
         """
         if not self._check_tool_available("nuclei"):
             return ScannerResult(
@@ -263,35 +348,77 @@ class NucleiScanner(BaseScanner):
                 errors=["nuclei is not installed or not on PATH"],
             )
 
-        cmd = self._build_command(target)
-        logger.info("nuclei command: %s", " ".join(cmd))
-        returncode, stdout, stderr = self._run_command(
-            cmd, timeout=self.options["timeout"]
-        )
-        logger.info(
-            "nuclei exit=%d stdout_lines=%d stderr_len=%d",
-            returncode,
-            len(stdout.splitlines()),
-            len(stderr),
-        )
-        if stderr.strip():
-            logger.debug("nuclei stderr: %s", stderr.strip()[:2000])
+        all_findings: list[Finding] = []
+        all_errors: list[str] = []
+        all_raw: list[str] = []
+        context = context or ScanContext()
 
-        result = ScannerResult(
-            scanner_name=self.name,
-            raw_output=stdout,
+        # Check if user has explicit template selection (skip two-phase)
+        has_explicit = bool(
+            self.options.get("template_dirs") or self.options.get("tags")
         )
 
-        has_fatal = "FTL" in stderr or "no templates provided" in stderr
-        if returncode > 1 or (returncode != 0 and has_fatal):
-            err_detail = stderr.strip() or stdout.strip()
-            result.errors.append(
-                f"nuclei exited with code {returncode}: {err_detail[:500]}"
+        # ── Phase 1: Technology fingerprinting ────────────────────
+        if not has_explicit and not self.options.get("skip_tech_detection"):
+            phase1_findings, phase1_errors, phase1_raw = self._run_phase(
+                target,
+                template_dirs=[TECH_FINGERPRINT_DIR],
+                phase_label="phase1-tech",
             )
-        elif stdout.strip():
-            result.findings = self.parse_results(stdout)
+            all_raw.append(phase1_raw)
+            all_errors.extend(phase1_errors)
 
-        return result
+            # Extract detected technologies from fingerprinting results
+            detected_techs = self._extract_technologies(phase1_findings)
+            context.add_technologies(detected_techs)
+            logger.info(
+                "Nuclei Phase 1: detected %d technologies: %s",
+                len(detected_techs),
+                ", ".join(detected_techs[:20]),
+            )
+            # Phase 1 findings are informational — include them
+            all_findings.extend(phase1_findings)
+
+        # ── Phase 2: Targeted vulnerability scan ──────────────────
+        target_urls = self._build_url_list(target, context)
+        phase2_template_dirs, phase2_tags, phase2_workflows = (
+            self._resolve_targeted_selection(context, has_explicit)
+        )
+
+        # Phase 2a: Broad scan with default/explicit template dirs (NO tag filter)
+        # Tags are deliberately NOT passed here — they would AND-filter
+        # and exclude most templates.
+        phase2a_findings, phase2a_errors, phase2a_raw = self._run_phase(
+            target,
+            template_dirs=phase2_template_dirs,
+            url_list=target_urls,
+            phase_label="phase2-broad",
+        )
+        all_raw.append(phase2a_raw)
+        all_findings.extend(phase2a_findings)
+        all_errors.extend(phase2a_errors)
+
+        # Phase 2b: Tech-targeted scan (tags + workflows from detected tech)
+        # Only runs if we have tech-specific tags or workflows to add.
+        if phase2_tags or phase2_workflows:
+            phase2b_findings, phase2b_errors, phase2b_raw = self._run_phase(
+                target,
+                extra_tags=phase2_tags,
+                workflows=phase2_workflows,
+                url_list=target_urls,
+                phase_label="phase2-targeted",
+            )
+            all_raw.append(phase2b_raw)
+            all_findings.extend(phase2b_findings)
+            all_errors.extend(phase2b_errors)
+
+        combined_raw = "\n".join(all_raw)
+        return ScannerResult(
+            scanner_name=self.name,
+            raw_output=combined_raw,
+            findings=all_findings,
+            errors=all_errors,
+        )
 
     def parse_results(self, raw_output: str) -> list[Finding]:
         """Parse Nuclei JSONL output into :class:`~core.finding.Finding` objects.
@@ -429,6 +556,7 @@ class NucleiScanner(BaseScanner):
             "matcher-name": matcher_name,
             "matched-at": matched_at,
             "nuclei-tags": nuclei_tags,
+            "extracted-results": extracted,
             "cve-id": cve_ids,
             "cwe-id": cwe_ids,
         }
@@ -452,11 +580,241 @@ class NucleiScanner(BaseScanner):
             raw_data=raw_data,
         )
 
-    def _build_command(self, target: Target) -> list[str]:
+    def _run_phase(
+        self,
+        target: Target,
+        *,
+        template_dirs: list[str] | None = None,
+        extra_tags: list[str] | None = None,
+        workflows: list[str] | None = None,
+        url_list: list[str] | None = None,
+        phase_label: str = "",
+    ) -> tuple[list[Finding], list[str], str]:
+        """Execute a single Nuclei invocation and return parsed results.
+
+        Returns:
+            A tuple of (findings, errors, raw_stdout).
+        """
+        cmd = self._build_command(
+            target,
+            template_dirs=template_dirs,
+            extra_tags=extra_tags,
+            workflows=workflows,
+            url_list=url_list,
+        )
+        logger.info("nuclei [%s] command: %s", phase_label, " ".join(cmd))
+
+        returncode, stdout, stderr = self._run_command(
+            cmd, timeout=self.options["timeout"]
+        )
+
+        filtered_stderr = "\n".join(
+            line for line in stderr.splitlines() if "Unsolicited response" not in line
+        ).strip()
+
+        logger.info(
+            "nuclei [%s] exit=%d stdout_lines=%d stderr_len=%d",
+            phase_label,
+            returncode,
+            len(stdout.splitlines()),
+            len(filtered_stderr),
+        )
+        if filtered_stderr:
+            logger.warning(
+                "nuclei [%s] stderr: %s",
+                phase_label,
+                filtered_stderr[:2000],
+            )
+
+        errors: list[str] = []
+        findings: list[Finding] = []
+
+        has_fatal = (
+            "FTL" in filtered_stderr or "no templates provided" in filtered_stderr
+        )
+        if returncode > 1 or (returncode != 0 and has_fatal):
+            err_detail = filtered_stderr or stdout.strip()
+            errors.append(
+                f"nuclei [{phase_label}] exited with "
+                f"code {returncode}: {err_detail[:500]}"
+            )
+        elif stdout.strip():
+            findings = self.parse_results(stdout)
+
+        return findings, errors, stdout
+
+    def _resolve_targeted_selection(
+        self,
+        context: ScanContext,
+        has_explicit: bool,
+    ) -> tuple[list[str], list[str], list[str]]:
+        """Determine template dirs, tags, and workflows for Phase 2.
+
+        When the user has set explicit ``template_dirs`` or ``tags``, those
+        are returned as-is.  Otherwise the method builds a targeted
+        selection from the detected technologies in *context*.
+
+        Returns:
+            A tuple of (template_dirs, extra_tags, workflow_paths).
+        """
+        if has_explicit:
+            return (
+                list(self.options.get("template_dirs", [])),
+                list(self.options.get("tags", [])),
+                [],
+            )
+
+        # Start with the default scan directories
+        template_dirs = list(DEFAULT_TEMPLATE_DIRS)
+
+        # Derive technology-specific tags and workflows
+        extra_tags: list[str] = []
+        workflows: list[str] = []
+        seen_tags: set[str] = set()
+
+        for tech in context.detected_technologies:
+            tech_lower = tech.lower()
+            for key, tag_list in TECH_TAG_MAP.items():
+                if key in tech_lower:
+                    for tag in tag_list:
+                        if tag not in seen_tags:
+                            extra_tags.append(tag)
+                            seen_tags.add(tag)
+
+            # Check for matching workflow
+            for key, workflow_path in TECH_WORKFLOW_MAP.items():
+                if key in tech_lower and workflow_path not in workflows:
+                    workflows.append(workflow_path)
+
+        if extra_tags:
+            logger.info(
+                "Nuclei Phase 2: tech-derived tags: %s",
+                ", ".join(extra_tags[:20]),
+            )
+        if workflows:
+            logger.info(
+                "Nuclei Phase 2: tech-derived workflows: %s",
+                ", ".join(workflows[:10]),
+            )
+
+        return template_dirs, extra_tags, workflows
+
+    # Generic Nuclei classification tags that are NOT technology names.
+    # These appear in info.tags and must be excluded from tech extraction.
+    _NUCLEI_META_TAGS: frozenset[str] = frozenset(
+        {
+            "tech",
+            "waf",
+            "misc",
+            "discovery",
+            "cms",
+            "detect",
+            "panel",
+            "exposure",
+            "osint",
+            "recon",
+            "token",
+            "cloud",
+            "network",
+            "dns",
+            "fuzz",
+            "headless",
+            "file",
+            "iot",
+        }
+    )
+
+    @staticmethod
+    def _extract_technologies(findings: list[Finding]) -> list[str]:
+        """Extract technology names from Phase 1 fingerprinting findings.
+
+        Nuclei technology detection templates use ``matcher-name`` to
+        report the detected technology (e.g. ``nginx``, ``wordpress``).
+        For metatag/CMS detection templates that lack a matcher-name,
+        the ``extracted-results`` field contains the actual tech name.
+        """
+        techs: list[str] = []
+        seen: set[str] = set()
+
+        for finding in findings:
+            raw = finding.raw_data or {}
+
+            # matcher-name is the primary tech identifier
+            matcher = raw.get("matcher-name", "")
+            if matcher and matcher.lower() not in seen:
+                techs.append(matcher.lower())
+                seen.add(matcher.lower())
+
+            # For metatag-cms and similar: extract tech from extracted-results
+            extracted = raw.get("extracted-results", [])
+            if isinstance(extracted, list):
+                for val in extracted:
+                    if isinstance(val, str) and val.strip():
+                        # First word as tech name
+                        # e.g. "Astro v5.15.9" -> "astro"
+                        tech_name = val.split()[0].lower().rstrip(",;:")
+                        if tech_name and tech_name not in seen:
+                            techs.append(tech_name)
+                            seen.add(tech_name)
+
+            # Check nuclei tags, but filter out generic metadata tags
+            for tag in raw.get("nuclei-tags", []):
+                tag_lower = tag.lower()
+                if (
+                    tag_lower not in seen
+                    and tag_lower not in NucleiScanner._NUCLEI_META_TAGS
+                ):
+                    techs.append(tag_lower)
+                    seen.add(tag_lower)
+
+        return techs
+
+    @staticmethod
+    def _build_url_list(
+        target: Target,
+        context: ScanContext,
+    ) -> list[str]:
+        """Build a list of URLs for Nuclei to scan.
+
+        Combines the base target URL with any URLs discovered by
+        earlier crawling scanners (e.g. Wapiti).  Returns an empty
+        list when there are no extra URLs (caller will use ``-u``).
+        """
+        if not context.discovered_urls:
+            return []
+
+        # De-duplicate and ensure base URL is included
+        urls: list[str] = [target.base_url]
+        seen = {target.base_url}
+        for url in context.discovered_urls:
+            if url not in seen and url.startswith("http"):
+                urls.append(url)
+                seen.add(url)
+
+        # Only use URL list if we have more than just the base URL
+        if len(urls) <= 1:
+            return []
+
+        # Cap to avoid overwhelming nuclei
+        return urls[:500]
+
+    def _build_command(
+        self,
+        target: Target,
+        *,
+        template_dirs: list[str] | None = None,
+        extra_tags: list[str] | None = None,
+        workflows: list[str] | None = None,
+        url_list: list[str] | None = None,
+    ) -> list[str]:
         """Construct the nuclei CLI command list.
 
         Args:
             target: Scan target providing the URL and auth headers.
+            template_dirs: Override template directories for this invocation.
+            extra_tags: Additional tags to include beyond user-configured ones.
+            workflows: Workflow YAML paths to run.
+            url_list: URLs to scan (uses temp file with ``-list``).
 
         Returns:
             A list of strings suitable for
@@ -464,15 +822,12 @@ class NucleiScanner(BaseScanner):
         """
         cmd = [
             "nuclei",
-            "-u",
-            target.base_url,
             "-jsonl",
             "-duc",
             "-silent",
+            "-no-color",
             "-system-resolvers",
             "-tls-impersonate",
-            "-fh2",
-            "-no-interactsh",
             "-fhr",
             "-retries",
             "2",
@@ -487,45 +842,98 @@ class NucleiScanner(BaseScanner):
             str(self.options.get("timeout_per_request", 30)),
         ]
 
+        # Interactsh: enable OOB detection only when explicitly opted in
+        if not self.options.get("enable_interactsh"):
+            cmd.append("-no-interactsh")
+
+        # Target: URL list file or single URL
+        if url_list and len(url_list) > 1:
+            url_file = self._write_url_list(url_list)
+            cmd.extend(["-list", url_file])
+        else:
+            cmd.extend(["-u", target.base_url])
+
+        # Template selection
         has_template_selection = False
+        effective_dirs = template_dirs if template_dirs is not None else []
         user_template_dirs = self.options.get("template_dirs", [])
 
-        # template_dirs takes precedence: skip TemplateManager repo paths
-        # to avoid loading the entire 12k+ template tree.
-        if not user_template_dirs:
-            for template_path in self.options.get("templates", []):
-                cmd.extend(["-t", template_path])
+        # User-configured template_dirs override everything
+        if user_template_dirs:
+            for tdir in user_template_dirs:
+                cmd.extend(["-t", tdir])
+                has_template_selection = True
+        else:
+            # Use phase-specific template dirs
+            for tdir in effective_dirs:
+                cmd.extend(["-t", tdir])
                 has_template_selection = True
 
-        for tdir in user_template_dirs:
-            cmd.extend(["-t", tdir])
+            # TemplateManager paths (external repos)
+            if not effective_dirs:
+                for template_path in self.options.get("templates", []):
+                    cmd.extend(["-t", template_path])
+                    has_template_selection = True
+
+        # Workflows
+        for workflow_path in workflows or []:
+            cmd.extend(["-w", workflow_path])
             has_template_selection = True
 
-        if self.options.get("tags"):
-            cmd.extend(["-tags", ",".join(self.options["tags"])])
+        # Tags: merge user-configured + tech-derived
+        all_tags: list[str] = list(self.options.get("tags", []))
+        if extra_tags:
+            seen = set(t.lower() for t in all_tags)
+            for tag in extra_tags:
+                if tag.lower() not in seen:
+                    all_tags.append(tag)
+                    seen.add(tag.lower())
+
+        if all_tags:
+            cmd.extend(["-tags", ",".join(all_tags)])
             has_template_selection = True
 
+        # Fallback: if nothing selected, use defaults
         if not has_template_selection:
             for tdir in DEFAULT_TEMPLATE_DIRS:
                 cmd.extend(["-t", tdir])
 
-        # Severity filter: limit to the specified levels.
+        # Severity filter
         if self.options.get("severity"):
             cmd.extend(["-severity", ",".join(self.options["severity"])])
 
-        # Exclude specific template tags.
-        if self.options.get("exclude_tags"):
-            cmd.extend(["-etags", ",".join(self.options["exclude_tags"])])
+        # Exclude tags (always exclude dos for safety)
+        exclude_tags = list(self.options.get("exclude_tags", []))
+        if "dos" not in [t.lower() for t in exclude_tags]:
+            exclude_tags.append("dos")
+        cmd.extend(["-etags", ",".join(exclude_tags)])
 
-        # Forward auth headers to nuclei via -H flags.
+        # Forward auth headers
         auth_headers = target.auth.as_headers()
         for header_name, header_value in auth_headers.items():
             cmd.extend(["-H", f"{header_name}: {header_value}"])
 
-        # Append any caller-supplied extra flags.
+        # Extra args
         cmd.extend(self.options.get("extra_args", []))
 
         return cmd
+
+    @staticmethod
+    def _write_url_list(urls: list[str]) -> str:
+        """Write URLs to a temp file for Nuclei's ``-list`` flag.
+
+        Returns:
+            Path to the temporary file. The file will be cleaned up
+            by the OS (using ``delete=False`` in a temp directory).
+        """
+        with tempfile.NamedTemporaryFile(
+            mode="w",
+            suffix=".txt",
+            prefix="nuclei_urls_",
+            delete=False,
+        ) as tmp:
+            tmp.write("\n".join(urls))
+            return tmp.name
 
     @staticmethod
     def _generic_remediation(tags: list[str], severity: Severity) -> str:

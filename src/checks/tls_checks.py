@@ -28,7 +28,7 @@ class TLSCheckScanner(BaseScanner):
         self.options.setdefault("timeout", 15)
         self.options.setdefault("cert_expiry_warn_days", 30)
 
-    def scan(self, target: Target) -> ScannerResult:
+    def scan(self, target: Target, context: Any = None) -> ScannerResult:  # noqa: ARG002
         result = ScannerResult(scanner_name=self.name)
 
         if target.scheme != "https":

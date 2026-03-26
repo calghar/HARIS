@@ -52,7 +52,7 @@ class MiscCheckScanner(BaseScanner):
         self.options.setdefault("check_cors", True)
         self.options.setdefault("check_redirect", True)
 
-    def scan(self, target: Target) -> ScannerResult:
+    def scan(self, target: Target, context: Any = None) -> ScannerResult:  # noqa: ARG002
         result = ScannerResult(scanner_name=self.name)
         session = requests.Session()
         session.headers.update(target.auth.as_headers())

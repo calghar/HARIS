@@ -3,6 +3,7 @@ import logging
 from typing import Any
 
 from ..models import Finding, ScannerResult
+from ..models.scan_context import ScanContext
 from ..models.target import Target
 
 logger = logging.getLogger(__name__)
@@ -39,11 +40,16 @@ class BaseScanner(abc.ABC):
         logger.debug("%s configured with %s", self.name, self.options)
 
     @abc.abstractmethod
-    def scan(self, target: Target) -> ScannerResult:
+    def scan(self, target: Target, context: ScanContext | None = None) -> ScannerResult:
         """Execute the scan against *target* and return results.
 
         Implementations must respect target.scope (allowed domains,
         excluded paths, rate limits) to stay within authorized boundaries.
+
+        Args:
+            target: The target to scan.
+            context: Optional cross-scanner intelligence from earlier
+                scanners (detected technologies, discovered URLs, etc.).
         """
 
     @abc.abstractmethod

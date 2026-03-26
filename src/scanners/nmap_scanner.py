@@ -28,7 +28,7 @@ class NmapScanner(BaseScanner):
         # Only service version detection, no aggressive scripts
         self.options.setdefault("extra_args", ["-sV", "--open"])
 
-    def scan(self, target: Target) -> ScannerResult:
+    def scan(self, target: Target, context: Any = None) -> ScannerResult:  # noqa: ARG002
         if not self._check_tool_available("nmap"):
             return ScannerResult(
                 scanner_name=self.name,

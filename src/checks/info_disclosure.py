@@ -132,7 +132,7 @@ class InfoDisclosureScanner(BaseScanner):
         self.options.setdefault("max_body_bytes", 50_000)
 
     @handle_scanner_errors
-    def scan(self, target: Target) -> ScannerResult:
+    def scan(self, target: Target, context: Any = None) -> ScannerResult:  # noqa: ARG002
         """Run all information-disclosure sub-checks against *target*.
 
         Args:

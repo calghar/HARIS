@@ -157,7 +157,7 @@ class NiktoScanner(BaseScanner):
         self.options.setdefault("tuning", "")
 
     @handle_scanner_errors
-    def scan(self, target: Target) -> ScannerResult:
+    def scan(self, target: Target, context: Any = None) -> ScannerResult:  # noqa: ARG002
         """Run Nikto against *target* and return parsed findings.
 
         The method shells out to the ``nikto`` binary, captures JSON output

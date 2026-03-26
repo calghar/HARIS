@@ -59,7 +59,7 @@ class WapitiScanner(BaseScanner):
         # Rate limit: max concurrent connections
         self.options.setdefault("max_links", 500)
 
-    def scan(self, target: Target) -> ScannerResult:
+    def scan(self, target: Target, context: Any = None) -> ScannerResult:  # noqa: ARG002
         if not self._check_tool_available("wapiti"):
             return ScannerResult(
                 scanner_name=self.name,

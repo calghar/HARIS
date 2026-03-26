@@ -79,6 +79,24 @@ scanners:
       modules: all
       max_links: 500
 
+  - name: nikto
+    enabled: true
+    options:
+      timeout: 300
+
+  - name: nuclei
+    enabled: true
+    options:
+      timeout: 3600
+      rate_limit: 100
+      concurrency: 10
+      # Two-phase scanning: tech fingerprint → targeted templates
+      # Set skip_tech_detection: true to disable Phase 1
+      skip_tech_detection: false
+      # Enable OOB interaction server for blind vuln detection
+      # (sends data to interact.sh — opt-in only)
+      enable_interactsh: false
+
 # Output configuration
 output_dir: "./reports"
 report_formats:

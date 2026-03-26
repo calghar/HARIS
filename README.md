@@ -11,12 +11,13 @@ Orchestrates multiple security scanners, correlates findings, and produces a sin
 ## What This Does Differently
 
 1. **Cross-tool correlation** — findings from all scanners are fingerprinted and merged; duplicates become one confirmed finding.
-2. **Business-risk translation** — plain-language impact statements alongside technical details.
-3. **Prioritised remediation** — fixes grouped and sorted by impact-to-effort ratio.
-4. **Scenario-based profiles** — `pre-launch`, `regression`, `compliance`, etc.
-5. **Reusable scan templates** — named presets with per-scanner overrides, saved and reused from the web UI.
-6. **LLM-powered analysis** — Q&A, Jira tickets, test cases, and enrichment grounded in actual scan data.
-7. **OWASP Top 10 (2025) mapping** — all findings auto-mapped, including Supply Chain Failures and Exceptional Conditions.
+2. **Cross-scanner intelligence** — technologies, URLs, ports, and headers detected by earlier scanners feed into later ones (e.g. Nuclei targets WordPress-specific templates after Nmap detects WordPress).
+3. **Business-risk translation** — plain-language impact statements alongside technical details.
+4. **Prioritised remediation** — fixes grouped and sorted by impact-to-effort ratio.
+5. **Scenario-based profiles** — `pre-launch`, `regression`, `compliance`, etc.
+6. **Reusable scan templates** — named presets with per-scanner overrides, saved and reused from the web UI.
+7. **LLM-powered analysis** — Q&A, Jira tickets, test cases, and enrichment grounded in actual scan data.
+8. **OWASP Top 10 (2025) mapping** — all findings auto-mapped, including Supply Chain Failures and Exceptional Conditions.
 
 ## Scanners
 
@@ -26,7 +27,7 @@ Orchestrates multiple security scanners, correlates findings, and produces a sin
 | SSLyze | TLS protocols, cipher suites, certificate chain, Heartbleed/ROBOT | `pipx install sslyze` |
 | Nmap | Open ports, service versions, exposed databases | system package manager |
 | Nikto | Web server misconfigurations, outdated software, dangerous files | `brew install nikto` |
-| Nuclei | CVE detection, default credentials, exposed panels | `brew install nuclei` |
+| Nuclei | CVE detection, default credentials, exposed panels, tech fingerprinting (multi-phase) | `brew install nuclei` |
 
 ## Built-in Checks
 

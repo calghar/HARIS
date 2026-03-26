@@ -23,6 +23,7 @@ from .profiles import ScanProfile
 from .remediation import RemediationStep
 from .risk import BusinessImpact
 from .scan_config_template import ScanConfigTemplate
+from .scan_context import ScanContext
 from .scanner import ScannerResult
 from .session import ScanSession
 from .target import AuthConfig, Scope, Target
@@ -51,6 +52,7 @@ __all__ = [
     "OwaspMapping",
     "RemediationStep",
     "ScanConfigTemplate",
+    "ScanContext",
     "ScannerConfig",
     "ScannerResult",
     "ScanProfile",
