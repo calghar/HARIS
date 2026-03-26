@@ -82,7 +82,7 @@ Findings are mapped to the OWASP Top 10 2025 categories:
 | SSLyze | TLS/SSL configuration analysis | CLI adapter (subprocess) |
 | Nmap | Port scanning, service detection, recon | CLI adapter (subprocess) |
 | Nikto | Web server misconfigurations, outdated software | CLI adapter (subprocess) |
-| Nuclei | CVE detection, default credentials, exposed panels | CLI adapter (subprocess) |
+| Nuclei | CVE detection, default credentials, exposed panels, tech fingerprinting | CLI adapter (subprocess, multi-phase) |
 | Built-in header_checks | HTTP security headers | Python requests |
 | Built-in tls_checks | Certificate and TLS basics | Python ssl |
 | Built-in misc_checks | CORS, redirects, sensitive paths | Python requests |
@@ -100,3 +100,20 @@ The framework enforces multiple safety mechanisms:
 5. **Authorisation prompt**: CLI requires explicit user confirmation
 6. **Non-destructive payloads**: Test payloads demonstrate vulnerabilities without data extraction
 7. **Timeouts**: All network operations have configurable timeouts
+
+## Cross-Scanner Intelligence
+
+HARIS accumulates intelligence between scanner runs via a `ScanContext` model:
+
+1. **Nmap** runs first and detects open ports, service versions, and software
+2. **Nikto** identifies server technologies from its findings
+3. **header_checks** captures `Server`, `X-Powered-By`, and related response headers
+4. **Wapiti** contributes crawled URLs for broader attack surface
+
+This context flows into **Nuclei**, which uses a three-phase strategy:
+
+- **Phase 1**: Technology fingerprinting via `http/technologies` templates — identifies CMS, WAF, frameworks
+- **Phase 2a**: Broad vulnerability scan across 8 template directories (CVEs, exposures, panels, vulnerabilities, default-logins, takeovers, misconfigurations, DAST)
+- **Phase 2b**: Tech-targeted scan using Nuclei tags and workflows specific to detected technologies (e.g. WordPress, Django, Jenkins)
+
+This approach ensures Nuclei produces meaningful vulnerability findings rather than just informational fingerprints.

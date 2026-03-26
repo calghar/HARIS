@@ -5,7 +5,7 @@
 HARIS follows a pipeline architecture:
 
 ```txt
-Configuration -> Target -> Scanners -> Findings -> Enrichment -> Reports
+Configuration -> Target -> Scanners (+ ScanContext) -> Findings -> Enrichment -> Reports
 ```
 
 ## Layers
@@ -61,16 +61,35 @@ All scanners produce `Finding` objects with a unified schema:
 
 A lookup table maps vulnerability keywords and CWE IDs to OWASP Top 10 (2025) categories. The engine auto-enriches findings with OWASP categories based on scanner tags.
 
-### 6. Orchestration Engine (`src/core/engine.py`)
+### 6. ScanContext (`src/models/scan_context.py`)
+
+The `ScanContext` model accumulates cross-scanner intelligence during a scan:
+
+- `detected_technologies`: Technologies found by earlier scanners (e.g. `nginx`, `wordpress`, `php`)
+- `discovered_urls`: URLs found by crawling scanners (e.g. Wapiti)
+- `open_ports`: Open ports from Nmap results
+- `server_headers`: Response headers captured by header checks
+
+The engine builds context incrementally after each scanner completes. Downstream scanners (notably Nuclei) read this context to make smarter template selections.
+
+### 7. Orchestration Engine (`src/core/engine.py`)
 
 `ScanEngine` coordinates the scan:
 
-1. Iterates through registered scanners
-2. Configures each scanner with its options
-3. Runs each scanner sequentially (to respect rate limits)
-4. Collects findings into a `ScanSession`
-5. Deduplicates and sorts findings
-6. Auto-maps OWASP categories
+1. Creates a `ScanContext` instance
+2. Iterates through registered scanners
+3. Configures each scanner with its options
+4. Runs each scanner sequentially, passing the accumulated `ScanContext`
+5. After each scanner completes, extracts intelligence (technologies, URLs, ports, headers) into `ScanContext`
+6. Collects findings into a `ScanSession`
+7. Deduplicates and sorts findings
+8. Auto-maps OWASP categories
+
+Intelligence extraction sources:
+- **Nmap**: open ports, service banners, detected software
+- **Nikto**: server technology keywords from finding titles
+- **header_checks**: `Server`, `X-Powered-By`, and other response headers
+- **Wapiti**: crawled URLs (HTTP/HTTPS only)
 
 ### 7. Reporting (`src/reporting/`)
 
@@ -80,7 +99,7 @@ A lookup table maps vulnerability keywords and CWE IDs to OWASP Top 10 (2025) ca
 - **JSONReporter**: Machine-readable structured output
 - **HTMLReporter**: Self-contained HTML wrapping the Markdown report
 
-### 8. Web Dashboard (`src/web/`)
+### 9. Web Dashboard (`src/web/`)
 
 The FastAPI web application serves a multi-page dashboard:
 
@@ -107,9 +126,13 @@ YAML Config + Env Vars + CLI Args + Scan Config Template (optional)
         v
     ScanEngine.run(target)
         |
-        +-- Scanner 1 --> ScannerResult --> [Finding, Finding, ...]
-        +-- Scanner 2 --> ScannerResult --> [Finding, Finding, ...]
-        +-- Scanner N --> ScannerResult --> [Finding, Finding, ...]
+        +-- ScanContext (accumulates intelligence)
+        |
+        +-- Scanner 1 --> ScannerResult --> [Finding, ...]
+        |       └── extract context (techs, urls, ports, headers)
+        +-- Scanner 2 (receives ScanContext) --> ScannerResult --> [Finding, ...]
+        |       └── extract context
+        +-- Scanner N (receives ScanContext) --> ScannerResult --> [Finding, ...]
         |
         v
     Deduplication + OWASP enrichment
@@ -123,10 +146,11 @@ YAML Config + Env Vars + CLI Args + Scan Config Template (optional)
 
 ### Database Schema
 
-The SQLite database (schema v4) stores:
+The SQLite database (schema v5) stores:
 
 - `scans` -- Scan sessions with a `template_id` column linking to the template used
 - `findings` -- All findings per scan
+- `scanner_results` -- Per-scanner errors and metadata
 - `scan_config_templates` -- Reusable scan configuration presets
 - `llm_enrichments`, `attack_chains`, `triaged_findings`, `false_positive_assessments`, `executive_priorities` -- LLM enrichment data
 
@@ -138,13 +162,13 @@ Reusable presets that bundle a scan profile with per-scanner option overrides. F
 | -------- | ------- | ----------- |
 | Quick Surface Scan | `quick` | Built-in checks only |
 | Pre-Launch Audit | `pre-launch` | Nmap common ports, Wapiti folder scope, LLM enrichment |
-| Full OWASP Top 10 | `full` | All scanners, Nuclei CVE/misconfig tags, Nikto tuning |
+| Full OWASP Top 10 | `full` | All scanners, Nuclei template_dirs (8 categories), Nikto tuning |
 | Regression Check | `regression` | Headers + TLS + misc only |
 | Compliance Audit | `compliance` | Nmap + TLS + info disclosure, LLM enrichment |
 
 Per-scanner options per template:
 
-- **Nuclei**: `tags`, `severity`, `rate_limit`, `timeout`
+- **Nuclei**: `template_dirs`, `tags`, `severity`, `exclude_tags`, `rate_limit`, `timeout`
 - **Nikto**: `plugins`, `tuning`, `timeout`
 - **Wapiti**: `modules`, `scope`, `max_scan_time`, `max_links`, `timeout`
 - **Nmap**: `ports`, `script_categories`, `timeout`

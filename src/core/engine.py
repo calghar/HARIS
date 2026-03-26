@@ -14,6 +14,7 @@ from ..models import (
     Severity,
     Target,
 )
+from ..models.scan_context import ScanContext
 from .correlator import FindingCorrelator
 from .owasp import map_to_owasp
 from .remediation import RemediationPlanner
@@ -76,9 +77,17 @@ class ScanEngine:
             target.base_url,
         )
 
+        scan_context = ScanContext()
+
         for scanner in self.scanners:
             scanner_config = config.get(scanner.name, {})
-            self._run_single_scanner(scanner, target, scanner_config, session)
+            self._run_single_scanner(
+                scanner,
+                target,
+                scanner_config,
+                session,
+                scan_context,
+            )
 
         session.finished_at = datetime.now(UTC).isoformat()
         self._enrich_findings(session)
@@ -111,6 +120,7 @@ class ScanEngine:
         target: Target,
         scanner_config: dict[str, Any],
         session: ScanSession,
+        context: ScanContext | None = None,
     ) -> None:
         """Run one scanner and collect its results into the session."""
         logger.info("Running scanner: %s", scanner.name)
@@ -130,7 +140,7 @@ class ScanEngine:
                 scanner.configure(scanner_config)
 
             start = time.monotonic()
-            result = scanner.scan(target)
+            result = scanner.scan(target, context=context)
             elapsed = time.monotonic() - start
 
             result.metadata["elapsed_seconds"] = round(elapsed, 2)
@@ -139,6 +149,10 @@ class ScanEngine:
 
             if result.errors:
                 session.errors.extend(f"[{scanner.name}] {e}" for e in result.errors)
+
+            # Extract cross-scanner intelligence for downstream scanners
+            if context is not None:
+                self._extract_context(scanner.name, result, context)
 
             logger.info(
                 "Scanner %s finished: %d findings, %d errors in %.1fs",
@@ -183,6 +197,68 @@ class ScanEngine:
     def _plan_remediation(self, session: ScanSession) -> None:
         """Generate a prioritised remediation checklist."""
         session.remediation_steps = self._planner.plan(session.all_findings)
+
+    @staticmethod
+    def _extract_context(
+        scanner_name: str,
+        result: ScannerResult,
+        context: ScanContext,
+    ) -> None:
+        """Extract cross-scanner intelligence from a scanner's results.
+
+        Populates *context* with technologies, URLs, and ports detected
+        by earlier scanners so downstream scanners can adapt.
+        """
+        for finding in result.findings:
+            # Collect discovered URLs for crawl-aware scanners
+            if finding.url and finding.url.startswith("http"):
+                context.add_urls([finding.url])
+
+            if scanner_name == "nmap":
+                # Extract service/product info from Nmap
+                raw = finding.raw_data or {}
+                port = raw.get("port", "")
+                product = raw.get("product", "")
+                service = raw.get("service", "")
+                version = raw.get("version", "")
+                if port:
+                    context.open_ports.append(str(port))
+                techs = [t for t in [product, service] if t]
+                if techs:
+                    context.add_technologies(techs)
+                if product and version:
+                    context.add_technologies([f"{product}/{version}"])
+
+            elif scanner_name == "nikto":
+                # Extract tech hints from Nikto messages
+                msg = (finding.description or "").lower()
+                _extract_nikto_tech(msg, context)
+
+            elif scanner_name == "wapiti":
+                # Gather crawled paths (HTTP(S) only)
+                if finding.url and finding.url.startswith("http"):
+                    context.add_urls([finding.url])
+
+            elif scanner_name in (
+                "header_checks",
+                "misc_checks",
+                "info_disclosure",
+            ):
+                # Server header tech detection
+                raw = finding.raw_data or {}
+                for hdr_name in ("server", "x-powered-by", "x-aspnet-version"):
+                    val = raw.get(hdr_name, "")
+                    if val:
+                        context.server_headers[hdr_name] = val
+                        context.add_technologies([val])
+
+        logger.debug(
+            "Context after %s: %d techs, %d urls, %d ports",
+            scanner_name,
+            len(context.detected_technologies),
+            len(context.discovered_urls),
+            len(context.open_ports),
+        )
 
     @staticmethod
     def _auto_map_owasp(finding: Finding) -> None:
@@ -291,3 +367,55 @@ __all__ = [
     "Severity",
     "Target",
 ]
+
+
+# ---------------------------------------------------------------------------
+# Module-level helpers
+# ---------------------------------------------------------------------------
+
+# Common technology keywords found in Nikto messages
+_NIKTO_TECH_KEYWORDS: list[tuple[str, str]] = [
+    ("apache", "apache"),
+    ("nginx", "nginx"),
+    ("iis", "iis"),
+    ("wordpress", "wordpress"),
+    ("php", "php"),
+    ("asp.net", "asp.net"),
+    ("tomcat", "tomcat"),
+    ("node.js", "nodejs"),
+    ("express", "express"),
+    ("django", "django"),
+    ("flask", "flask"),
+    ("laravel", "laravel"),
+    ("rails", "rails"),
+    ("spring", "spring"),
+    ("cloudflare", "cloudflare"),
+    ("openresty", "openresty"),
+    ("litespeed", "litespeed"),
+    ("envoy", "envoy"),
+    ("haproxy", "haproxy"),
+    ("varnish", "varnish"),
+    ("caddy", "caddy"),
+    ("grafana", "grafana"),
+    ("jenkins", "jenkins"),
+    ("gitlab", "gitlab"),
+    ("jira", "jira"),
+    ("confluence", "confluence"),
+    ("drupal", "drupal"),
+    ("joomla", "joomla"),
+    ("magento", "magento"),
+    ("shopify", "shopify"),
+    ("nextjs", "nextjs"),
+    ("next.js", "nextjs"),
+    ("react", "react"),
+    ("angular", "angular"),
+    ("vue", "vue"),
+]
+
+
+def _extract_nikto_tech(msg: str, context: ScanContext) -> None:
+    """Extract technology hints from a Nikto finding message."""
+    msg_lower = msg.lower()
+    for keyword, tech_name in _NIKTO_TECH_KEYWORDS:
+        if keyword in msg_lower:
+            context.add_technologies([tech_name])

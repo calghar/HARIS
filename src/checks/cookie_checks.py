@@ -237,7 +237,7 @@ class CookieSecurityScanner(BaseScanner):
         )
 
     @handle_scanner_errors
-    def scan(self, target: Target) -> ScannerResult:
+    def scan(self, target: Target, context: Any = None) -> ScannerResult:  # noqa: ARG002
         """Run cookie security checks against *target*.
 
         Performs a single GET request (following redirects by default) and

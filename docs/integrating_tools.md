@@ -10,16 +10,19 @@ BaseScanner
     +-- _build_command(target, output_path) -> list[str]
     |       Constructs the CLI command with appropriate flags
     |
-    +-- scan(target) -> ScannerResult
+    +-- scan(target, context=None) -> ScannerResult
     |       1. Check tool availability
-    |       2. Create temp directory for output
-    |       3. Build and run command
-    |       4. Read raw output
-    |       5. Parse into findings
+    |       2. Read ScanContext for cross-scanner intelligence (optional)
+    |       3. Create temp directory for output
+    |       4. Build and run command
+    |       5. Read raw output
+    |       6. Parse into findings
     |
     +-- parse_results(raw_output) -> list[Finding]
             Converts tool-specific format (JSON/XML) to Finding objects
 ```
+
+The `scan()` method receives an optional `ScanContext` parameter containing technologies, URLs, ports, and headers detected by earlier scanners. Adapters can use this to make smarter decisions (e.g. Nuclei selects tech-specific templates).
 
 ## Step-by-Step Guide
 
@@ -178,6 +181,17 @@ Add a docstring to the scanner module explaining:
 - **Focus**: Port scanning, service detection, reconnaissance
 - **Output**: XML
 - **Key flags**: `-sV` (version detection), `-p` (ports), `--open`
+
+### Nuclei (`src/scanners/nuclei_scanner.py`)
+
+- **Focus**: CVE detection, default credentials, exposed panels, technology fingerprinting
+- **Output**: JSONL (one JSON object per line)
+- **Strategy**: Multi-phase scanning
+  - **Phase 1**: `http/technologies` templates for fingerprinting (detects CMS, WAF, frameworks)
+  - **Phase 2a**: Broad scan across 8 `DEFAULT_TEMPLATE_DIRS` (CVEs, exposures, panels, vulnerabilities, default-logins, takeovers, misconfigurations, DAST)
+  - **Phase 2b**: Tech-targeted scan using `TECH_TAG_MAP` and `TECH_WORKFLOW_MAP` based on `ScanContext`
+- **Key flags**: `-jsonl`, `-duc`, `-silent`, `-fhr`, `-retries 2`, `-nmhe`, `-tls-impersonate`
+- **Context-aware**: Uses `ScanContext.detected_technologies` to select targeted Nuclei tags and workflows
 
 ## Testing Adapters
 

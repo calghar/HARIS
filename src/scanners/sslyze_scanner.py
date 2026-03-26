@@ -23,7 +23,7 @@ class SSLyzeScanner(BaseScanner):
         super().__init__(options)
         self.options.setdefault("timeout", 120)
 
-    def scan(self, target: Target) -> ScannerResult:
+    def scan(self, target: Target, context: Any = None) -> ScannerResult:  # noqa: ARG002
         if not self._check_tool_available("sslyze"):
             return ScannerResult(
                 scanner_name=self.name,
