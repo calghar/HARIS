@@ -1,5 +1,3 @@
-"""Scan profile data model."""
-
 from pydantic import BaseModel, ConfigDict
 
 

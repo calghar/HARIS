@@ -9,9 +9,7 @@ from .scanner import BaseScanner
 
 logger = logging.getLogger(__name__)
 
-# ---------------------------------------------------------------
 # Global registries -- populated by decorators at import time
-# ---------------------------------------------------------------
 _SCANNER_REGISTRY: dict[str, type[BaseScanner]] = {}
 _CHECK_REGISTRY: dict[str, type[BaseScanner]] = {}
 
@@ -31,9 +29,7 @@ def all_registered() -> dict[str, type[BaseScanner]]:
     return {**_SCANNER_REGISTRY, **_CHECK_REGISTRY}
 
 
-# ---------------------------------------------------------------
 # Class decorators
-# ---------------------------------------------------------------
 
 
 def register_scanner(cls: type[BaseScanner]) -> type[BaseScanner]:
@@ -58,9 +54,7 @@ def register_check(cls: type[BaseScanner]) -> type[BaseScanner]:
     return cls
 
 
-# ---------------------------------------------------------------
 # Method / function decorators
-# ---------------------------------------------------------------
 
 
 def timed[F: Callable[..., Any]](func: F) -> F:

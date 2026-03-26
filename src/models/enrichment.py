@@ -1,9 +1,3 @@
-"""LLM enrichment data models.
-
-Captures the output of LLM-powered analysis: enriched findings,
-attack chains, and triage assessments.
-"""
-
 from pydantic import BaseModel, Field
 
 from .enums import Severity

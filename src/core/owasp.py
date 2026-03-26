@@ -1,9 +1,7 @@
 from ..models.enums import OwaspCategory
 from ..models.owasp import OwaspMapping
 
-# ------------------------------------------------------------------
 # Keyword -> OWASP mapping table
-# ------------------------------------------------------------------
 
 OWASP_MAPPINGS: dict[str, OwaspMapping] = {
     # A01 - Broken Access Control

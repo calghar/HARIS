@@ -1,5 +1,20 @@
 # Changelog
 <!--markdownlint-disable MD024-->
+## 0.5.1 — 2026-03-26
+
+### Changed
+
+- **Split scanner config into per-scanner YAML files** — each scanner now loads config from `config/scanners/{scanner_name}.yaml` instead of hardcoded Python dicts
+- Created `config/scanners/nikto.yaml` (severity_map, keyword_rules, osvdb_critical)
+- Created `config/scanners/nmap.yaml` (risky_services, default_ports, default_extra_args)
+- Created `config/scanners/sslyze.yaml` (deprecated_protocols, vulnerability_checks)
+- Created `config/scanners/wapiti.yaml` (severity_map, category_tags)
+- Created `config/scanners/nuclei.yaml` — moved all nuclei config out of `scanner_data.yaml`
+- `config/scanner_data.yaml` trimmed to cross-scanner shared data only (nikto tech_keywords)
+- Replaced `ScannerDataLoader` class with generic `_load_scanner_config()` and per-scanner getters in `src/data/scanner_config.py`
+- Updated `nikto_scanner.py`, `nmap_scanner.py`, `sslyze_scanner.py`, `wapiti_scanner.py` to load config from YAML via lazy-initialised accessors
+- Updated `src/data/__init__.py` exports to include new per-scanner getters
+
 ## 0.5.0 — 2026-03-26
 
 ### Added

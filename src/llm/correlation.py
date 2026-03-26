@@ -66,9 +66,7 @@ class LLMCorrelator:
             logger.warning("False positive detection failed", exc_info=True)
             return []
 
-    # ------------------------------------------------------------------
     # Parsers
-    # ------------------------------------------------------------------
 
     @staticmethod
     def _parse_chains(raw_text: str) -> list[AttackChain]:

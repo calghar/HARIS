@@ -90,10 +90,6 @@ class ScanStatus:
     FAILED = "failed"
 
 
-# ---------------------------------------------------------------------------
-# Pages
-# ---------------------------------------------------------------------------
-
 _SCANNER_INFO = [
     {
         "name": "Nuclei",
@@ -391,11 +387,6 @@ async def scan_detail(request: Request, scan_id: str) -> HTMLResponse:
     )
 
 
-# ---------------------------------------------------------------------------
-# API endpoints
-# ---------------------------------------------------------------------------
-
-
 @app.post(
     "/api/scan/start",
     responses={400: {"description": "Bad request"}},
@@ -539,9 +530,7 @@ async def download_report(scan_id: str, fmt: str) -> FileResponse:
     )
 
 
-# ---------------------------------------------------------------------------
 # Scan history API
-# ---------------------------------------------------------------------------
 
 
 @app.get("/api/scans", response_model=None)
@@ -683,9 +672,7 @@ async def get_scan_findings(
         raise HTTPException(status_code=404, detail="Scan not found") from exc
 
 
-# ---------------------------------------------------------------------------
 # LLM endpoints
-# ---------------------------------------------------------------------------
 
 
 @app.get("/api/llm/backends")
@@ -913,9 +900,7 @@ async def delete_conversation(scan_id: str, conversation_id: str) -> JSONRespons
     return JSONResponse({"deleted": conversation_id})
 
 
-# ---------------------------------------------------------------------------
 # Template management endpoints
-# ---------------------------------------------------------------------------
 
 
 @app.get("/api/templates/status")
@@ -970,11 +955,6 @@ async def trigger_template_update(request: Request) -> JSONResponse:
     except Exception as exc:
         logger.exception("Template update failed")
         return JSONResponse({"error": str(exc)}, status_code=500)
-
-
-# ---------------------------------------------------------------------------
-# Scan configuration templates
-# ---------------------------------------------------------------------------
 
 
 @app.get("/templates", response_class=HTMLResponse)
@@ -1150,9 +1130,7 @@ async def api_set_default_template(template_id: str) -> JSONResponse:
     return JSONResponse({"default": template_id})
 
 
-# ---------------------------------------------------------------------------
 # Background scan runner
-# ---------------------------------------------------------------------------
 
 
 def _run_scan_blocking(

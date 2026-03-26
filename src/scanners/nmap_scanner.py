@@ -4,6 +4,11 @@ from typing import Any
 
 from ..core.decorators import register_scanner
 from ..core.scanner import BaseScanner
+from ..data.scanner_config import (
+    get_nmap_default_extra_args,
+    get_nmap_default_ports,
+    get_nmap_risky_services,
+)
 from ..models import Confidence, Finding, ScannerResult, Severity, Target
 
 logger = logging.getLogger(__name__)
@@ -23,10 +28,9 @@ class NmapScanner(BaseScanner):
 
     def __init__(self, options: dict[str, Any] | None = None) -> None:
         super().__init__(options)
-        self.options.setdefault("ports", "80,443,8080,8443,8000,8888")
+        self.options.setdefault("ports", get_nmap_default_ports())
         self.options.setdefault("timeout", 300)
-        # Only service version detection, no aggressive scripts
-        self.options.setdefault("extra_args", ["-sV", "--open"])
+        self.options.setdefault("extra_args", get_nmap_default_extra_args())
 
     def scan(self, target: Target, context: Any = None) -> ScannerResult:  # noqa: ARG002
         if not self._check_tool_available("nmap"):
@@ -172,16 +176,7 @@ class NmapScanner(BaseScanner):
         product: str,
     ) -> list[Finding]:
         """Flag services that should not normally be exposed."""
-        risky = {
-            "ftp": "FTP can transmit credentials in cleartext",
-            "telnet": "Telnet transmits all data in cleartext",
-            "mysql": "Database port exposed to the network",
-            "postgresql": "Database port exposed to the network",
-            "redis": "Redis often has no authentication by default",
-            "mongodb": "MongoDB may lack authentication",
-            "memcached": "Memcached should not be publicly accessible",
-            "elasticsearch": "Elasticsearch may expose sensitive data",
-        }
+        risky = get_nmap_risky_services()
 
         findings: list[Finding] = []
         service_lower = service.lower()

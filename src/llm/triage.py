@@ -79,9 +79,7 @@ class SmartTriager:
             logger.warning("Executive priorities failed", exc_info=True)
             return ""
 
-    # ------------------------------------------------------------------
     # Parser
-    # ------------------------------------------------------------------
 
     @staticmethod
     def _parse_triage(

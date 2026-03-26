@@ -1,5 +1,3 @@
-"""OWASP mapping data model."""
-
 from pydantic import BaseModel, ConfigDict
 
 from .enums import OwaspCategory

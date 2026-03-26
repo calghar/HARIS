@@ -6,93 +6,53 @@ from typing import Any
 
 from ..core.decorators import handle_scanner_errors, register_scanner
 from ..core.scanner import BaseScanner
+from ..data.scanner_config import (
+    get_nikto_keyword_rules,
+    get_nikto_osvdb_critical,
+    get_nikto_severity_map,
+)
 from ..models import Confidence, Finding, ScannerResult, Severity, Target
 
 logger = logging.getLogger(__name__)
 
-# ---------------------------------------------------------------------------
-# Severity mapping
-# ---------------------------------------------------------------------------
 
-# Nikto does not expose a machine-readable severity in its JSON output.
-# We derive severity from OSVDB references and keyword heuristics in the
-# finding message instead.  This map is applied after keyword matching.
-_NIKTO_SEVERITY_MAP: dict[str, Severity] = {
-    "critical": Severity.CRITICAL,
-    "high": Severity.HIGH,
-    "medium": Severity.MEDIUM,
-    "low": Severity.LOW,
-    "info": Severity.INFO,
-}
+def _build_severity_map() -> dict[str, Severity]:
+    raw = get_nikto_severity_map()
+    return {k: Severity[v] for k, v in raw.items()}
 
-# ---------------------------------------------------------------------------
-# Keyword -> OWASP tag + severity heuristics
-# ---------------------------------------------------------------------------
 
-# Each entry is (list-of-keywords, tags, severity).
-# Keywords are matched case-insensitively against the Nikto "msg" field.
-# The FIRST matching rule wins.
-_NIKTO_KEYWORD_RULES: list[tuple[list[str], list[str], Severity]] = [
-    # Outdated / EOL server software
-    (
-        ["outdated", "end-of-life", "eol", "obsolete", "unsupported version"],
-        ["outdated_server", "outdated_component"],
-        Severity.HIGH,
-    ),
-    # Default or dangerous CGI/scripts
-    (
-        ["/cgi-bin/", "cgi script", "default cgi", "phpmyadmin", "phpinfo"],
-        ["security_misconfiguration", "outdated_component"],
-        Severity.MEDIUM,
-    ),
-    # Directory listing
-    (
-        ["directory indexing", "index of /", "directory listing"],
-        ["directory_listing"],
-        Severity.MEDIUM,
-    ),
-    # Dangerous HTTP methods
-    (
-        ["options", "trace", "track", "debug", "put method", "delete method"],
-        ["security_misconfiguration"],
-        Severity.MEDIUM,
-    ),
-    # Backup / sensitive files
-    (
-        [".bak", ".swp", ".old", ".orig", ".tmp", "backup", "~"],
-        ["security_misconfiguration"],
-        Severity.MEDIUM,
-    ),
-    # Server version disclosure via headers
-    (
-        ["server:", "x-powered-by", "version disclosure", "server banner"],
-        ["outdated_server"],
-        Severity.LOW,
-    ),
-    # Default installation pages
-    (
-        [
-            "default page",
-            "welcome to",
-            "test page",
-            "apache default",
-            "nginx default",
-            "iis default",
-        ],
-        ["security_misconfiguration"],
-        Severity.LOW,
-    ),
-    # Generic catch-all for anything referencing a CVE / OSVDB
-    (
-        ["osvdb", "cve-"],
-        ["outdated_component"],
-        Severity.MEDIUM,
-    ),
-]
+def _build_keyword_rules() -> list[tuple[list[str], list[str], Severity]]:
+    raw_rules = get_nikto_keyword_rules()
+    return [
+        (rule["keywords"], rule["tags"], Severity[rule["severity"]])
+        for rule in raw_rules
+    ]
 
-# OSVDB IDs that are known to be critical (small curated set).
-# Nikto bundles OSVDB references in the "osvdbid" field.
-_OSVDB_CRITICAL: frozenset[str] = frozenset()
+
+_severity_map: dict[str, Severity] | None = None
+_keyword_rules: list[tuple[list[str], list[str], Severity]] | None = None
+_osvdb_critical: frozenset[str] | None = None
+
+
+def _get_severity_map() -> dict[str, Severity]:
+    global _severity_map
+    if _severity_map is None:
+        _severity_map = _build_severity_map()
+    return _severity_map
+
+
+def _get_keyword_rules() -> list[tuple[list[str], list[str], Severity]]:
+    global _keyword_rules
+    if _keyword_rules is None:
+        _keyword_rules = _build_keyword_rules()
+    return _keyword_rules
+
+
+def _get_osvdb_critical() -> frozenset[str]:
+    global _osvdb_critical
+    if _osvdb_critical is None:
+        _osvdb_critical = get_nikto_osvdb_critical()
+    return _osvdb_critical
 
 
 def _classify_finding(msg: str, osvdb_id: str) -> tuple[list[str], Severity]:
@@ -107,10 +67,10 @@ def _classify_finding(msg: str, osvdb_id: str) -> tuple[list[str], Severity]:
     """
     msg_lower = msg.lower()
 
-    for keywords, tags, severity in _NIKTO_KEYWORD_RULES:
+    for keywords, tags, severity in _get_keyword_rules():
         if any(kw in msg_lower for kw in keywords):
             # Escalate to CRITICAL for known critical OSVDB entries.
-            if osvdb_id and osvdb_id != "0" and osvdb_id in _OSVDB_CRITICAL:
+            if osvdb_id and osvdb_id != "0" and osvdb_id in _get_osvdb_critical():
                 severity = Severity.CRITICAL
             return tags, severity
 
@@ -291,9 +251,7 @@ class NiktoScanner(BaseScanner):
 
         return findings
 
-    # ------------------------------------------------------------------
     # Private helpers
-    # ------------------------------------------------------------------
 
     def _build_command(self, target: Target, output_path: str) -> list[str]:
         """Construct the nikto CLI command list.

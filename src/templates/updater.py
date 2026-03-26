@@ -10,10 +10,6 @@ logger = logging.getLogger(__name__)
 class TemplateUpdater:
     """Handles git clone/pull and HTTP downloads for template sources."""
 
-    # ------------------------------------------------------------------
-    # Git operations
-    # ------------------------------------------------------------------
-
     @staticmethod
     def git_clone_or_pull(
         repo_url: str,
@@ -89,9 +85,7 @@ class TemplateUpdater:
             logger.error("git pull failed in %s: %s", target_dir, exc)
             return False
 
-    # ------------------------------------------------------------------
     # Version tracking
-    # ------------------------------------------------------------------
 
     @staticmethod
     def get_git_version(repo_dir: Path) -> str:
@@ -111,9 +105,7 @@ class TemplateUpdater:
         except Exception:
             return ""
 
-    # ------------------------------------------------------------------
     # HTTP download
-    # ------------------------------------------------------------------
 
     @staticmethod
     def download_file(url: str, target_path: Path) -> bool:
@@ -132,9 +124,7 @@ class TemplateUpdater:
             logger.error("Download failed for %s: %s", url, exc)
             return False
 
-    # ------------------------------------------------------------------
     # File counting
-    # ------------------------------------------------------------------
 
     @staticmethod
     def count_files(directory: Path, patterns: list[str]) -> int:

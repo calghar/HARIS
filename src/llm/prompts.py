@@ -1,5 +1,3 @@
-"""Prompt builders for report Q&A — delegates to Jinja2 templates."""
-
 from ..models import Finding, ScanSession
 from .template_loader import render_template
 

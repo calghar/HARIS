@@ -1,5 +1,3 @@
-"""Reusable scan configuration template model."""
-
 import uuid
 from typing import Any
 

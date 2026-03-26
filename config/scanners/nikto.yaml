@@ -1,0 +1,99 @@
+severity_map:
+  critical: CRITICAL
+  high: HIGH
+  medium: MEDIUM
+  low: LOW
+  info: INFO
+
+keyword_rules:
+  # Each rule: keywords (list), tags (list), severity (str)
+  # Outdated / EOL server software
+  - keywords:
+      - outdated
+      - end-of-life
+      - eol
+      - obsolete
+      - unsupported version
+    tags:
+      - outdated_server
+      - outdated_component
+    severity: HIGH
+
+  # Default or dangerous CGI/scripts
+  - keywords:
+      - /cgi-bin/
+      - cgi script
+      - default cgi
+      - phpmyadmin
+      - phpinfo
+    tags:
+      - security_misconfiguration
+      - outdated_component
+    severity: MEDIUM
+
+  # Directory listing
+  - keywords:
+      - directory indexing
+      - index of /
+      - directory listing
+    tags:
+      - directory_listing
+    severity: MEDIUM
+
+  # Dangerous HTTP methods
+  - keywords:
+      - options
+      - trace
+      - track
+      - debug
+      - put method
+      - delete method
+    tags:
+      - security_misconfiguration
+    severity: MEDIUM
+
+  # Backup / sensitive files
+  - keywords:
+      - .bak
+      - .swp
+      - .old
+      - .orig
+      - .tmp
+      - backup
+      - "~"
+    tags:
+      - security_misconfiguration
+    severity: MEDIUM
+
+  # Server version disclosure via headers
+  - keywords:
+      - "server:"
+      - x-powered-by
+      - version disclosure
+      - server banner
+    tags:
+      - outdated_server
+    severity: LOW
+
+  # Default installation pages
+  - keywords:
+      - default page
+      - welcome to
+      - test page
+      - apache default
+      - nginx default
+      - iis default
+    tags:
+      - security_misconfiguration
+    severity: LOW
+
+  # Generic catch-all for anything referencing a CVE / OSVDB
+  - keywords:
+      - osvdb
+      - cve-
+    tags:
+      - outdated_component
+    severity: MEDIUM
+
+# OSVDB IDs that are known to be critical (small curated set).
+osvdb_critical: []

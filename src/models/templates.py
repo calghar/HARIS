@@ -1,10 +1,3 @@
-"""Template management data models.
-
-Defines sources, metadata, and update results for scanner template
-management.  The TemplateManager (in src/templates/) uses these models
-to track where templates come from and their current state on disk.
-"""
-
 from pydantic import BaseModel, Field
 
 

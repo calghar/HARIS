@@ -50,9 +50,7 @@ class BaseScannerTemplateAdapter(abc.ABC):
         """Return scanner option overrides derived from template paths."""
 
 
-# ------------------------------------------------------------------
 # Nuclei
-# ------------------------------------------------------------------
 
 
 class NucleiTemplateAdapter(BaseScannerTemplateAdapter):
@@ -127,9 +125,7 @@ class NucleiTemplateAdapter(BaseScannerTemplateAdapter):
         return {"templates": paths} if paths else {}
 
 
-# ------------------------------------------------------------------
 # Nikto
-# ------------------------------------------------------------------
 
 
 class NiktoTemplateAdapter(BaseScannerTemplateAdapter):
@@ -223,9 +219,7 @@ class NiktoTemplateAdapter(BaseScannerTemplateAdapter):
         return {}
 
 
-# ------------------------------------------------------------------
 # Nmap
-# ------------------------------------------------------------------
 
 
 class NmapTemplateAdapter(BaseScannerTemplateAdapter):
@@ -291,9 +285,7 @@ class NmapTemplateAdapter(BaseScannerTemplateAdapter):
         }
 
 
-# ------------------------------------------------------------------
 # Wapiti
-# ------------------------------------------------------------------
 
 
 class WapitiTemplateAdapter(BaseScannerTemplateAdapter):
@@ -344,9 +336,7 @@ class WapitiTemplateAdapter(BaseScannerTemplateAdapter):
         return {}
 
 
-# ------------------------------------------------------------------
 # Registry
-# ------------------------------------------------------------------
 
 ADAPTER_REGISTRY: dict[str, type[BaseScannerTemplateAdapter]] = {
     "nuclei": NucleiTemplateAdapter,

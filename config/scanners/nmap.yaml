@@ -1,0 +1,21 @@
+# Nmap Scanner Configuration
+# Extracted from src/scanners/nmap_scanner.py
+
+# Services that should not normally be exposed to the network
+risky_services:
+  ftp: "FTP can transmit credentials in cleartext"
+  telnet: "Telnet transmits all data in cleartext"
+  mysql: "Database port exposed to the network"
+  postgresql: "Database port exposed to the network"
+  redis: "Redis often has no authentication by default"
+  mongodb: "MongoDB may lack authentication"
+  memcached: "Memcached should not be publicly accessible"
+  elasticsearch: "Elasticsearch may expose sensitive data"
+
+# Default ports to scan
+default_ports: "80,443,8080,8443,8000,8888"
+
+# Default extra nmap arguments
+default_extra_args:
+  - "-sV"
+  - "--open"

@@ -1,9 +1,3 @@
-"""HTML report generator.
-
-Wraps the Markdown report in a self-contained HTML page with minimal
-styling for easy viewing in a browser.
-"""
-
 import html
 
 from ..models import ScanSession, Severity

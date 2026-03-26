@@ -1,9 +1,22 @@
-"""Enumerations used across the HARIS data models."""
+"""Enumerations used across the HARIS data models.
+
+All enums use :class:`enum.StrEnum` (Python 3.11+) so that
+``member == member.value`` holds true and ``.value`` access is
+no longer required for string comparisons or serialisation.
+"""
 
 import enum
 
+_SEVERITY_ORDER: dict[str, int] = {
+    "critical": 0,
+    "high": 1,
+    "medium": 2,
+    "low": 3,
+    "info": 4,
+}
 
-class Severity(enum.Enum):
+
+class Severity(enum.StrEnum):
     """CVSS-aligned severity levels."""
 
     CRITICAL = "critical"
@@ -14,17 +27,10 @@ class Severity(enum.Enum):
 
     @property
     def sort_key(self) -> int:
-        order = {
-            self.CRITICAL: 0,
-            self.HIGH: 1,
-            self.MEDIUM: 2,
-            self.LOW: 3,
-            self.INFO: 4,
-        }
-        return order[self]
+        return _SEVERITY_ORDER[self.value]
 
 
-class Confidence(enum.Enum):
+class Confidence(enum.StrEnum):
     """How confident we are that this is a true positive."""
 
     CONFIRMED = "confirmed"
@@ -32,7 +38,7 @@ class Confidence(enum.Enum):
     TENTATIVE = "tentative"
 
 
-class OwaspCategory(enum.Enum):
+class OwaspCategory(enum.StrEnum):
     """OWASP Top 10 2025 categories."""
 
     A01_BROKEN_ACCESS_CONTROL = "A01:2025 - Broken Access Control"
@@ -47,7 +53,7 @@ class OwaspCategory(enum.Enum):
     A10_EXCEPTIONAL_CONDITIONS = "A10:2025 - Mishandling of Exceptional Conditions"
 
 
-class Effort(enum.Enum):
+class Effort(enum.StrEnum):
     """Estimated implementation effort for a remediation step."""
 
     QUICK_WIN = "quick_win"
@@ -55,7 +61,7 @@ class Effort(enum.Enum):
     SIGNIFICANT = "significant"
 
 
-class RiskPosture(enum.Enum):
+class RiskPosture(enum.StrEnum):
     """Overall risk posture for the target."""
 
     CRITICAL = "critical"
