@@ -180,12 +180,22 @@ class ScanStore:
 
     @contextmanager
     def _connect(self) -> Generator[sqlite3.Connection]:
+        """Yield a database connection with automatic commit/rollback.
+
+        On successful exit the transaction is committed. If an exception
+        propagates out of the ``with`` block the transaction is rolled
+        back before the connection is closed.
+        """
         conn = sqlite3.connect(str(self.db_path), timeout=10)
         conn.row_factory = sqlite3.Row
         conn.execute("PRAGMA journal_mode=WAL")
         conn.execute("PRAGMA foreign_keys=ON")
         try:
             yield conn
+            conn.commit()
+        except Exception:
+            conn.rollback()
+            raise
         finally:
             conn.close()
 
@@ -219,13 +229,10 @@ class ScanStore:
                         "UPDATE schema_version SET version = ?",
                         (_SCHEMA_VERSION,),
                     )
-            conn.commit()
         self._seed_default_templates()
         logger.debug("Database initialised at %s", self.db_path)
 
-    # ------------------------------------------------------------------
     # Write operations
-    # ------------------------------------------------------------------
 
     def save_session(self, session: ScanSession) -> None:
         """Persist a complete scan session (upsert)."""
@@ -426,7 +433,6 @@ class ScanStore:
                     ),
                 )
 
-            conn.commit()
         logger.info(
             "Saved session %s (%d findings, %d remediation steps)",
             session.session_id,
@@ -441,12 +447,9 @@ class ScanStore:
                 "DELETE FROM scans WHERE session_id = ?",
                 (session_id,),
             )
-            conn.commit()
             return cursor.rowcount > 0
 
-    # ------------------------------------------------------------------
     # Read operations
-    # ------------------------------------------------------------------
 
     def list_sessions(self) -> list[dict[str, Any]]:
         """Return a summary list of all stored scan sessions."""
@@ -723,9 +726,7 @@ class ScanStore:
             ).fetchone()
             return row is not None
 
-    # ------------------------------------------------------------------
     # Aggregation queries (dashboard, websites, trends)
-    # ------------------------------------------------------------------
 
     @staticmethod
     def _hostname(url: str) -> str:
@@ -1001,9 +1002,7 @@ class ScanStore:
             total,
         )
 
-    # ------------------------------------------------------------------
     # Scan configuration templates
-    # ------------------------------------------------------------------
 
     def save_scan_config_template(self, tpl: ScanConfigTemplate) -> None:
         """Insert or update a scan configuration template."""
@@ -1035,7 +1034,6 @@ class ScanStore:
                     tpl.updated_at,
                 ),
             )
-            conn.commit()
 
     def get_scan_config_template(
         self,
@@ -1084,7 +1082,6 @@ class ScanStore:
                 "DELETE FROM scan_config_templates WHERE template_id = ?",
                 (template_id,),
             )
-            conn.commit()
             return cursor.rowcount > 0
 
     def set_default_scan_config_template(self, template_id: str) -> None:
@@ -1095,7 +1092,6 @@ class ScanStore:
                 "UPDATE scan_config_templates SET is_default = 1 WHERE template_id = ?",
                 (template_id,),
             )
-            conn.commit()
 
     def get_default_scan_config_template(
         self,
@@ -1132,9 +1128,7 @@ class ScanStore:
             updated_at=row["updated_at"],
         )
 
-    # ------------------------------------------------------------------
     # Seed default templates
-    # ------------------------------------------------------------------
 
     def _seed_default_templates(self) -> None:
         """Populate built-in scan config templates on first run."""

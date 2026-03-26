@@ -1,0 +1,40 @@
+# Wapiti Scanner Configuration
+# Extracted from src/scanners/wapiti_scanner.py
+
+# Map Wapiti integer severity levels to internal severity model.
+# Wapiti 3.x uses integers: 0=INFO, 1=LOW, 2=MEDIUM, 3=HIGH, 4=CRITICAL.
+severity_map:
+  4: CRITICAL
+  3: HIGH
+  2: MEDIUM
+  1: LOW
+  0: INFO
+
+# Map Wapiti vulnerability categories to OWASP tag keywords
+category_tags:
+  "SQL Injection":
+    - sql_injection
+  "Blind SQL Injection":
+    - sql_injection
+  "Cross Site Scripting":
+    - xss
+  "CRLF Injection":
+    - crlf_injection
+  "Commands execution":
+    - command_injection
+  "File Handling":
+    - directory_traversal
+  "XXE":
+    - xxe
+  "SSRF":
+    - ssrf
+  "Open Redirect":
+    - open_redirect
+  "Content Security Policy Configuration":
+    - missing_security_headers
+  "HTTP Secure Headers":
+    - missing_security_headers
+  "HttpOnly Flag cookie":
+    - security_misconfiguration
+  "Secure Flag cookie":
+    - security_misconfiguration

@@ -6,6 +6,10 @@ from typing import Any
 
 from ..core.decorators import register_scanner
 from ..core.scanner import BaseScanner
+from ..data.scanner_config import (
+    get_sslyze_deprecated_protocols,
+    get_sslyze_vulnerability_checks,
+)
 from ..models import Confidence, Finding, ScannerResult, Severity, Target
 
 logger = logging.getLogger(__name__)
@@ -88,14 +92,11 @@ class SSLyzeScanner(BaseScanner):
     def _check_protocols(self, scan_result: dict, hostname: str) -> list[Finding]:
         """Flag deprecated TLS/SSL protocols."""
         findings: list[Finding] = []
-        deprecated_protos = {
-            "ssl_2_0_cipher_suites": ("SSLv2", Severity.CRITICAL),
-            "ssl_3_0_cipher_suites": ("SSLv3", Severity.HIGH),
-            "tls_1_0_cipher_suites": ("TLS 1.0", Severity.MEDIUM),
-            "tls_1_1_cipher_suites": ("TLS 1.1", Severity.MEDIUM),
-        }
+        deprecated_protos = get_sslyze_deprecated_protocols()
 
-        for key, (proto_name, severity) in deprecated_protos.items():
+        for key, proto_info in deprecated_protos.items():
+            proto_name = proto_info["proto_name"]
+            severity = Severity[proto_info["severity"]]
             proto_result = scan_result.get(key, {})
             if not proto_result:
                 continue
@@ -191,31 +192,7 @@ class SSLyzeScanner(BaseScanner):
     def _check_vulnerabilities(self, scan_result: dict, hostname: str) -> list[Finding]:
         """Check for known TLS vulnerabilities (Heartbleed, ROBOT, etc.)."""
         findings: list[Finding] = []
-
-        vuln_checks = {
-            "heartbleed": {
-                "key": "heartbleed",
-                "result_field": "is_vulnerable_to_heartbleed",
-                "title": "Heartbleed vulnerability (CVE-2014-0160)",
-                "severity": Severity.CRITICAL,
-            },
-            "openssl_ccs_injection": {
-                "key": "openssl_ccs_injection",
-                "result_field": "is_vulnerable_to_ccs_injection",
-                "title": "OpenSSL CCS Injection (CVE-2014-0224)",
-                "severity": Severity.HIGH,
-            },
-            "robot": {
-                "key": "robot",
-                "result_field": "robot_result",
-                "title": "ROBOT vulnerability",
-                "severity": Severity.HIGH,
-                "vulnerable_values": [
-                    "VULNERABLE_WEAK_ORACLE",
-                    "VULNERABLE_STRONG_ORACLE",
-                ],
-            },
-        }
+        vuln_checks = get_sslyze_vulnerability_checks()
 
         for check_name, check_info in vuln_checks.items():
             check_data = scan_result.get(check_info["key"], {})
@@ -236,8 +213,7 @@ class SSLyzeScanner(BaseScanner):
 
             if is_vuln:
                 title = str(check_info["title"])
-                severity = check_info["severity"]
-                assert isinstance(severity, Severity)
+                severity = Severity[check_info["severity"]]
                 findings.append(
                     Finding(
                         title=title,

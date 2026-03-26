@@ -5,186 +5,35 @@ from typing import Any
 
 from ..core.decorators import handle_scanner_errors, register_scanner
 from ..core.scanner import BaseScanner
+from ..data.scanner_config import (
+    get_nuclei_confidence_map,
+    get_nuclei_default_template_dirs,
+    get_nuclei_meta_tags,
+    get_nuclei_remediation_map,
+    get_nuclei_severity_map,
+    get_nuclei_tag_map,
+    get_nuclei_tech_fingerprint_dir,
+    get_nuclei_tech_tag_map,
+    get_nuclei_tech_workflow_map,
+)
 from ..models import Confidence, Finding, ScannerResult, Severity, Target
 from ..models.scan_context import ScanContext
 
 logger = logging.getLogger(__name__)
 
-# ---------------------------------------------------------------------------
-# Severity mapping
-# ---------------------------------------------------------------------------
-
-# Nuclei severity strings map directly onto our internal model.
+# Load configuration data from YAML (cached by _load_scanner_config)
+_SEVERITY_MAP_RAW = get_nuclei_severity_map()
 _NUCLEI_SEVERITY_MAP: dict[str, Severity] = {
-    "critical": Severity.CRITICAL,
-    "high": Severity.HIGH,
-    "medium": Severity.MEDIUM,
-    "low": Severity.LOW,
-    "info": Severity.INFO,
-    "unknown": Severity.INFO,
+    k: getattr(Severity, v) for k, v in _SEVERITY_MAP_RAW.items()
 }
-
-# ---------------------------------------------------------------------------
-# OWASP tag mapping
-# ---------------------------------------------------------------------------
-
-# Nuclei templates carry ``tags`` in their ``info`` block and a
-# ``matcher-name`` / ``template-id`` at the result level.  We derive our
-# internal OWASP tags by scanning those fields against this lookup table.
-# Keys are lowercase substrings; values are OWASP-aligned tag lists.
-# Evaluation order matters: the first key that matches wins.
-_NUCLEI_TAG_MAP: dict[str, list[str]] = {
-    # Injection
-    "sql": ["sql_injection"],
-    "sqli": ["sql_injection"],
-    "xss": ["xss"],
-    "ssti": ["ssti"],
-    "xxe": ["xxe"],
-    "ssrf": ["ssrf"],
-    "command-injection": ["command_injection"],
-    "rce": ["command_injection"],
-    "code-injection": ["command_injection"],
-    "lfi": ["directory_traversal"],
-    "path-traversal": ["directory_traversal"],
-    "open-redirect": ["open_redirect"],
-    "redirect": ["open_redirect"],
-    # Authentication / access control
-    "default-login": ["default_credentials"],
-    "default-credentials": ["default_credentials"],
-    "auth-bypass": ["broken_authentication"],
-    "authentication-bypass": ["broken_authentication"],
-    "login-panel": ["exposed_panel"],
-    "panel": ["exposed_panel"],
-    "admin-panel": ["exposed_panel"],
-    "exposure": ["sensitive_data_exposure"],
-    "disclosure": ["sensitive_data_exposure"],
-    "sensitive": ["sensitive_data_exposure"],
-    "backup": ["security_misconfiguration"],
-    "config": ["security_misconfiguration"],
-    "misconfiguration": ["security_misconfiguration"],
-    "misconfig": ["security_misconfiguration"],
-    "directory-listing": ["directory_listing"],
-    "listing": ["directory_listing"],
-    # CVE / outdated components
-    "cve": ["outdated_component"],
-    "cnvd": ["outdated_component"],
-    "edb": ["outdated_component"],
-    # Headers / TLS / network
-    "headers": ["missing_security_headers"],
-    "cors": ["missing_security_headers"],
-    "tls": ["weak_tls"],
-    "ssl": ["weak_tls"],
-    # DNS / cloud
-    "dns": ["security_misconfiguration"],
-    "takeover": ["security_misconfiguration"],
-    "cloud": ["security_misconfiguration"],
-    # Tech fingerprint (informational)
-    "tech": ["security_misconfiguration"],
-}
-
-# Default template directories for selective scanning.
-# Focused on checks NOT already covered by other HARIS scanners:
-#   SKIP ssl (38)                — SSLyze + tls_checks cover TLS deeply
-#   SKIP http/technologies (866) — used in Phase 1 only
-# Users can add any of the above via template_dirs in scan config templates.
-DEFAULT_TEMPLATE_DIRS: list[str] = [
-    "http/cves",  # 3830 — known CVE checks (largest, most impactful)
-    "http/exposures",  # 683 — exposed files, backups, cloud storage, secrets
-    "http/exposed-panels",  # 1351 — admin panels, CMS logins, management UIs
-    "http/vulnerabilities",  # 934 — injection, XSS, SSRF beyond Wapiti
-    "http/default-logins",  # 270 — default credentials (unique to nuclei)
-    "http/takeovers",  # 74  — subdomain takeover detection
-    "http/misconfiguration",  # 920 — misconfigs, security headers, CORS, etc.
-    "dast",  # 249 — dynamic application security testing
-]
-
-# Template directory used for technology fingerprinting (Phase 1).
-TECH_FINGERPRINT_DIR = "http/technologies"
-
-# ---------------------------------------------------------------------------
-# Technology → Nuclei tag/workflow mapping
-# ---------------------------------------------------------------------------
-# Maps detected technology keywords to Nuclei tags and optional workflow files.
-# The scanner uses this to create a targeted Phase 2 template selection.
-TECH_TAG_MAP: dict[str, list[str]] = {
-    "wordpress": ["wordpress", "wp-plugin", "wp-theme"],
-    "drupal": ["drupal"],
-    "joomla": ["joomla"],
-    "magento": ["magento"],
-    "shopify": ["shopify"],
-    "apache": ["apache"],
-    "nginx": ["nginx"],
-    "iis": ["iis"],
-    "tomcat": ["tomcat", "apache-tomcat"],
-    "php": ["php"],
-    "asp.net": ["asp"],
-    "nodejs": ["nodejs"],
-    "express": ["express", "nodejs"],
-    "django": ["django", "python"],
-    "flask": ["flask", "python"],
-    "laravel": ["laravel", "php"],
-    "rails": ["rails", "ruby"],
-    "spring": ["spring", "java"],
-    "jenkins": ["jenkins"],
-    "gitlab": ["gitlab"],
-    "grafana": ["grafana"],
-    "jira": ["jira", "atlassian"],
-    "confluence": ["confluence", "atlassian"],
-    "elasticsearch": ["elasticsearch", "elastic"],
-    "kibana": ["kibana", "elastic"],
-    "docker": ["docker"],
-    "kubernetes": ["kubernetes", "k8s"],
-    "aws": ["aws", "amazon"],
-    "azure": ["azure"],
-    "gcp": ["gcp", "google"],
-    "cloudflare": ["cloudflare"],
-    "react": ["react"],
-    "nextjs": ["nextjs"],
-    "angular": ["angular"],
-    "vue": ["vue"],
-    "weblogic": ["weblogic", "oracle"],
-    "websphere": ["websphere", "ibm"],
-    "coldfusion": ["coldfusion", "adobe"],
-    "sap": ["sap"],
-    "citrix": ["citrix"],
-    "fortinet": ["fortinet"],
-    "sonicwall": ["sonicwall"],
-    "paloalto": ["paloalto"],
-    "vmware": ["vmware"],
-    "zimbra": ["zimbra"],
-    "moodle": ["moodle"],
-    "typo3": ["typo3"],
-    "ghost": ["ghost"],
-    "struts": ["struts", "apache-struts"],
-}
-
-# Map tech → workflow YAML file (relative to nuclei-templates root)
-TECH_WORKFLOW_MAP: dict[str, str] = {
-    "wordpress": "workflows/wordpress-workflow.yaml",
-    "drupal": "workflows/drupal-workflow.yaml",
-    "joomla": "workflows/joomla-workflow.yaml",
-    "magento": "workflows/magento-workflow.yaml",
-    "apache": "workflows/apache-workflow.yaml",
-    "tomcat": "workflows/apache-tomcat-workflow.yaml",
-    "jenkins": "workflows/jenkins-workflow.yaml",
-    "gitlab": "workflows/gitlab-workflow.yaml",
-    "grafana": "workflows/grafana-workflow.yaml",
-    "jira": "workflows/jira-workflow.yaml",
-    "confluence": "workflows/confluence-workflow.yaml",
-    "spring": "workflows/springboot-workflow.yaml",
-    "weblogic": "workflows/weblogic-workflow.yaml",
-    "zimbra": "workflows/zimbra-workflow.yaml",
-    "moodle": "workflows/moodle-workflow.yaml",
-}
-
-# Confidence levels keyed by Nuclei severity: higher severity => higher confidence.
+_NUCLEI_TAG_MAP = get_nuclei_tag_map()
+DEFAULT_TEMPLATE_DIRS = get_nuclei_default_template_dirs()
+TECH_FINGERPRINT_DIR = get_nuclei_tech_fingerprint_dir()
+TECH_TAG_MAP = get_nuclei_tech_tag_map()
+TECH_WORKFLOW_MAP = get_nuclei_tech_workflow_map()
+_CONFIDENCE_MAP_RAW = get_nuclei_confidence_map()
 _NUCLEI_CONFIDENCE_MAP: dict[str, Confidence] = {
-    "critical": Confidence.CONFIRMED,
-    "high": Confidence.CONFIRMED,
-    "medium": Confidence.FIRM,
-    "low": Confidence.FIRM,
-    "info": Confidence.TENTATIVE,
-    "unknown": Confidence.TENTATIVE,
+    k: getattr(Confidence, v) for k, v in _CONFIDENCE_MAP_RAW.items()
 }
 
 
@@ -471,9 +320,7 @@ class NucleiScanner(BaseScanner):
 
         return findings
 
-    # ------------------------------------------------------------------
     # Private helpers
-    # ------------------------------------------------------------------
 
     def _result_to_finding(self, result: dict[str, Any]) -> Finding | None:
         """Convert a single Nuclei result dict to a :class:`Finding`.
@@ -699,30 +546,7 @@ class NucleiScanner(BaseScanner):
 
         return template_dirs, extra_tags, workflows
 
-    # Generic Nuclei classification tags that are NOT technology names.
-    # These appear in info.tags and must be excluded from tech extraction.
-    _NUCLEI_META_TAGS: frozenset[str] = frozenset(
-        {
-            "tech",
-            "waf",
-            "misc",
-            "discovery",
-            "cms",
-            "detect",
-            "panel",
-            "exposure",
-            "osint",
-            "recon",
-            "token",
-            "cloud",
-            "network",
-            "dns",
-            "fuzz",
-            "headless",
-            "file",
-            "iot",
-        }
-    )
+    _NUCLEI_META_TAGS: frozenset[str] = get_nuclei_meta_tags()
 
     @staticmethod
     def _extract_technologies(findings: list[Finding]) -> list[str]:
@@ -946,58 +770,14 @@ class NucleiScanner(BaseScanner):
         Returns:
             A plain-text remediation recommendation string.
         """
-        remediation_map = {
-            "sql_injection": (
-                "Use parameterised queries or prepared statements.  Never "
-                "interpolate user-controlled data directly into SQL strings."
-            ),
-            "xss": (
-                "Apply context-sensitive output encoding and enforce a strict "
-                "Content-Security-Policy header."
-            ),
-            "command_injection": (
-                "Avoid passing user-supplied input to shell commands.  Use "
-                "safe APIs that do not invoke a shell interpreter."
-            ),
-            "ssrf": (
-                "Validate and allowlist server-side request destinations.  "
-                "Block access to internal network ranges from outbound requests."
-            ),
-            "outdated_component": (
-                "Update the affected component to the latest patched version.  "
-                "Subscribe to vendor security advisories."
-            ),
-            "default_credentials": (
-                "Change default usernames and passwords before deploying to "
-                "production.  Enforce strong credential policies."
-            ),
-            "exposed_panel": (
-                "Restrict access to administrative interfaces via IP allowlisting "
-                "or VPN.  Do not expose management panels to the public internet."
-            ),
-            "sensitive_data_exposure": (
-                "Remove or restrict access to the exposed resource.  Ensure "
-                "sensitive data is not stored in publicly accessible locations."
-            ),
-            "missing_security_headers": (
-                "Add the recommended HTTP security headers "
-                "(Strict-Transport-Security, Content-Security-Policy, "
-                "X-Content-Type-Options, X-Frame-Options)."
-            ),
-            "directory_listing": (
-                "Disable directory indexing in the web server configuration."
-            ),
-            "weak_tls": (
-                "Disable deprecated TLS/SSL protocol versions and weak cipher "
-                "suites.  Enable TLS 1.2 and TLS 1.3 only."
-            ),
-        }
+        remediation_map = get_nuclei_remediation_map()
 
         for tag in tags:
             if tag in remediation_map:
                 return remediation_map[tag]
 
-        return (
+        return remediation_map.get(
+            "_default",
             "Review the identified issue against the relevant security standard "
-            "and apply vendor-recommended hardening guidance."
+            "and apply vendor-recommended hardening guidance.",
         )

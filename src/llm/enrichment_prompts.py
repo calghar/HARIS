@@ -1,5 +1,3 @@
-"""Prompt builders for finding enrichment — delegates to Jinja2 templates."""
-
 from ..models import Finding, Target
 from ..models.enrichment import TriageContext
 from .template_loader import render_template

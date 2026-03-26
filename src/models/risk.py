@@ -1,5 +1,3 @@
-"""Business impact data model."""
-
 from pydantic import BaseModel, ConfigDict
 
 

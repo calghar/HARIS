@@ -6,36 +6,33 @@ from typing import Any
 
 from ..core.decorators import register_scanner
 from ..core.scanner import BaseScanner
+from ..data.scanner_config import get_wapiti_category_tags, get_wapiti_severity_map
 from ..models import Confidence, Finding, ScannerResult, Severity, Target
 
 logger = logging.getLogger(__name__)
 
-# Map Wapiti integer severity levels to our internal model.
-# Wapiti 3.x uses integers: 0=INFO, 1=LOW, 2=MEDIUM, 3=HIGH, 4=CRITICAL.
-_WAPITI_SEVERITY_MAP: dict[int, Severity] = {
-    4: Severity.CRITICAL,
-    3: Severity.HIGH,
-    2: Severity.MEDIUM,
-    1: Severity.LOW,
-    0: Severity.INFO,
-}
 
-# Map Wapiti vulnerability categories to our OWASP tag keywords
-_WAPITI_CATEGORY_TAGS: dict[str, list[str]] = {
-    "SQL Injection": ["sql_injection"],
-    "Blind SQL Injection": ["sql_injection"],
-    "Cross Site Scripting": ["xss"],
-    "CRLF Injection": ["crlf_injection"],
-    "Commands execution": ["command_injection"],
-    "File Handling": ["directory_traversal"],
-    "XXE": ["xxe"],
-    "SSRF": ["ssrf"],
-    "Open Redirect": ["open_redirect"],
-    "Content Security Policy Configuration": ["missing_security_headers"],
-    "HTTP Secure Headers": ["missing_security_headers"],
-    "HttpOnly Flag cookie": ["security_misconfiguration"],
-    "Secure Flag cookie": ["security_misconfiguration"],
-}
+def _build_severity_map() -> dict[int, Severity]:
+    raw = get_wapiti_severity_map()
+    return {k: Severity[v] for k, v in raw.items()}
+
+
+_severity_map: dict[int, Severity] | None = None
+_category_tags: dict[str, list[str]] | None = None
+
+
+def _get_severity_map() -> dict[int, Severity]:
+    global _severity_map
+    if _severity_map is None:
+        _severity_map = _build_severity_map()
+    return _severity_map
+
+
+def _get_category_tags() -> dict[str, list[str]]:
+    global _category_tags
+    if _category_tags is None:
+        _category_tags = get_wapiti_category_tags()
+    return _category_tags
 
 
 @register_scanner
@@ -132,10 +129,10 @@ class WapitiScanner(BaseScanner):
             if not isinstance(vulns, list):
                 continue
 
-            tags = _WAPITI_CATEGORY_TAGS.get(category_name, [])
+            tags = _get_category_tags().get(category_name, [])
 
             for vuln in vulns:
-                severity = _WAPITI_SEVERITY_MAP.get(
+                severity = _get_severity_map().get(
                     vuln.get("level", 0),
                     Severity.INFO,
                 )

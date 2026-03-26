@@ -60,9 +60,7 @@ _OVERLY_BROAD_TLDS: frozenset[str] = frozenset(
 )
 
 
-# ---------------------------------------------------------------------------
 # Internal helpers
-# ---------------------------------------------------------------------------
 
 
 def _parse_single_set_cookie(raw: str) -> dict[str, str] | None:
@@ -199,9 +197,7 @@ def _cookie_lifetime_seconds(attrs: dict[str, str]) -> int | None:
     return None  # session cookie
 
 
-# ---------------------------------------------------------------------------
 # Scanner
-# ---------------------------------------------------------------------------
 
 
 @register_check
@@ -280,9 +276,7 @@ class CookieSecurityScanner(BaseScanner):
         """Not used -- findings are created inline during scan()."""
         return []
 
-    # ------------------------------------------------------------------
     # Per-cookie analysis
-    # ------------------------------------------------------------------
 
     def _analyse_cookie(self, attrs: dict[str, str], target: Target) -> list[Finding]:
         """Run all sub-checks for a single cookie.

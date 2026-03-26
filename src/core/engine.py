@@ -1,8 +1,10 @@
 import logging
 import time
+from collections.abc import Callable as _Callable
 from datetime import UTC, datetime
 from typing import Any
 
+from ..data.scanner_config import get_nikto_tech_keywords
 from ..models import (
     CorrelatedFinding,
     Finding,
@@ -110,9 +112,7 @@ class ScanEngine:
         )
         return session
 
-    # ------------------------------------------------------------------
     # Internal helpers
-    # ------------------------------------------------------------------
 
     def _run_single_scanner(
         self,
@@ -208,49 +208,18 @@ class ScanEngine:
 
         Populates *context* with technologies, URLs, and ports detected
         by earlier scanners so downstream scanners can adapt.
+
+        Uses a dispatch dict to route extraction to per-scanner handlers,
+        replacing the previous if/elif chain.
         """
         for finding in result.findings:
             # Collect discovered URLs for crawl-aware scanners
             if finding.url and finding.url.startswith("http"):
                 context.add_urls([finding.url])
 
-            if scanner_name == "nmap":
-                # Extract service/product info from Nmap
-                raw = finding.raw_data or {}
-                port = raw.get("port", "")
-                product = raw.get("product", "")
-                service = raw.get("service", "")
-                version = raw.get("version", "")
-                if port:
-                    context.open_ports.append(str(port))
-                techs = [t for t in [product, service] if t]
-                if techs:
-                    context.add_technologies(techs)
-                if product and version:
-                    context.add_technologies([f"{product}/{version}"])
-
-            elif scanner_name == "nikto":
-                # Extract tech hints from Nikto messages
-                msg = (finding.description or "").lower()
-                _extract_nikto_tech(msg, context)
-
-            elif scanner_name == "wapiti":
-                # Gather crawled paths (HTTP(S) only)
-                if finding.url and finding.url.startswith("http"):
-                    context.add_urls([finding.url])
-
-            elif scanner_name in (
-                "header_checks",
-                "misc_checks",
-                "info_disclosure",
-            ):
-                # Server header tech detection
-                raw = finding.raw_data or {}
-                for hdr_name in ("server", "x-powered-by", "x-aspnet-version"):
-                    val = raw.get(hdr_name, "")
-                    if val:
-                        context.server_headers[hdr_name] = val
-                        context.add_technologies([val])
+        extractor = _CONTEXT_EXTRACTORS.get(scanner_name)
+        if extractor is not None:
+            extractor(result, context)
 
         logger.debug(
             "Context after %s: %d techs, %d urls, %d ports",
@@ -368,49 +337,8 @@ __all__ = [
     "Target",
 ]
 
-
-# ---------------------------------------------------------------------------
-# Module-level helpers
-# ---------------------------------------------------------------------------
-
-# Common technology keywords found in Nikto messages
-_NIKTO_TECH_KEYWORDS: list[tuple[str, str]] = [
-    ("apache", "apache"),
-    ("nginx", "nginx"),
-    ("iis", "iis"),
-    ("wordpress", "wordpress"),
-    ("php", "php"),
-    ("asp.net", "asp.net"),
-    ("tomcat", "tomcat"),
-    ("node.js", "nodejs"),
-    ("express", "express"),
-    ("django", "django"),
-    ("flask", "flask"),
-    ("laravel", "laravel"),
-    ("rails", "rails"),
-    ("spring", "spring"),
-    ("cloudflare", "cloudflare"),
-    ("openresty", "openresty"),
-    ("litespeed", "litespeed"),
-    ("envoy", "envoy"),
-    ("haproxy", "haproxy"),
-    ("varnish", "varnish"),
-    ("caddy", "caddy"),
-    ("grafana", "grafana"),
-    ("jenkins", "jenkins"),
-    ("gitlab", "gitlab"),
-    ("jira", "jira"),
-    ("confluence", "confluence"),
-    ("drupal", "drupal"),
-    ("joomla", "joomla"),
-    ("magento", "magento"),
-    ("shopify", "shopify"),
-    ("nextjs", "nextjs"),
-    ("next.js", "nextjs"),
-    ("react", "react"),
-    ("angular", "angular"),
-    ("vue", "vue"),
-]
+# Load Nikto tech keywords from config
+_NIKTO_TECH_KEYWORDS = get_nikto_tech_keywords()
 
 
 def _extract_nikto_tech(msg: str, context: ScanContext) -> None:
@@ -419,3 +347,50 @@ def _extract_nikto_tech(msg: str, context: ScanContext) -> None:
     for keyword, tech_name in _NIKTO_TECH_KEYWORDS:
         if keyword in msg_lower:
             context.add_technologies([tech_name])
+
+
+def _extract_nmap(result: ScannerResult, context: ScanContext) -> None:
+    """Extract ports, services and product info from Nmap findings."""
+    for finding in result.findings:
+        raw = finding.raw_data or {}
+        port = raw.get("port", "")
+        product = raw.get("product", "")
+        service = raw.get("service", "")
+        version = raw.get("version", "")
+        if port:
+            context.open_ports.append(str(port))
+        techs = [t for t in [product, service] if t]
+        if techs:
+            context.add_technologies(techs)
+        if product and version:
+            context.add_technologies([f"{product}/{version}"])
+
+
+def _extract_nikto_context(result: ScannerResult, context: ScanContext) -> None:
+    """Extract technology hints from Nikto finding descriptions."""
+    for finding in result.findings:
+        msg = (finding.description or "").lower()
+        _extract_nikto_tech(msg, context)
+
+
+def _extract_header_checks(result: ScannerResult, context: ScanContext) -> None:
+    """Extract server header technologies from header/misc/info checks."""
+    for finding in result.findings:
+        raw = finding.raw_data or {}
+        for hdr_name in ("server", "x-powered-by", "x-aspnet-version"):
+            val = raw.get(hdr_name, "")
+            if val:
+                context.server_headers[hdr_name] = val
+                context.add_technologies([val])
+
+
+# Dispatch dict mapping scanner name → context extractor function.
+# Scanners not in this dict rely only on the generic URL collection
+# performed in _extract_context before dispatching.
+_CONTEXT_EXTRACTORS: dict[str, _Callable[[ScannerResult, ScanContext], None]] = {
+    "nmap": _extract_nmap,
+    "nikto": _extract_nikto_context,
+    "header_checks": _extract_header_checks,
+    "misc_checks": _extract_header_checks,
+    "info_disclosure": _extract_header_checks,
+}

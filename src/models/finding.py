@@ -46,6 +46,19 @@ class Finding(BaseModel):
     tags: list[str] = Field(default_factory=list)
     raw_data: dict[str, Any] = Field(default_factory=dict)
 
+    def __hash__(self) -> int:
+        return hash((self.scanner, self.title, self.url, self.parameter))
+
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, Finding):
+            return NotImplemented
+        return (
+            self.scanner == other.scanner
+            and self.title == other.title
+            and self.url == other.url
+            and self.parameter == other.parameter
+        )
+
     def to_dict(self) -> dict[str, Any]:
         """Serialise to a plain dict (JSON-friendly)."""
         return {

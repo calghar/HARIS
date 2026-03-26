@@ -68,6 +68,15 @@ class AuthConfig(BaseModel):
             headers["Cookie"] = f"{self.cookie_name}={self.cookie_value}"
         return headers
 
+    def __repr__(self) -> str:
+        """Redact secrets to prevent credential leakage in logs."""
+        return (
+            f"AuthConfig(method={self.method!r}, "
+            f"header_name={self.header_name!r}, "
+            f"login_url={self.login_url!r}, "
+            f"credentials=<REDACTED>)"
+        )
+
 
 class Target(BaseModel):
     """Represents the website to be audited.

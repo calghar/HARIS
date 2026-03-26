@@ -1,13 +1,11 @@
-"""Full-text search over findings for selective context retrieval.
-
-Uses SQLite FTS5 (built into Python's sqlite3) for BM25-ranked
-retrieval. No external dependencies required.
-"""
-
+import logging
 import re
 import sqlite3
+from types import TracebackType
 
 from ..models import Finding
+
+logger = logging.getLogger(__name__)
 
 # Characters that have special meaning in FTS5 query syntax
 _FTS5_SPECIAL = re.compile(r'[*"(){}:\-^~]')
@@ -16,10 +14,11 @@ _FTS5_SPECIAL = re.compile(r'[*"(){}:\-^~]')
 class FindingRetriever:
     """BM25-ranked full-text search over scan findings.
 
-    Usage::
+    Supports the context-manager protocol so resources are cleaned up
+    automatically::
 
-        retriever = FindingRetriever(session.all_findings)
-        relevant = retriever.retrieve("authentication bypass", top_k=10)
+        with FindingRetriever(findings) as retriever:
+            relevant = retriever.retrieve("authentication bypass", top_k=10)
     """
 
     def __init__(self, findings: list[Finding]) -> None:
@@ -27,6 +26,17 @@ class FindingRetriever:
         self._conn = sqlite3.connect(":memory:")
         self._conn.row_factory = sqlite3.Row
         self._build_index(findings)
+
+    def __enter__(self) -> "FindingRetriever":
+        return self
+
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: TracebackType | None,
+    ) -> None:
+        self.close()
 
     def _build_index(self, findings: list[Finding]) -> None:
         self._conn.execute(

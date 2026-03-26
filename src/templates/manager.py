@@ -45,10 +45,6 @@ class TemplateManager:
             sources=config.sources,
         )
 
-    # ------------------------------------------------------------------
-    # Directory management
-    # ------------------------------------------------------------------
-
     def init_directory(self) -> None:
         """Create the template directory tree if it does not exist."""
         self.base_dir.mkdir(parents=True, exist_ok=True)
@@ -58,10 +54,6 @@ class TemplateManager:
                 exist_ok=True,
             )
         logger.info("Template directory initialised at %s", self.base_dir)
-
-    # ------------------------------------------------------------------
-    # Source management
-    # ------------------------------------------------------------------
 
     def add_source(self, source: TemplateSource) -> None:
         """Add a template source (idempotent by name)."""
@@ -76,10 +68,6 @@ class TemplateManager:
         before = len(self.sources)
         self.sources = [s for s in self.sources if s.name != source_name]
         return len(self.sources) < before
-
-    # ------------------------------------------------------------------
-    # Update
-    # ------------------------------------------------------------------
 
     def update_templates(
         self,
@@ -140,10 +128,6 @@ class TemplateManager:
         self._save_metadata(metadata)
         return results
 
-    # ------------------------------------------------------------------
-    # Scanner option injection
-    # ------------------------------------------------------------------
-
     def get_scanner_options(self, scanner_name: str) -> dict[str, Any]:
         """Return template-derived options to merge into a scanner's config.
 
@@ -162,10 +146,6 @@ class TemplateManager:
 
         return adapter.get_scanner_options(self.base_dir, scanner_sources)
 
-    # ------------------------------------------------------------------
-    # Querying
-    # ------------------------------------------------------------------
-
     def list_sources(self) -> list[TemplateMetadata]:
         """Return metadata for all tracked sources."""
         metadata = self._load_metadata()
@@ -175,10 +155,6 @@ class TemplateManager:
         """Look up metadata for a single source."""
         metadata = self._load_metadata()
         return metadata.get(source_name)
-
-    # ------------------------------------------------------------------
-    # Metadata persistence
-    # ------------------------------------------------------------------
 
     def _load_metadata(self) -> dict[str, TemplateMetadata]:
         if not self._metadata_path.exists():

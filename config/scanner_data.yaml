@@ -1,0 +1,43 @@
+# Scanner Data Configuration
+# Cross-scanner shared data used by the scan engine.
+# Per-scanner configs are in config/scanners/{scanner_name}.yaml.
+
+nikto:
+  # Technology keywords to extract from Nikto messages
+  # Format: [keyword_in_message, normalized_tech_name]
+  tech_keywords:
+    - [apache, apache]
+    - [nginx, nginx]
+    - [iis, iis]
+    - [wordpress, wordpress]
+    - [php, php]
+    - [asp.net, asp.net]
+    - [tomcat, tomcat]
+    - [node.js, nodejs]
+    - [express, express]
+    - [django, django]
+    - [flask, flask]
+    - [laravel, laravel]
+    - [rails, rails]
+    - [spring, spring]
+    - [cloudflare, cloudflare]
+    - [openresty, openresty]
+    - [litespeed, litespeed]
+    - [envoy, envoy]
+    - [haproxy, haproxy]
+    - [varnish, varnish]
+    - [caddy, caddy]
+    - [grafana, grafana]
+    - [jenkins, jenkins]
+    - [gitlab, gitlab]
+    - [jira, jira]
+    - [confluence, confluence]
+    - [drupal, drupal]
+    - [joomla, joomla]
+    - [magento, magento]
+    - [shopify, shopify]
+    - [nextjs, nextjs]
+    - [next.js, nextjs]
+    - [react, react]
+    - [angular, angular]
+    - [vue, vue]

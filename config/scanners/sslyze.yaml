@@ -1,0 +1,39 @@
+# SSLyze Scanner Configuration
+# Extracted from src/scanners/sslyze_scanner.py
+
+# Deprecated TLS/SSL protocols to flag
+# key: SSLyze result key, proto_name: display name, severity: internal severity
+deprecated_protocols:
+  ssl_2_0_cipher_suites:
+    proto_name: SSLv2
+    severity: CRITICAL
+  ssl_3_0_cipher_suites:
+    proto_name: SSLv3
+    severity: HIGH
+  tls_1_0_cipher_suites:
+    proto_name: "TLS 1.0"
+    severity: MEDIUM
+  tls_1_1_cipher_suites:
+    proto_name: "TLS 1.1"
+    severity: MEDIUM
+
+# Known TLS vulnerability checks
+vulnerability_checks:
+  heartbleed:
+    key: heartbleed
+    result_field: is_vulnerable_to_heartbleed
+    title: "Heartbleed vulnerability (CVE-2014-0160)"
+    severity: CRITICAL
+  openssl_ccs_injection:
+    key: openssl_ccs_injection
+    result_field: is_vulnerable_to_ccs_injection
+    title: "OpenSSL CCS Injection (CVE-2014-0224)"
+    severity: HIGH
+  robot:
+    key: robot
+    result_field: robot_result
+    title: "ROBOT vulnerability"
+    severity: HIGH
+    vulnerable_values:
+      - VULNERABLE_WEAK_ORACLE
+      - VULNERABLE_STRONG_ORACLE

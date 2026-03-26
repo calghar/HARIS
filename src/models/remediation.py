@@ -1,5 +1,3 @@
-"""Remediation step data model."""
-
 from pydantic import BaseModel, Field
 
 from .enums import Effort, Severity

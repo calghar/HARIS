@@ -1,5 +1,3 @@
-"""Correlated finding data model."""
-
 from pydantic import BaseModel, Field
 
 from .finding import Finding

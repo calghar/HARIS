@@ -1,6 +1,5 @@
-"""LLM backend abstraction layer with pluggable providers."""
-
 import abc
+import collections
 import functools
 import hashlib
 import importlib.util
@@ -30,6 +29,8 @@ def _is_retryable(exc: Exception) -> bool:
 
 
 def _retry_on_transient(func: Callable[..., Any]) -> Callable[..., Any]:
+    """Retry on transient HTTP errors (429, 5xx) with exponential backoff."""
+
     @functools.wraps(func)
     def wrapper(*args: Any, **kwargs: Any) -> Any:
         last_exc: Exception | None = None
@@ -55,10 +56,17 @@ def _retry_on_transient(func: Callable[..., Any]) -> Callable[..., Any]:
 
 
 class ResponseCache:
-    """Simple in-memory LLM response cache with TTL eviction."""
+    """LRU in-memory LLM response cache with TTL eviction.
+
+    Uses an :class:`collections.OrderedDict` so look-ups promote
+    entries to the end (most-recently-used), and eviction always
+    removes the *least*-recently-used entry when the cache is full.
+    """
 
     def __init__(self, max_entries: int = 200, ttl_seconds: float = 3600) -> None:
-        self._cache: dict[str, tuple[float, LLMResponse]] = {}
+        self._cache: collections.OrderedDict[str, tuple[float, LLMResponse]] = (
+            collections.OrderedDict()
+        )
         self._max = max_entries
         self._ttl = ttl_seconds
 
@@ -86,14 +94,23 @@ class ResponseCache:
         if time.monotonic() - ts > self._ttl:
             del self._cache[key]
             return None
+        # Promote to most-recently-used
+        self._cache.move_to_end(key)
         return response
 
     def put(self, key: str, response: LLMResponse) -> None:
-        # Evict oldest if at capacity
+        if key in self._cache:
+            self._cache.move_to_end(key)
+            self._cache[key] = (time.monotonic(), response)
+            return
+        # Evict LRU entry if at capacity
         if len(self._cache) >= self._max:
-            oldest = min(self._cache, key=lambda k: self._cache[k][0])
-            del self._cache[oldest]
+            self._cache.popitem(last=False)
         self._cache[key] = (time.monotonic(), response)
+
+    def clear(self) -> None:
+        """Drop all cached responses."""
+        self._cache.clear()
 
 
 # Module-level shared cache

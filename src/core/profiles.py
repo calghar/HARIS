@@ -1,9 +1,5 @@
 from ..models.profiles import ScanProfile
 
-# ------------------------------------------------------------------
-# Built-in profiles
-# ------------------------------------------------------------------
-
 PROFILES: dict[str, ScanProfile] = {
     "pre-launch": ScanProfile(
         name="pre-launch",
