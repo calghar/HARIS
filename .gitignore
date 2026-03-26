@@ -42,7 +42,7 @@ reports/
 /templates/
 
 # Database
-data/
+/data/
 
 # Temporary files (analysis docs, site lists, etc.)
 tmp/
