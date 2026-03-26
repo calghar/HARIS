@@ -774,10 +774,12 @@ class NucleiScanner(BaseScanner):
 
         for tag in tags:
             if tag in remediation_map:
-                return remediation_map[tag]
+                return str(remediation_map[tag])
 
-        return remediation_map.get(
-            "_default",
-            "Review the identified issue against the relevant security standard "
-            "and apply vendor-recommended hardening guidance.",
+        return str(
+            remediation_map.get(
+                "_default",
+                "Review the identified issue against the relevant security standard "
+                "and apply vendor-recommended hardening guidance.",
+            )
         )

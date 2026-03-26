@@ -38,6 +38,9 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          # Delete any existing draft release for this tag (from previous failed attempts)
+          gh release delete "$GITHUB_REF_NAME" --yes 2>/dev/null || true
+
           gh release create "$GITHUB_REF_NAME" \
             --title "$GITHUB_REF_NAME" \
             --notes-file "${{ steps.notes.outputs.notes_file }}"
