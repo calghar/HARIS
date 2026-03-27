@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block title %}Verify Email — HARIS{% endblock %}
+
+{% block content %}
+<div style="display:flex; justify-content:center; align-items:flex-start; min-height:60vh; padding-top:5rem;">
+  <div style="width:100%; max-width:420px; text-align:center;">
+
+    {% if success %}
+    <div class="card" style="padding:2.5rem 2rem;">
+      <div style="width:56px; height:56px; border-radius:50%; background:rgba(34,197,94,.12); border:2px solid var(--low); display:flex; align-items:center; justify-content:center; margin:0 auto 1.25rem; font-size:1.75rem; color:var(--low);">
+        &#10003;
+      </div>
+      <h1 style="font-size:1.4rem; margin-bottom:.5rem;">Email Verified</h1>
+      <p class="text-muted text-sm" style="margin-bottom:1.5rem;">
+        Your email address has been confirmed. Your account is now active.
+      </p>
+      <a href="/auth/login" class="btn btn-primary" style="display:inline-flex; justify-content:center;">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" style="width:15px;height:15px;">
+          <path d="M10 8H2M7 5l3 3-3 3"/>
+          <path d="M6 3H13a1 1 0 011 1v8a1 1 0 01-1 1H6"/>
+        </svg>
+        Sign In
+      </a>
+    </div>
+    {% else %}
+    <div class="card" style="padding:2.5rem 2rem;">
+      <div style="width:56px; height:56px; border-radius:50%; background:rgba(244,63,94,.1); border:2px solid rgba(244,63,94,.4); display:flex; align-items:center; justify-content:center; margin:0 auto 1.25rem; font-size:1.75rem; color:var(--critical);">
+        &#33;
+      </div>
+      <h1 style="font-size:1.4rem; margin-bottom:.5rem;">Verification Failed</h1>
+      {% if error %}
+      <p style="font-size:.875rem; color:var(--critical); margin-bottom:1.25rem;">{{ error }}</p>
+      {% else %}
+      <p class="text-muted text-sm" style="margin-bottom:1.25rem;">
+        This verification link is invalid or has expired.
+      </p>
+      {% endif %}
+
+      <p class="text-muted text-sm" style="margin-bottom:1rem;">
+        Need a new verification email?
+      </p>
+      <a href="/auth/login" class="btn btn-secondary" style="display:inline-flex; justify-content:center;">
+        Back to Sign In
+      </a>
+    </div>
+    {% endif %}
+
+    <div style="margin-top:1.25rem; font-size:.8rem; color:var(--fg-muted);">
+      HARIS Security Audit Framework
+    </div>
+
+  </div>
+</div>
+{% endblock %}

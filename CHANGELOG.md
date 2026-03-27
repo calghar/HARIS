@@ -1,5 +1,31 @@
 # Changelog
 <!--markdownlint-disable MD024-->
+## 0.6.0 — 2026-03-27
+
+### Added
+
+- **Authentication system** — local email/password registration with bcrypt hashing, session management, and OIDC (OpenID Connect) provider support for SSO
+- `src/auth/` module with `AuthService`, `OIDCClient`, email sender, security headers middleware, and auth router
+- Database schema V6 — `users`, `user_sessions`, `remember_tokens`, `email_verification_tokens`, `audit_log` tables
+- Login, registration, and account management pages in the web dashboard
+- Admin bootstrapping from `HARIS_ADMIN_EMAIL` / `HARIS_ADMIN_PASSWORD` environment variables
+- Audit logging for authentication events (login, logout, registration, password changes)
+- Security headers middleware (CSP, HSTS, X-Content-Type-Options, X-Frame-Options)
+- `Makefile` for common development tasks
+
+### Changed
+
+- Web dashboard requires authentication — all scan and report routes are now protected
+- `base.html` template updated with user menu, auth navigation, and theme toggle
+- Extracted shared JavaScript into `main.js` and `theme-init.js`
+- Updated `style.css` with auth form styles and layout improvements
+- Added `bcrypt` and `authlib` (optional, for OIDC) to project dependencies
+
+### Fixed
+
+- Removed dead code in `cookie_checks.py` and `misc_checks.py`
+- Cleaned up unused imports in `context.py` and `adapters.py`
+
 ## 0.5.1 — 2026-03-26
 
 ### Changed

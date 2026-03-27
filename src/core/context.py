@@ -60,7 +60,6 @@ def temp_workspace(prefix: str = "HARIS_") -> Generator[Path]:
         path = Path(tmpdir)
         logger.debug("Temporary workspace: %s", path)
         yield path
-    # directory and contents removed by TemporaryDirectory.__exit__
 
 
 @contextmanager

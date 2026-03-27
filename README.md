@@ -49,6 +49,24 @@ uv pip install -e ".[all]"
 
 External tools (Nmap, Nikto, Nuclei, SSLyze, Wapiti) need separate installation — invoked as CLI commands. For LLM features, set `ANTHROPIC_API_KEY` or `OPENAI_API_KEY`.
 
+## Authentication
+
+The web dashboard requires login. On first start, an admin account is bootstrapped from environment variables:
+
+```bash
+HARIS_ADMIN_EMAIL=admin@example.com
+HARIS_ADMIN_PASSWORD=changeme123
+HARIS_SECRET_KEY=<random-32-char-string>   # generate: python -c "import secrets; print(secrets.token_hex(32))"
+```
+
+If those variables are not set, visiting `/auth/setup` creates the first admin account interactively.
+
+**Self-registration** is domain-restricted: only emails matching `auth.allowed_email_domains` in `config/default_config.yaml` can register. New accounts require email verification (or manual admin activation if SMTP is not configured).
+
+**Roles**: `admin` (full access including user management, settings, template deletion) and `user` (scan, view, Q&A).
+
+**OIDC / KeyCloak**: set `auth.oidc.enabled: true` and configure `issuer`, `client_id`, `HARIS_OIDC_CLIENT_SECRET` — see [`docs/authentication.md`](docs/authentication.md).
+
 ## Usage
 
 ```bash
@@ -57,11 +75,12 @@ python scripts/run_scan.py --url https://example.com --profile quick --yes
 python scripts/run_scan.py --list-profiles
 
 # Web dashboard
-python scripts/run_scan.py --web   # http://localhost:8000
+python scripts/run_scan.py --web   # http://localhost:8000 — login required
 
 # Docker
-docker compose up
+docker compose up                  # web UI on port 8000
 docker compose run --rm cli --url https://example.com --profile quick --yes
+make reload                        # rebuild + restart + stream logs after code changes
 
 # LLM analysis (after a scan completes)
 python scripts/run_scan.py llm ask --scan-id <id> --question "Top 3 risks for an exec"
@@ -92,12 +111,18 @@ Copy `.env.example` to `.env`. See `config/default_config.yaml` for all options.
 
 | Variable | Purpose |
 | -------- | ------- |
-| `ANTHROPIC_API_KEY` | Anthropic LLM backend |
-| `OPENAI_API_KEY` | OpenAI LLM backend |
-| `OLLAMA_BASE_URL` | Ollama server (default: `http://localhost:11434`) |
+| `HARIS_ADMIN_EMAIL` | Bootstrap admin email (used on first start if no users exist) |
+| `HARIS_ADMIN_PASSWORD` | Bootstrap admin password |
+| `HARIS_SECRET_KEY` | Session signing secret — generate a strong random key for production |
 | `HARIS_TARGET_URL` | Default scan target |
 | `HARIS_PROFILE` | Default scan profile |
 | `HARIS_AUTH_HEADER` | Auth header for target |
+| `ANTHROPIC_API_KEY` | Anthropic LLM backend |
+| `OPENAI_API_KEY` | OpenAI LLM backend |
+| `OLLAMA_BASE_URL` | Ollama server (default: `http://localhost:11434`) |
+| `HARIS_OIDC_CLIENT_SECRET` | OIDC client secret (KeyCloak / any OIDC provider) |
+| `HARIS_SMTP_USERNAME` | SMTP username for email verification |
+| `HARIS_SMTP_PASSWORD` | SMTP password |
 
 ## Extending
 
@@ -109,12 +134,14 @@ See [`docs/`](docs/) for full developer guides.
 - **LLM backend**: subclass `BaseLLMBackend`, implement `complete()`
 - **Architecture & templates**: [`docs/architecture.md`](docs/architecture.md)
 - **LLM integration**: [`docs/llm_integration.md`](docs/llm_integration.md)
+- **Authentication & users**: [`docs/authentication.md`](docs/authentication.md)
 
 ## Limitations
 
 - Black-box only — no source code analysis.
-- Basic auth (cookie/header); complex flows (OAuth, MFA) need manual session setup.
+- Target auth: cookie/header injection only; complex flows (OAuth, MFA, OTP) need manual pre-auth.
 - LLM features require an API key and incur costs — entirely optional.
+- Email verification requires SMTP config; without it, admins activate accounts manually.
 - Validate findings with a security professional before acting on them.
 - External scanner results depend on those tools being installed and up to date.
 

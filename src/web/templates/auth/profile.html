@@ -1,0 +1,208 @@
+{% extends "base.html" %}
+{% block title %}Profile — HARIS{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>Profile</h1>
+    <p class="text-muted text-sm">Manage your account and active sessions</p>
+  </div>
+</div>
+
+{% if error %}
+<div style="background:rgba(244,63,94,.1); border:1px solid rgba(244,63,94,.3); border-radius:var(--radius); padding:.75rem 1rem; margin-bottom:1rem; font-size:.875rem; color:var(--critical);">
+  {{ error }}
+</div>
+{% endif %}
+
+{% if success %}
+<div style="background:rgba(34,197,94,.1); border:1px solid rgba(34,197,94,.3); border-radius:var(--radius); padding:.75rem 1rem; margin-bottom:1rem; font-size:.875rem; color:var(--low);">
+  {{ success }}
+</div>
+{% endif %}
+
+<div style="display:grid; grid-template-columns:1fr 1fr; gap:1.5rem; align-items:start;">
+
+  <!-- Account Details -->
+  <section>
+    <div class="section-title">Account Details</div>
+
+    <div class="card" style="padding:1.5rem;">
+      <form method="post" action="/auth/profile">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+
+        <div class="form-group">
+          <label>Email</label>
+          <input type="text" value="{{ current_user.email }}" disabled
+                 style="opacity:.6; cursor:not-allowed;">
+        </div>
+
+        <div class="form-group">
+          <label for="display_name">Display name</label>
+          <input type="text" id="display_name" name="display_name"
+                 value="{{ current_user.display_name or '' }}"
+                 placeholder="Your name">
+        </div>
+
+        <div style="display:flex; gap:.75rem; align-items:center; margin-bottom:1.25rem;">
+          <div>
+            <div class="text-muted text-sm" style="margin-bottom:.25rem;">Role</div>
+            {% if current_user.role == 'admin' %}
+            <span class="badge" style="background:rgba(129,140,248,.15); color:var(--accent); border:1px solid rgba(129,140,248,.25);">admin</span>
+            {% else %}
+            <span class="badge" style="background:var(--bg-input); color:var(--fg-muted); border:1px solid var(--border);">user</span>
+            {% endif %}
+          </div>
+          <div>
+            <div class="text-muted text-sm" style="margin-bottom:.25rem;">Provider</div>
+            {% if current_user.auth_provider == 'oidc' %}
+            <span class="badge" style="background:rgba(6,182,212,.1); color:var(--info); border:1px solid rgba(6,182,212,.25);">oidc</span>
+            {% else %}
+            <span class="badge" style="background:var(--bg-input); color:var(--fg-muted); border:1px solid var(--border);">local</span>
+            {% endif %}
+          </div>
+        </div>
+
+        {% if current_user.auth_provider == 'local' %}
+        <hr style="border:none; border-top:1px solid var(--border); margin:1.25rem 0;">
+
+        <h2 style="font-size:.875rem; font-weight:600; margin-bottom:1rem; color:var(--fg-muted); text-transform:uppercase; letter-spacing:.04em;">Change Password</h2>
+
+        <div class="form-group">
+          <label for="current_password">Current password</label>
+          <input type="password" id="current_password" name="current_password" autocomplete="current-password">
+        </div>
+
+        <div class="form-group">
+          <label for="new_password">New password</label>
+          <input type="password" id="new_password" name="new_password" autocomplete="new-password"
+                 placeholder="Minimum 12 characters">
+          <div id="pw-length-msg" style="font-size:.75rem; margin-top:.3rem; color:var(--fg-muted); display:none;">
+            Password must be at least 12 characters.
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="confirm_new_password">Confirm new password</label>
+          <input type="password" id="confirm_new_password" name="confirm_new_password" autocomplete="new-password">
+          <div id="pw-match-msg" style="font-size:.75rem; margin-top:.3rem; color:var(--critical); display:none;">
+            Passwords do not match.
+          </div>
+        </div>
+        {% endif %}
+
+        <button type="submit" id="profile-submit" class="btn btn-primary">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" style="width:14px;height:14px;">
+            <path d="M2.5 13.5l11-11M10 2.5h3.5V6"/>
+          </svg>
+          Save Changes
+        </button>
+      </form>
+    </div>
+  </section>
+
+  <!-- Active Sessions -->
+  <section>
+    <div class="section-title">Active Sessions</div>
+
+    <div class="card" style="padding:0; overflow:hidden;">
+      <table>
+        <thead>
+          <tr>
+            <th>Session</th>
+            <th>Last Seen</th>
+            <th style="width:80px;"></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for session in sessions %}
+          <tr id="session-row-{{ session.token_hash }}">
+            <td>
+              <div style="font-size:.78rem; font-weight:500;">
+                {{ session.ip_address or '—' }}
+                {% if session.is_current %}
+                <span class="badge" style="background:rgba(34,197,94,.1); color:var(--low); border:1px solid rgba(34,197,94,.25); margin-left:.35rem;">This session</span>
+                {% endif %}
+              </div>
+              <div class="text-muted" style="font-size:.72rem; margin-top:.15rem; word-break:break-all;">
+                {{ (session.user_agent or 'Unknown')[:60] }}{% if session.user_agent and session.user_agent|length > 60 %}&hellip;{% endif %}
+              </div>
+              <div class="text-muted" style="font-size:.7rem; margin-top:.1rem;">
+                Created: {{ session.created_at[:16].replace('T', ' ') if session.created_at else '—' }}
+                &middot; Expires: {{ session.expires_at[:10] if session.expires_at else '—' }}
+              </div>
+            </td>
+            <td class="text-muted" style="font-size:.78rem; white-space:nowrap; vertical-align:top; padding-top:.85rem;">
+              {{ session.last_seen_at[:16].replace('T', ' ') if session.last_seen_at else '—' }}
+            </td>
+            <td style="vertical-align:top; padding-top:.7rem;">
+              {% if not session.is_current %}
+              <button class="btn btn-danger btn-sm"
+                      onclick="revokeSession('{{ session.token_hash }}')">
+                Revoke
+              </button>
+              {% endif %}
+            </td>
+          </tr>
+          {% else %}
+          <tr>
+            <td colspan="3" style="text-align:center; color:var(--fg-muted); padding:2rem;">
+              No active sessions.
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  var csrfToken = {{ csrf_token | tojson }};
+
+  /* Password validation on profile form */
+  var newPwInput = document.getElementById('new_password');
+  var confirmNewPwInput = document.getElementById('confirm_new_password');
+  var matchMsg = document.getElementById('pw-match-msg');
+  var lengthMsg = document.getElementById('pw-length-msg');
+  var profileSubmit = document.getElementById('profile-submit');
+
+  function validatePw() {
+    if (!newPwInput) return;
+    var pw = newPwInput.value;
+    var cpw = confirmNewPwInput ? confirmNewPwInput.value : '';
+    var tooShort = pw.length > 0 && pw.length < 12;
+    var mismatch = cpw.length > 0 && pw !== cpw;
+
+    if (lengthMsg) lengthMsg.style.display = tooShort ? 'block' : 'none';
+    if (matchMsg) matchMsg.style.display = mismatch ? 'block' : 'none';
+    if (profileSubmit) profileSubmit.disabled = tooShort || mismatch;
+
+    newPwInput.style.borderColor = tooShort ? 'var(--critical)' : '';
+    if (confirmNewPwInput) confirmNewPwInput.style.borderColor = mismatch ? 'var(--critical)' : '';
+  }
+
+  if (newPwInput) newPwInput.addEventListener('input', validatePw);
+  if (confirmNewPwInput) confirmNewPwInput.addEventListener('input', validatePw);
+
+  /* Session revoke */
+  function revokeSession(tokenHash) {
+    if (!confirm('Revoke this session? The device will be signed out.')) return;
+    fetch('/auth/profile/sessions/' + encodeURIComponent(tokenHash), {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: 'csrf_token=' + encodeURIComponent(csrfToken)
+    }).then(function(r) {
+      if (r.ok) {
+        var row = document.getElementById('session-row-' + tokenHash);
+        if (row) row.remove();
+      } else {
+        r.json().then(function(d) { alert(d.detail || 'Revoke failed.'); });
+      }
+    }).catch(function() { alert('Request failed.'); });
+  }
+</script>
+{% endblock %}

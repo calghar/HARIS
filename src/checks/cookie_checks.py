@@ -60,9 +60,6 @@ _OVERLY_BROAD_TLDS: frozenset[str] = frozenset(
 )
 
 
-# Internal helpers
-
-
 def _parse_single_set_cookie(raw: str) -> dict[str, str] | None:
     """Parse a single raw ``Set-Cookie`` header into an attribute dict.
 
@@ -195,9 +192,6 @@ def _cookie_lifetime_seconds(attrs: dict[str, str]) -> int | None:
             logger.debug("Could not parse Expires: %r", expires_str)
 
     return None  # session cookie
-
-
-# Scanner
 
 
 @register_check
