@@ -125,9 +125,6 @@ class NucleiTemplateAdapter(BaseScannerTemplateAdapter):
         return {"templates": paths} if paths else {}
 
 
-# Nikto
-
-
 class NiktoTemplateAdapter(BaseScannerTemplateAdapter):
     """Manages nikto databases by updating the local nikto installation."""
 
@@ -219,9 +216,6 @@ class NiktoTemplateAdapter(BaseScannerTemplateAdapter):
         return {}
 
 
-# Nmap
-
-
 class NmapTemplateAdapter(BaseScannerTemplateAdapter):
     """Manages NSE (Nmap Scripting Engine) scripts."""
 
@@ -285,9 +279,6 @@ class NmapTemplateAdapter(BaseScannerTemplateAdapter):
         }
 
 
-# Wapiti
-
-
 class WapitiTemplateAdapter(BaseScannerTemplateAdapter):
     """Manages wapiti modules and custom payloads."""
 
@@ -335,8 +326,6 @@ class WapitiTemplateAdapter(BaseScannerTemplateAdapter):
         """Wapiti currently has limited external template support."""
         return {}
 
-
-# Registry
 
 ADAPTER_REGISTRY: dict[str, type[BaseScannerTemplateAdapter]] = {
     "nuclei": NucleiTemplateAdapter,

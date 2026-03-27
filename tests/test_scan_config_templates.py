@@ -1,14 +1,6 @@
-"""Tests for ScanConfigTemplate CRUD operations in ScanStore."""
-
-from __future__ import annotations
-
 from src.db.store import ScanStore
 from src.models import RiskPosture, ScanSession, Target
 from src.models.scan_config_template import ScanConfigTemplate
-
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
 
 
 def _make_template(
@@ -56,11 +48,6 @@ def _make_session(
         risk_posture=RiskPosture.MODERATE,
         template_id=template_id,
     )
-
-
-# ---------------------------------------------------------------------------
-# Tests
-# ---------------------------------------------------------------------------
 
 
 class TestSaveAndLoadTemplate:
@@ -441,7 +428,7 @@ class TestSchemaV4Migration:
                 "SELECT version FROM schema_version LIMIT 1"
             ).fetchone()["version"]
 
-        assert version == 5
+        assert version == 6
 
     def test_scan_config_templates_schema_has_expected_columns(self, tmp_path):
         store = ScanStore(tmp_path / "test.db")

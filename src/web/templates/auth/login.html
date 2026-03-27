@@ -1,0 +1,100 @@
+{% extends "base.html" %}
+{% block title %}Sign In — HARIS{% endblock %}
+
+{% block content %}
+<div style="display:flex; justify-content:center; align-items:flex-start; min-height:60vh; padding-top:4rem;">
+  <div style="width:100%; max-width:420px;">
+
+    <div style="text-align:center; margin-bottom:2rem;">
+      <h1 style="font-size:1.6rem; margin-bottom:.3rem;">Sign In</h1>
+      <p class="text-muted text-sm">HARIS Security Audit Framework</p>
+    </div>
+
+    {% if error %}
+    <div style="background:rgba(244,63,94,.1); border:1px solid rgba(244,63,94,.3); border-radius:var(--radius); padding:.75rem 1rem; margin-bottom:1rem; font-size:.875rem; color:var(--critical);">
+      {{ error }}
+    </div>
+    {% endif %}
+
+    {% if success %}
+    <div style="background:rgba(34,197,94,.1); border:1px solid rgba(34,197,94,.3); border-radius:var(--radius); padding:.75rem 1rem; margin-bottom:1rem; font-size:.875rem; color:var(--low);">
+      {{ success }}
+    </div>
+    {% endif %}
+
+    <div class="card" style="padding:2rem;">
+      <form method="post" action="/auth/login">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <input type="hidden" name="next" value="{{ next or '/' }}">
+
+        <div class="form-group">
+          <label for="email">Email address</label>
+          <input type="text" id="email" name="email" autocomplete="email" autofocus
+                 placeholder="you@example.com"
+                 value="{{ email or '' }}">
+        </div>
+
+        <div class="form-group">
+          <label for="password">Password</label>
+          <input type="password" id="password" name="password" autocomplete="current-password"
+                 placeholder="Your password">
+        </div>
+
+        <button type="submit" class="btn btn-primary" style="width:100%; justify-content:center; margin-top:.5rem;">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" style="width:15px;height:15px;">
+            <path d="M10 8H2M7 5l3 3-3 3"/>
+            <path d="M6 3H13a1 1 0 011 1v8a1 1 0 01-1 1H6"/>
+          </svg>
+          Sign In
+        </button>
+      </form>
+
+      {% if oidc_enabled %}
+      <div style="display:flex; align-items:center; gap:.75rem; margin:1.25rem 0;">
+        <div style="flex:1; height:1px; background:var(--border);"></div>
+        <span class="text-muted text-sm">or</span>
+        <div style="flex:1; height:1px; background:var(--border);"></div>
+      </div>
+
+      <a href="/auth/oidc/login" class="btn btn-secondary" style="width:100%; justify-content:center;">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" style="width:15px;height:15px;">
+          <circle cx="8" cy="8" r="6.5"/>
+          <path d="M8 5v3l2 1"/>
+        </svg>
+        Sign in with KeyCloak
+      </a>
+      {% endif %}
+    </div>
+
+    <div style="text-align:center; margin-top:1.25rem; font-size:.85rem; color:var(--fg-muted);">
+      No account?
+      <a href="/auth/register" style="color:var(--accent); text-decoration:none;">Create one</a>
+      &middot;
+      <span>Forgot your password? Contact your administrator.</span>
+    </div>
+
+    <div style="text-align:center; margin-top:1rem;">
+      <button id="resend-toggle" class="text-sm" style="background:none; border:none; color:var(--fg-muted); cursor:pointer; font-family:inherit; font-size:.78rem; text-decoration:underline;">
+        Resend verification email
+      </button>
+      <div id="resend-form" style="display:none; margin-top:.75rem;">
+        <form method="post" action="/auth/resend-verification" style="display:flex; gap:.5rem; max-width:340px; margin:0 auto;">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <input type="text" name="email" placeholder="your@email.com" style="flex:1; padding:.45rem .7rem; font-size:.82rem;">
+          <button type="submit" class="btn btn-secondary btn-sm">Send</button>
+        </form>
+      </div>
+    </div>
+
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  document.getElementById('resend-toggle').addEventListener('click', function() {
+    var f = document.getElementById('resend-form');
+    f.style.display = f.style.display === 'none' ? 'block' : 'none';
+  });
+</script>
+{% endblock %}

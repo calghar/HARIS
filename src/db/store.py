@@ -2,7 +2,7 @@ import json
 import logging
 import sqlite3
 from collections.abc import Generator
-from contextlib import contextmanager
+from contextlib import contextmanager, suppress
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
@@ -20,7 +20,7 @@ from ..models.scan_config_template import ScanConfigTemplate
 
 logger = logging.getLogger(__name__)
 
-_SCHEMA_VERSION = 5
+_SCHEMA_VERSION = 6
 
 _SCHEMA_SQL = """\
 CREATE TABLE IF NOT EXISTS schema_version (
@@ -166,6 +166,71 @@ CREATE TABLE IF NOT EXISTS scanner_results (
 CREATE INDEX IF NOT EXISTS idx_scanner_results_session ON scanner_results(session_id);
 """
 
+_SCHEMA_V6_SQL = """
+CREATE TABLE IF NOT EXISTS users (
+    user_id       TEXT PRIMARY KEY,
+    email         TEXT NOT NULL UNIQUE,
+    display_name  TEXT NOT NULL DEFAULT '',
+    password_hash TEXT NOT NULL DEFAULT '',
+    role          TEXT NOT NULL DEFAULT 'user',
+    auth_provider TEXT NOT NULL DEFAULT 'local',
+    oidc_sub      TEXT NOT NULL DEFAULT '',
+    is_active     INTEGER NOT NULL DEFAULT 1,
+    created_at    TEXT NOT NULL DEFAULT '',
+    updated_at    TEXT NOT NULL DEFAULT '',
+    last_login_at TEXT NOT NULL DEFAULT ''
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email ON users(email);
+CREATE INDEX IF NOT EXISTS idx_users_oidc_sub ON users(oidc_sub) WHERE oidc_sub != '';
+
+CREATE TABLE IF NOT EXISTS user_sessions (
+    token        TEXT PRIMARY KEY,
+    user_id      TEXT NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+    created_at   TEXT NOT NULL DEFAULT '',
+    expires_at   TEXT NOT NULL DEFAULT '',
+    last_seen_at TEXT NOT NULL DEFAULT '',
+    ip_address   TEXT NOT NULL DEFAULT '',
+    user_agent   TEXT NOT NULL DEFAULT ''
+);
+CREATE INDEX IF NOT EXISTS idx_sessions_user    ON user_sessions(user_id);
+CREATE INDEX IF NOT EXISTS idx_sessions_expires ON user_sessions(expires_at);
+
+CREATE TABLE IF NOT EXISTS remember_tokens (
+    token      TEXT PRIMARY KEY,
+    user_id    TEXT NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+    created_at TEXT NOT NULL DEFAULT '',
+    expires_at TEXT NOT NULL DEFAULT '',
+    used_at    TEXT NOT NULL DEFAULT ''
+);
+CREATE INDEX IF NOT EXISTS idx_remember_user ON remember_tokens(user_id);
+
+CREATE TABLE IF NOT EXISTS audit_log (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id       TEXT NOT NULL DEFAULT '',
+    user_email    TEXT NOT NULL DEFAULT '',
+    action        TEXT NOT NULL DEFAULT '',
+    resource_id   TEXT NOT NULL DEFAULT '',
+    resource_type TEXT NOT NULL DEFAULT '',
+    details_json  TEXT NOT NULL DEFAULT '{}',
+    ip_address    TEXT NOT NULL DEFAULT '',
+    occurred_at   TEXT NOT NULL DEFAULT ''
+);
+CREATE INDEX IF NOT EXISTS idx_audit_user     ON audit_log(user_id);
+CREATE INDEX IF NOT EXISTS idx_audit_action   ON audit_log(action);
+CREATE INDEX IF NOT EXISTS idx_audit_occurred ON audit_log(occurred_at);
+
+CREATE TABLE IF NOT EXISTS email_verifications (
+    token      TEXT PRIMARY KEY,
+    user_id    TEXT NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+    purpose    TEXT NOT NULL DEFAULT 'registration',
+    created_at TEXT NOT NULL DEFAULT '',
+    expires_at TEXT NOT NULL DEFAULT '',
+    used_at    TEXT NOT NULL DEFAULT ''
+);
+CREATE INDEX IF NOT EXISTS idx_email_verif_user    ON email_verifications(user_id);
+CREATE INDEX IF NOT EXISTS idx_email_verif_expires ON email_verifications(expires_at);
+"""
+
 
 class ScanStore:
     """SQLite storage for scan sessions and findings.
@@ -214,6 +279,13 @@ class ScanStore:
                 conn.executescript(_SCHEMA_V3_SQL)
                 conn.executescript(_SCHEMA_V4_SQL)
                 conn.executescript(_SCHEMA_V5_SQL)
+                conn.executescript(_SCHEMA_V6_SQL)
+                # Add started_by column to scans if it doesn't exist
+                with suppress(Exception):
+                    conn.execute(
+                        "ALTER TABLE scans ADD COLUMN started_by "
+                        "TEXT NOT NULL DEFAULT ''"
+                    )
             else:
                 current = row["version"]
                 if current < 2:
@@ -224,6 +296,15 @@ class ScanStore:
                     conn.executescript(_SCHEMA_V4_SQL)
                 if current < 5:
                     conn.executescript(_SCHEMA_V5_SQL)
+                if current < 6:
+                    conn.executescript(_SCHEMA_V6_SQL)
+                    # Add started_by column to scans if it doesn't exist
+                    with suppress(Exception):
+                        conn.execute(
+                            "ALTER TABLE scans ADD COLUMN started_by "
+                            "TEXT NOT NULL DEFAULT ''"
+                        )
+                    conn.execute("UPDATE schema_version SET version = 6")
                 if current < _SCHEMA_VERSION:
                     conn.execute(
                         "UPDATE schema_version SET version = ?",

@@ -156,7 +156,7 @@ class MiscCheckScanner(BaseScanner):
                 http_url,
                 timeout=self.options["timeout"],
                 allow_redirects=False,
-                verify=False,
+                verify=False,  # noqa: S4830 -- we're intentionally connecting over HTTP here
             )
 
             if resp.status_code not in (301, 302, 307, 308):

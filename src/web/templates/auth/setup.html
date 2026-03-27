@@ -1,0 +1,106 @@
+{% extends "base.html" %}
+{% block title %}Initial Setup — HARIS{% endblock %}
+
+{% block content %}
+<div style="display:flex; justify-content:center; align-items:flex-start; min-height:60vh; padding-top:3rem;">
+  <div style="width:100%; max-width:480px;">
+
+    <div style="background:rgba(234,179,8,.08); border:1px solid rgba(234,179,8,.3); border-radius:var(--radius); padding:1rem 1.2rem; margin-bottom:1.5rem; font-size:.875rem; color:var(--medium); display:flex; gap:.75rem; align-items:flex-start;">
+      <span style="font-size:1.1rem; flex-shrink:0;">&#9888;</span>
+      <span>
+        This setup page is only available because no users have been configured yet.
+        Complete setup to secure this instance.
+      </span>
+    </div>
+
+    <div style="text-align:center; margin-bottom:2rem;">
+      <h1 style="font-size:1.6rem; margin-bottom:.3rem;">Initial Setup</h1>
+      <p class="text-muted text-sm">Create the first administrator account</p>
+    </div>
+
+    {% if error %}
+    <div style="background:rgba(244,63,94,.1); border:1px solid rgba(244,63,94,.3); border-radius:var(--radius); padding:.75rem 1rem; margin-bottom:1rem; font-size:.875rem; color:var(--critical);">
+      {{ error }}
+    </div>
+    {% endif %}
+
+    <div class="card" style="padding:2rem;">
+      <form method="post" action="/auth/setup" id="setup-form">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+
+        <div class="form-group">
+          <label for="email">Email address <span style="color:var(--critical);">*</span></label>
+          <input type="text" id="email" name="email" autocomplete="email" autofocus
+                 placeholder="admin@example.com"
+                 value="{{ email or '' }}">
+        </div>
+
+        <div class="form-group">
+          <label for="display_name">Display name <span class="text-muted" style="font-weight:400;">(optional)</span></label>
+          <input type="text" id="display_name" name="display_name" autocomplete="name"
+                 placeholder="Administrator"
+                 value="{{ display_name or '' }}">
+        </div>
+
+        <div class="form-group">
+          <label for="password">Password <span style="color:var(--critical);">*</span></label>
+          <input type="password" id="password" name="password" autocomplete="new-password"
+                 placeholder="Minimum 12 characters">
+          <div id="pw-length-msg" style="font-size:.75rem; margin-top:.3rem; color:var(--fg-muted); display:none;">
+            Password must be at least 12 characters.
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="confirm_password">Confirm password <span style="color:var(--critical);">*</span></label>
+          <input type="password" id="confirm_password" name="confirm_password" autocomplete="new-password"
+                 placeholder="Repeat your password">
+          <div id="pw-match-msg" style="font-size:.75rem; margin-top:.3rem; color:var(--critical); display:none;">
+            Passwords do not match.
+          </div>
+        </div>
+
+        <button type="submit" id="submit-btn" class="btn btn-primary" style="width:100%; justify-content:center; margin-top:.5rem;">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" style="width:15px;height:15px;">
+            <path d="M8 2a6 6 0 100 12A6 6 0 008 2z"/>
+            <path d="M8 5v3l2 1.5"/>
+          </svg>
+          Create Admin Account
+        </button>
+      </form>
+    </div>
+
+    <div style="margin-top:1.25rem; font-size:.8rem; color:var(--fg-muted); text-align:center;">
+      This page will be inaccessible once the first account is created.
+    </div>
+
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  var pwInput = document.getElementById('password');
+  var confirmInput = document.getElementById('confirm_password');
+  var matchMsg = document.getElementById('pw-match-msg');
+  var lengthMsg = document.getElementById('pw-length-msg');
+  var submitBtn = document.getElementById('submit-btn');
+
+  function validate() {
+    var pw = pwInput ? pwInput.value : '';
+    var cpw = confirmInput ? confirmInput.value : '';
+    var tooShort = pw.length > 0 && pw.length < 12;
+    var mismatch = cpw.length > 0 && pw !== cpw;
+
+    if (lengthMsg) lengthMsg.style.display = tooShort ? 'block' : 'none';
+    if (matchMsg) matchMsg.style.display = mismatch ? 'block' : 'none';
+    if (submitBtn) submitBtn.disabled = tooShort || mismatch;
+
+    if (pwInput) pwInput.style.borderColor = tooShort ? 'var(--critical)' : '';
+    if (confirmInput) confirmInput.style.borderColor = mismatch ? 'var(--critical)' : '';
+  }
+
+  if (pwInput) pwInput.addEventListener('input', validate);
+  if (confirmInput) confirmInput.addEventListener('input', validate);
+</script>
+{% endblock %}

@@ -1,15 +1,11 @@
-"""LLM-related API endpoints extracted from the main app.
-
-Provides structured actions (summarize, explain, remediation, etc.)
-as dedicated endpoints alongside the existing freeform Q&A.
-"""
-
 import logging
 from typing import Any
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import JSONResponse
 
+from ..auth.middleware import get_current_user
+from ..auth.models import User
 from ..llm.base import create_backend, get_default_backend_name
 from ..llm.qa import ReportQA
 from ..models import ScanSession
@@ -51,7 +47,9 @@ async def _safe_json(request: Request) -> dict[str, Any]:
 
 
 @router.post("/summarize")
-async def summarize_scan(scan_id: str, request: Request) -> JSONResponse:
+async def summarize_scan(
+    scan_id: str, request: Request, current_user: User = Depends(get_current_user)
+) -> JSONResponse:
     """Generate an audience-specific summary."""
     session = _get_session(scan_id)
     body = await request.json()
@@ -75,7 +73,10 @@ async def summarize_scan(scan_id: str, request: Request) -> JSONResponse:
 
 @router.post("/explain/{finding_id}")
 async def explain_finding(
-    scan_id: str, finding_id: str, request: Request
+    scan_id: str,
+    finding_id: str,
+    request: Request,
+    current_user: User = Depends(get_current_user),
 ) -> JSONResponse:
     """Explain a specific finding."""
     session = _get_session(scan_id)
@@ -98,7 +99,9 @@ async def explain_finding(
 
 
 @router.post("/remediation-plan")
-async def remediation_plan(scan_id: str, request: Request) -> JSONResponse:
+async def remediation_plan(
+    scan_id: str, request: Request, current_user: User = Depends(get_current_user)
+) -> JSONResponse:
     """Generate a remediation plan in the specified format."""
     session = _get_session(scan_id)
     body = await request.json()
@@ -121,7 +124,9 @@ async def remediation_plan(scan_id: str, request: Request) -> JSONResponse:
 
 
 @router.post("/test-cases")
-async def generate_test_cases(scan_id: str, request: Request) -> JSONResponse:
+async def generate_test_cases(
+    scan_id: str, request: Request, current_user: User = Depends(get_current_user)
+) -> JSONResponse:
     """Generate CI security test cases from findings."""
     session = _get_session(scan_id)
     body = await _safe_json(request)
@@ -144,7 +149,9 @@ async def generate_test_cases(scan_id: str, request: Request) -> JSONResponse:
 
 
 @router.post("/mitigations")
-async def suggest_mitigations(scan_id: str, request: Request) -> JSONResponse:
+async def suggest_mitigations(
+    scan_id: str, request: Request, current_user: User = Depends(get_current_user)
+) -> JSONResponse:
     """Suggest code-level mitigations for findings."""
     session = _get_session(scan_id)
     body = await _safe_json(request)
@@ -167,7 +174,9 @@ async def suggest_mitigations(scan_id: str, request: Request) -> JSONResponse:
 
 
 @router.post("/filter-findings")
-async def filter_findings(scan_id: str, request: Request) -> JSONResponse:
+async def filter_findings(
+    scan_id: str, request: Request, current_user: User = Depends(get_current_user)
+) -> JSONResponse:
     """Filter and explain findings matching a query."""
     session = _get_session(scan_id)
     body = await request.json()

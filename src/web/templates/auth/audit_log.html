@@ -1,0 +1,103 @@
+{% extends "base.html" %}
+{% block title %}Audit Log — HARIS{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <div class="breadcrumb">
+      <a href="/auth/users">User Management</a>
+      <span class="sep">/</span>
+      Audit Log
+    </div>
+    <h1>Audit Log</h1>
+    <p class="text-muted text-sm">System-wide event history</p>
+  </div>
+  <div style="display:flex; gap:.5rem; margin-left:auto;">
+    <a href="/auth/users" class="btn btn-secondary">
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" style="width:14px;height:14px;">
+        <path d="M10 3L5 8l5 5"/>
+      </svg>
+      Users
+    </a>
+    <button onclick="window.location.reload()" class="btn btn-secondary">
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" style="width:14px;height:14px;">
+        <path d="M13.5 8A5.5 5.5 0 112.5 5M2.5 2v3h3"/>
+      </svg>
+      Refresh
+    </button>
+  </div>
+</div>
+
+<div class="card" style="padding:0; overflow:hidden;">
+  <table>
+    <thead>
+      <tr>
+        <th style="width:160px;">Time</th>
+        <th>User</th>
+        <th>Action</th>
+        <th>Resource</th>
+        <th>IP Address</th>
+        <th>Details</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for event in events %}
+      <tr>
+        <td class="text-muted" style="font-size:.78rem; white-space:nowrap;">
+          {{ event.occurred_at[:16].replace('T', ' ') if event.occurred_at else '—' }}
+        </td>
+        <td style="font-size:.82rem; max-width:180px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
+          {{ event.user_email or '<em class="text-muted">system</em>' }}
+        </td>
+        <td>
+          {% set action = event.action or '' %}
+          {% if action in ('login', 'logout', 'login_failed', 'email_verified', 'resend_verification') %}
+            <span class="badge" style="background:rgba(6,182,212,.1); color:var(--info); border:1px solid rgba(6,182,212,.25);">{{ action }}</span>
+          {% elif action in ('user_created', 'user_updated', 'user_deleted', 'role_changed', 'password_changed', 'session_revoked') %}
+            <span class="badge" style="background:rgba(249,115,22,.1); color:var(--high); border:1px solid rgba(249,115,22,.25);">{{ action }}</span>
+          {% elif action.startswith('scan') %}
+            <span class="badge" style="background:rgba(34,197,94,.1); color:var(--low); border:1px solid rgba(34,197,94,.25);">{{ action }}</span>
+          {% elif action.startswith('template') %}
+            <span class="badge" style="background:rgba(139,92,246,.1); color:#a78bfa; border:1px solid rgba(139,92,246,.25);">{{ action }}</span>
+          {% else %}
+            <span class="badge" style="background:var(--bg-input); color:var(--fg-muted); border:1px solid var(--border);">{{ action or '—' }}</span>
+          {% endif %}
+        </td>
+        <td style="font-size:.8rem; color:var(--fg-muted);">
+          {% if event.resource_type %}
+            <span>{{ event.resource_type }}</span>
+            {% if event.resource_id %}
+              <span style="color:var(--border-hover);">:</span>
+              <code style="font-size:.75rem;">{{ event.resource_id[:16] }}{% if event.resource_id|length > 16 %}&hellip;{% endif %}</code>
+            {% endif %}
+          {% else %}
+            —
+          {% endif %}
+        </td>
+        <td class="text-muted" style="font-size:.78rem; white-space:nowrap;">
+          {{ event.ip_address or '—' }}
+        </td>
+        <td style="font-size:.78rem; max-width:220px;">
+          {% if event.details_json %}
+          <details>
+            <summary style="cursor:pointer; color:var(--accent); list-style:none; font-size:.75rem;">
+              View details
+            </summary>
+            <pre style="margin-top:.4rem; font-size:.72rem; max-height:160px; overflow-y:auto; background:var(--bg-input); padding:.5rem; border-radius:4px; white-space:pre-wrap; word-break:break-all;">{{ event.details_json }}</pre>
+          </details>
+          {% else %}
+          <span class="text-muted">—</span>
+          {% endif %}
+        </td>
+      </tr>
+      {% else %}
+      <tr>
+        <td colspan="6" style="text-align:center; color:var(--fg-muted); padding:3rem;">
+          No audit log events found.
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

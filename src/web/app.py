@@ -1,23 +1,39 @@
 import asyncio
 import logging
 import logging.handlers
+import os
 import re
+import secrets
 import uuid
+from collections.abc import AsyncIterator
 from concurrent.futures import ThreadPoolExecutor
+from contextlib import asynccontextmanager
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
 
-from fastapi import FastAPI, HTTPException, Query, Request
-from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
+from fastapi import Depends, FastAPI, HTTPException, Query, Request
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+from starlette.middleware.sessions import SessionMiddleware
+from starlette.responses import Response
 
 # Trigger @register_scanner / @register_check decorators
 import src.checks  # noqa: F401
 import src.scanners  # noqa: F401
 
+from ..auth.bootstrap import bootstrap_admin_from_env
+from ..auth.middleware import (
+    get_auth_service,
+    get_current_user,
+    require_admin,
+    template_context,
+)
+from ..auth.models import AuditAction, AuditEvent, User
+from ..auth.router import router as auth_router
+from ..auth.security_headers import SecurityHeadersMiddleware
 from ..core.decorators import all_registered
 from ..core.profiles import PROFILES
 from ..core.risk import get_business_impact
@@ -59,14 +75,49 @@ logging.basicConfig(
     handlers=[_file_handler, _stream_handler],
 )
 
+
+@asynccontextmanager
+async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+    # Startup
+    auth_svc = get_auth_service()
+    bootstrap_admin_from_env(auth_svc)
+    cleanup_task = asyncio.create_task(_periodic_session_cleanup())
+    yield
+    # Shutdown
+    cleanup_task.cancel()
+
+
+async def _periodic_session_cleanup() -> None:
+    """Purge expired sessions every hour in the background."""
+    while True:
+        await asyncio.sleep(3600)
+        try:
+            auth_svc = get_auth_service()
+            count = auth_svc.purge_expired_sessions()
+            if count:
+                logger.debug("Purged %d expired sessions/tokens", count)
+        except Exception as exc:
+            logger.warning("Session cleanup error: %s", exc)
+
+
 app = FastAPI(
     title="HARIS",
     description="Black-box web security audit dashboard",
-    version="0.4.0",
+    version="0.5.1",
+    lifespan=lifespan,
 )
+
+_secret_key = os.environ.get("HARIS_SECRET_KEY") or secrets.token_hex(32)
+app.add_middleware(SessionMiddleware, secret_key=_secret_key)
+app.add_middleware(
+    SecurityHeadersMiddleware,
+    force_https=os.environ.get("HARIS_FORCE_HTTPS", "").lower() in {"1", "true", "yes"},
+)
+
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 app.mount("/assets", StaticFiles(directory=str(ASSETS_DIR)), name="assets")
 app.include_router(llm_router)
+app.include_router(auth_router)
 templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 
 _executor = ThreadPoolExecutor(max_workers=2)
@@ -124,8 +175,26 @@ _SCANNER_INFO = [
 ]
 
 
+@app.exception_handler(HTTPException)
+async def http_exception_handler(request: Request, exc: HTTPException) -> Response:
+    if exc.status_code == 401 and request.headers.get("HX-Request") != "true":
+        next_path = request.url.path
+        return RedirectResponse(f"/auth/login?next={next_path}", status_code=302)
+    # Re-raise as a standard JSON error for API clients
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={"detail": exc.detail},
+        headers=dict(exc.headers or {}),
+    )
+
+
 @app.get("/", response_class=HTMLResponse)
-async def dashboard(request: Request) -> HTMLResponse:
+async def dashboard(
+    request: Request,
+    current_user: User = Depends(get_current_user),
+) -> Response:
+    if not get_auth_service().has_any_user():
+        return RedirectResponse("/auth/setup", status_code=302)
     summary = _store.dashboard_summary()
     # Merge in-memory running scans count
     running = sum(1 for s in _scans.values() if s["status"] == ScanStatus.RUNNING)
@@ -133,32 +202,43 @@ async def dashboard(request: Request) -> HTMLResponse:
         summary["total_scans"] += running
     hostnames = sorted({w["hostname"] for w in _store.list_websites()})
     return templates.TemplateResponse(
+        request,
         "dashboard.html",
-        {
-            "request": request,
-            "nav_active": "dashboard",
-            "summary": summary,
-            "scanners": _SCANNER_INFO,
-            "hostnames": hostnames,
-        },
+        template_context(
+            request,
+            user=current_user,
+            nav_active="dashboard",
+            summary=summary,
+            scanners=_SCANNER_INFO,
+            hostnames=hostnames,
+        ),
     )
 
 
 @app.get("/websites", response_class=HTMLResponse)
-async def websites_page(request: Request) -> HTMLResponse:
+async def websites_page(
+    request: Request,
+    current_user: User = Depends(get_current_user),
+) -> HTMLResponse:
     websites = _store.list_websites()
     return templates.TemplateResponse(
+        request,
         "websites.html",
-        {
-            "request": request,
-            "nav_active": "websites",
-            "websites": websites,
-        },
+        template_context(
+            request,
+            user=current_user,
+            nav_active="websites",
+            websites=websites,
+        ),
     )
 
 
 @app.get("/website/{hostname}", response_class=HTMLResponse)
-async def website_detail(request: Request, hostname: str) -> HTMLResponse:
+async def website_detail(
+    request: Request,
+    hostname: str,
+    current_user: User = Depends(get_current_user),
+) -> HTMLResponse:
     scans = _store.get_scans_for_hostname(hostname)
     first_scanned = scans[-1]["started_at"] if scans else ""
     last_scanned = scans[0]["started_at"] if scans else ""
@@ -166,16 +246,18 @@ async def website_detail(request: Request, hostname: str) -> HTMLResponse:
     all_templates = _store.list_scan_config_templates()
     template_names = {t["template_id"]: t["name"] for t in all_templates}
     return templates.TemplateResponse(
+        request,
         "website_detail.html",
-        {
-            "request": request,
-            "nav_active": "websites",
-            "hostname": hostname,
-            "scans": scans,
-            "first_scanned": first_scanned,
-            "last_scanned": last_scanned,
-            "template_names": template_names,
-        },
+        template_context(
+            request,
+            user=current_user,
+            nav_active="websites",
+            hostname=hostname,
+            scans=scans,
+            first_scanned=first_scanned,
+            last_scanned=last_scanned,
+            template_names=template_names,
+        ),
     )
 
 
@@ -187,6 +269,7 @@ async def scans_page(
     severity: str = "",
     date_from: str = "",
     date_to: str = "",
+    current_user: User = Depends(get_current_user),
 ) -> HTMLResponse:
     per_page = 5
     rows, total = _store.list_sessions_paginated(
@@ -233,26 +316,31 @@ async def scans_page(
     }
 
     return templates.TemplateResponse(
+        request,
         "scans.html",
-        {
-            "request": request,
-            "nav_active": "scans",
-            "scans": scans,
-            "total": total,
-            "hostnames": hostnames,
-            "filters": {
+        template_context(
+            request,
+            user=current_user,
+            nav_active="scans",
+            scans=scans,
+            total=total,
+            hostnames=hostnames,
+            filters={
                 "hostname": hostname,
                 "severity": severity,
                 "date_from": date_from,
                 "date_to": date_to,
             },
-            "pagination": pagination,
-        },
+            pagination=pagination,
+        ),
     )
 
 
 @app.get("/settings", response_class=HTMLResponse)
-async def settings_page(request: Request) -> HTMLResponse:
+async def settings_page(
+    request: Request,
+    current_user: User = Depends(require_admin),
+) -> HTMLResponse:
     summary = _store.dashboard_summary()
     all_scanners = sorted(all_registered().keys())
     llm_config: dict[str, Any] = {}
@@ -271,30 +359,37 @@ async def settings_page(request: Request) -> HTMLResponse:
         pass
 
     return templates.TemplateResponse(
+        request,
         "settings.html",
-        {
-            "request": request,
-            "nav_active": "settings",
-            "scanners": all_scanners,
-            "llm_backend": llm_config.get("backend", "anthropic"),
-            "llm_enrichment_enabled": llm_config.get("enrichment_enabled", False),
-            "enrich_threshold": llm_config.get("threshold", "high"),
-            "total_scans": summary.get("total_scans", 0),
-            "total_websites": summary.get("total_websites", 0),
-            "template_dir": template_dir,
-        },
+        template_context(
+            request,
+            user=current_user,
+            nav_active="settings",
+            scanners=all_scanners,
+            llm_backend=llm_config.get("backend", "anthropic"),
+            llm_enrichment_enabled=llm_config.get("enrichment_enabled", False),
+            enrich_threshold=llm_config.get("threshold", "high"),
+            total_scans=summary.get("total_scans", 0),
+            total_websites=summary.get("total_websites", 0),
+            template_dir=template_dir,
+        ),
     )
 
 
 @app.get("/licenses", response_class=HTMLResponse)
-async def licenses_page(request: Request) -> HTMLResponse:
+async def licenses_page(
+    request: Request,
+    current_user: User = Depends(get_current_user),
+) -> HTMLResponse:
     return templates.TemplateResponse(
+        request,
         "licenses.html",
-        {
-            "request": request,
-            "nav_active": "",
-            "scanners": _SCANNER_INFO,
-        },
+        template_context(
+            request,
+            user=current_user,
+            nav_active="",
+            scanners=_SCANNER_INFO,
+        ),
     )
 
 
@@ -302,6 +397,7 @@ async def licenses_page(request: Request) -> HTMLResponse:
 async def new_scan_form(
     request: Request,
     rescan: str | None = Query(default=None),
+    current_user: User = Depends(get_current_user),
 ) -> HTMLResponse:
     all_scanners = all_registered()
     scan_templates = _store.list_scan_config_templates()
@@ -324,15 +420,17 @@ async def new_scan_form(
         except HTTPException:
             pass
     return templates.TemplateResponse(
+        request,
         "scan_new.html",
-        {
-            "request": request,
-            "nav_active": "new",
-            "profiles": list(PROFILES.values()),
-            "available_scanners": sorted(all_scanners.keys()),
-            "scan_templates": scan_templates,
-            "prefill": prefill,
-        },
+        template_context(
+            request,
+            user=current_user,
+            nav_active="new",
+            profiles=list(PROFILES.values()),
+            available_scanners=sorted(all_scanners.keys()),
+            scan_templates=scan_templates,
+            prefill=prefill,
+        ),
     )
 
 
@@ -367,7 +465,11 @@ def _get_scan_and_session(
     response_class=HTMLResponse,
     responses={404: {"description": "Scan not found"}},
 )
-async def scan_detail(request: Request, scan_id: str) -> HTMLResponse:
+async def scan_detail(
+    request: Request,
+    scan_id: str,
+    current_user: User = Depends(get_current_user),
+) -> HTMLResponse:
     scan, session = _get_scan_and_session(scan_id)
 
     business_impacts = {}
@@ -376,14 +478,16 @@ async def scan_detail(request: Request, scan_id: str) -> HTMLResponse:
             business_impacts[f.finding_id] = get_business_impact(f)
 
     return templates.TemplateResponse(
+        request,
         "scan_detail.html",
-        {
-            "request": request,
-            "nav_active": "scans",
-            "scan": scan,
-            "session": session,
-            "business_impacts": business_impacts,
-        },
+        template_context(
+            request,
+            user=current_user,
+            nav_active="scans",
+            scan=scan,
+            session=session,
+            business_impacts=business_impacts,
+        ),
     )
 
 
@@ -391,7 +495,10 @@ async def scan_detail(request: Request, scan_id: str) -> HTMLResponse:
     "/api/scan/start",
     responses={400: {"description": "Bad request"}},
 )
-async def start_scan(request: Request) -> JSONResponse:
+async def start_scan(
+    request: Request,
+    current_user: User = Depends(get_current_user),
+) -> JSONResponse:
     form = await request.form()
 
     target_url = str(form.get("target_url", "")).strip()
@@ -451,7 +558,20 @@ async def start_scan(request: Request) -> JSONResponse:
         "llm_enrich": llm_enrich,
         "template_id": template_id,
         "error": None,
+        "started_by": current_user.user_id,
     }
+
+    get_auth_service().log_audit(
+        AuditEvent(
+            user_id=current_user.user_id,
+            user_email=current_user.email,
+            action=AuditAction.SCAN_STARTED,
+            resource_id=scan_id,
+            resource_type="scan",
+            details={"target_url": target_url, "profile": profile_name},
+            ip_address=request.client.host if request.client else "",
+        )
+    )
 
     scope = Scope(
         excluded_paths=excluded_paths,
@@ -485,7 +605,10 @@ async def start_scan(request: Request) -> JSONResponse:
     "/api/scan/{scan_id}/status",
     responses={404: {"description": "Scan not found"}},
 )
-async def scan_status(scan_id: str) -> JSONResponse:
+async def scan_status(
+    scan_id: str,
+    current_user: User = Depends(get_current_user),
+) -> JSONResponse:
     scan, session = _get_scan_and_session(scan_id)
     return JSONResponse(
         {
@@ -507,7 +630,11 @@ async def scan_status(scan_id: str) -> JSONResponse:
         400: {"description": "Unknown format"},
     },
 )
-async def download_report(scan_id: str, fmt: str) -> FileResponse:
+async def download_report(
+    scan_id: str,
+    fmt: str,
+    current_user: User = Depends(get_current_user),
+) -> FileResponse:
     scan, session = _get_scan_and_session(scan_id)
     if scan["status"] != ScanStatus.COMPLETED or not session:
         raise HTTPException(status_code=404, detail="Scan not found or not complete")
@@ -543,6 +670,7 @@ async def list_scans(
     date_from: str = "",
     date_to: str = "",
     format: str = "",
+    current_user: User = Depends(get_current_user),
 ) -> JSONResponse | HTMLResponse:
     rows, total = _store.list_sessions_paginated(
         page=page,
@@ -582,22 +710,32 @@ async def list_scans(
 
 
 @app.get("/api/dashboard/summary")
-async def api_dashboard_summary() -> JSONResponse:
+async def api_dashboard_summary(
+    current_user: User = Depends(get_current_user),
+) -> JSONResponse:
     return JSONResponse(_store.dashboard_summary())
 
 
 @app.get("/api/websites")
-async def api_list_websites() -> JSONResponse:
+async def api_list_websites(
+    current_user: User = Depends(get_current_user),
+) -> JSONResponse:
     return JSONResponse(_store.list_websites())
 
 
 @app.get("/api/website/{hostname}/scans")
-async def api_website_scans(hostname: str) -> JSONResponse:
+async def api_website_scans(
+    hostname: str,
+    current_user: User = Depends(get_current_user),
+) -> JSONResponse:
     return JSONResponse(_store.get_scans_for_hostname(hostname))
 
 
 @app.get("/api/website/{hostname}/trends")
-async def api_website_trends(hostname: str) -> JSONResponse:
+async def api_website_trends(
+    hostname: str,
+    current_user: User = Depends(get_current_user),
+) -> JSONResponse:
     return JSONResponse(_store.get_severity_trends(hostname))
 
 
@@ -608,7 +746,11 @@ async def api_website_trends(hostname: str) -> JSONResponse:
         409: {"description": "Scan is still running"},
     },
 )
-async def delete_scan(scan_id: str) -> JSONResponse:
+async def delete_scan(
+    request: Request,
+    scan_id: str,
+    current_user: User = Depends(require_admin),
+) -> JSONResponse:
     scan = _scans.get(scan_id)
     if scan and scan["status"] == ScanStatus.RUNNING:
         raise HTTPException(status_code=409, detail="Cannot delete a running scan")
@@ -630,6 +772,17 @@ async def delete_scan(scan_id: str) -> JSONResponse:
     if not deleted:
         raise HTTPException(status_code=404, detail="Scan not found")
 
+    get_auth_service().log_audit(
+        AuditEvent(
+            user_id=current_user.user_id,
+            user_email=current_user.email,
+            action=AuditAction.SCAN_DELETED,
+            resource_id=scan_id,
+            resource_type="scan",
+            ip_address=request.client.host if request.client else "",
+        )
+    )
+
     return JSONResponse({"deleted": scan_id}, status_code=200)
 
 
@@ -641,6 +794,7 @@ async def get_scan_findings(
     scan_id: str,
     severity: str | None = None,
     owasp: str | None = None,
+    current_user: User = Depends(get_current_user),
 ) -> JSONResponse:
     scan = _scans.get(scan_id)
     if scan and scan.get("session"):
@@ -922,7 +1076,10 @@ async def template_status() -> JSONResponse:
 
 
 @app.post("/api/templates/update")
-async def trigger_template_update(request: Request) -> JSONResponse:
+async def trigger_template_update(
+    request: Request,
+    current_user: User = Depends(require_admin),
+) -> JSONResponse:
     body = await request.json() if request.headers.get("content-type") else {}
     scanner_name = body.get("scanner")
     source_name = body.get("source_name")
@@ -958,7 +1115,10 @@ async def trigger_template_update(request: Request) -> JSONResponse:
 
 
 @app.get("/templates", response_class=HTMLResponse)
-async def templates_page(request: Request) -> HTMLResponse:
+async def templates_page(
+    request: Request,
+    current_user: User = Depends(get_current_user),
+) -> HTMLResponse:
     scan_templates = _store.list_scan_config_templates()
     # Scanner template sources
     scanner_sources: list[dict[str, Any]] = []
@@ -991,26 +1151,33 @@ async def templates_page(request: Request) -> HTMLResponse:
         pass
 
     return templates.TemplateResponse(
+        request,
         "templates.html",
-        {
-            "request": request,
-            "nav_active": "templates",
-            "scan_templates": scan_templates,
-            "scanner_sources": scanner_sources,
-        },
+        template_context(
+            request,
+            user=current_user,
+            nav_active="templates",
+            scan_templates=scan_templates,
+            scanner_sources=scanner_sources,
+        ),
     )
 
 
 @app.get("/templates/new", response_class=HTMLResponse)
-async def template_new_form(request: Request) -> HTMLResponse:
+async def template_new_form(
+    request: Request,
+    current_user: User = Depends(get_current_user),
+) -> HTMLResponse:
     return templates.TemplateResponse(
+        request,
         "template_form.html",
-        {
-            "request": request,
-            "nav_active": "templates",
-            "profiles": list(PROFILES.values()),
-            "template": None,
-        },
+        template_context(
+            request,
+            user=current_user,
+            nav_active="templates",
+            profiles=list(PROFILES.values()),
+            template=None,
+        ),
     )
 
 
@@ -1018,18 +1185,21 @@ async def template_new_form(request: Request) -> HTMLResponse:
 async def template_edit_form(
     request: Request,
     template_id: str,
+    current_user: User = Depends(get_current_user),
 ) -> HTMLResponse:
     tpl = _store.get_scan_config_template(template_id)
     if tpl is None:
         raise HTTPException(status_code=404, detail="Template not found")
     return templates.TemplateResponse(
+        request,
         "template_form.html",
-        {
-            "request": request,
-            "nav_active": "templates",
-            "profiles": list(PROFILES.values()),
-            "template": tpl.model_dump(),
-        },
+        template_context(
+            request,
+            user=current_user,
+            nav_active="templates",
+            profiles=list(PROFILES.values()),
+            template=tpl.model_dump(),
+        ),
     )
 
 
@@ -1047,7 +1217,10 @@ async def api_get_scan_template(template_id: str) -> JSONResponse:
 
 
 @app.post("/api/scan-templates")
-async def api_create_scan_template(request: Request) -> JSONResponse:
+async def api_create_scan_template(
+    request: Request,
+    current_user: User = Depends(require_admin),
+) -> JSONResponse:
     body = await request.json()
     now = datetime.now(UTC).isoformat()
     tpl = ScanConfigTemplate(
@@ -1067,6 +1240,18 @@ async def api_create_scan_template(request: Request) -> JSONResponse:
         updated_at=now,
     )
     _store.save_scan_config_template(tpl)
+
+    get_auth_service().log_audit(
+        AuditEvent(
+            user_id=current_user.user_id,
+            user_email=current_user.email,
+            action=AuditAction.TEMPLATE_CREATED,
+            resource_id=tpl.template_id,
+            resource_type="template",
+            ip_address=request.client.host if request.client else "",
+        )
+    )
+
     return JSONResponse(tpl.model_dump(), status_code=201)
 
 
@@ -1074,6 +1259,7 @@ async def api_create_scan_template(request: Request) -> JSONResponse:
 async def api_update_scan_template(
     template_id: str,
     request: Request,
+    current_user: User = Depends(require_admin),
 ) -> JSONResponse:
     existing = _store.get_scan_config_template(template_id)
     if existing is None:
@@ -1111,18 +1297,49 @@ async def api_update_scan_template(
         updated_at=now,
     )
     _store.save_scan_config_template(updated)
+
+    get_auth_service().log_audit(
+        AuditEvent(
+            user_id=current_user.user_id,
+            user_email=current_user.email,
+            action=AuditAction.TEMPLATE_UPDATED,
+            resource_id=template_id,
+            resource_type="template",
+            ip_address=request.client.host if request.client else "",
+        )
+    )
+
     return JSONResponse(updated.model_dump())
 
 
 @app.delete("/api/scan-templates/{template_id}")
-async def api_delete_scan_template(template_id: str) -> JSONResponse:
+async def api_delete_scan_template(
+    request: Request,
+    template_id: str,
+    current_user: User = Depends(require_admin),
+) -> JSONResponse:
     if not _store.delete_scan_config_template(template_id):
         raise HTTPException(status_code=404, detail="Template not found")
+
+    get_auth_service().log_audit(
+        AuditEvent(
+            user_id=current_user.user_id,
+            user_email=current_user.email,
+            action=AuditAction.TEMPLATE_DELETED,
+            resource_id=template_id,
+            resource_type="template",
+            ip_address=request.client.host if request.client else "",
+        )
+    )
+
     return JSONResponse({"deleted": template_id})
 
 
 @app.post("/api/scan-templates/{template_id}/set-default")
-async def api_set_default_template(template_id: str) -> JSONResponse:
+async def api_set_default_template(
+    template_id: str,
+    current_user: User = Depends(require_admin),
+) -> JSONResponse:
     tpl = _store.get_scan_config_template(template_id)
     if tpl is None:
         raise HTTPException(status_code=404, detail="Template not found")

@@ -9,15 +9,12 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/static/style.css">
-  <script>
-    (function(){
-      var t = localStorage.getItem('haris-theme') || 'dark';
-      document.documentElement.dataset.theme = t;
-    })();
-  </script>
+  <script src="/static/theme-init.js"></script>
   <script src="https://unpkg.com/htmx.org@1.9.12"></script>
+
 </head>
-<body>
+<body hx-headers='{"X-CSRF-Token": "{{ csrf_token | default("") }}"}'>
+
   <header>
     <div class="container header-inner">
       <!-- Logo -->
@@ -49,8 +46,42 @@
         </a>
       </nav>
 
+      <!-- User menu -->
+      {% if current_user %}
+      <div class="user-menu-wrap" id="user-menu-wrap">
+        <!-- Popup (appears above trigger on desktop, below on mobile) -->
+        <div class="user-menu-popup" id="user-menu-popup" role="menu" aria-hidden="true">
+          <a href="/auth/profile" class="user-menu-item {% if request.url.path == '/auth/profile' %}active{% endif %}" role="menuitem">
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="8" cy="6" r="3"/><path d="M2 14c0-3.3 2.7-6 6-6s6 2.7 6 6"/></svg>
+            Profile
+          </a>
+          {% if user_is_admin %}
+          <a href="/auth/users" class="user-menu-item {% if request.url.path.startswith('/auth/users') or request.url.path.startswith('/auth/audit') %}active{% endif %}" role="menuitem">
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M14 13v-1a4 4 0 00-4-4H6a4 4 0 00-4 4v1"/><circle cx="8" cy="4" r="3"/><path d="M12.5 7l1.5 1.5 2.5-2.5"/></svg>
+            Admin Panel
+          </a>
+          {% endif %}
+          <div class="user-menu-divider"></div>
+          <form method="post" action="/auth/logout">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token | default('') }}">
+            <button type="submit" class="user-menu-item user-menu-signout" role="menuitem">
+              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M6 2H3a1 1 0 00-1 1v10a1 1 0 001 1h3M11 11l3-3-3-3M14 8H6"/></svg>
+              Sign Out
+            </button>
+          </form>
+        </div>
+        <!-- Trigger button -->
+        <button class="user-menu-trigger" id="user-menu-trigger"
+                aria-haspopup="menu" aria-expanded="false" aria-controls="user-menu-popup">
+          <span class="user-avatar">{{ (current_user.display_name or current_user.email)[0] | upper }}</span>
+          <span class="user-menu-name">{{ current_user.display_name or current_user.email }}</span>
+          <svg class="user-menu-chevron" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M4 10l4-4 4 4"/></svg>
+        </button>
+      </div>
+      {% endif %}
+
       <!-- Theme toggle -->
-      <button id="theme-toggle" class="theme-toggle" onclick="toggleTheme()" aria-label="Toggle theme">
+      <button id="theme-toggle" class="theme-toggle" aria-label="Toggle theme">
         <svg id="theme-icon-sun" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
           <circle cx="10" cy="10" r="4"/>
           <path d="M10 2v2M10 16v2M2 10h2M16 10h2M4.93 4.93l1.41 1.41M13.66 13.66l1.41 1.41M4.93 15.07l1.41-1.41M13.66 6.34l1.41-1.41"/>
@@ -61,7 +92,7 @@
       </button>
 
       <!-- Hamburger (mobile) -->
-      <button class="hamburger" onclick="document.getElementById('main-nav').classList.toggle('open')" aria-label="Menu">
+      <button class="hamburger" aria-label="Menu">
         <svg viewBox="0 0 22 22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
           <path d="M3 6h16M3 11h16M3 16h16"/>
         </svg>
@@ -81,40 +112,7 @@
     </div>
   </footer>
 
-  <script>
-    // Theme
-    function toggleTheme() {
-      var html = document.documentElement;
-      var next = html.dataset.theme === 'dark' ? 'light' : 'dark';
-      html.dataset.theme = next;
-      localStorage.setItem('haris-theme', next);
-      updateThemeIcon(next);
-    }
-    function updateThemeIcon(theme) {
-      document.getElementById('theme-icon-sun').style.display = theme === 'dark' ? '' : 'none';
-      document.getElementById('theme-icon-moon').style.display = theme === 'light' ? '' : 'none';
-    }
-    updateThemeIcon(document.documentElement.dataset.theme);
-
-    // Tab switching
-    document.addEventListener('click', function(e) {
-      if (!e.target.classList.contains('tab')) return;
-      var group = e.target.closest('.tabs');
-      var target = e.target.dataset.tab;
-      group.querySelectorAll('.tab').forEach(function(t) { t.classList.remove('active'); });
-      e.target.classList.add('active');
-      document.querySelectorAll('.tab-content').forEach(function(c) { c.classList.remove('active'); });
-      var panel = document.getElementById(target);
-      if (panel) panel.classList.add('active');
-    });
-
-    // Mobile nav: close on link click
-    document.querySelectorAll('#main-nav a').forEach(function(a) {
-      a.addEventListener('click', function() {
-        document.getElementById('main-nav').classList.remove('open');
-      });
-    });
-  </script>
+  <script src="/static/main.js"></script>
   {% block scripts %}{% endblock %}
 </body>
 </html>
