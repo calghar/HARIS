@@ -1,5 +1,3 @@
-"""Tests for src.core.runner — shared scan orchestration."""
-
 from unittest.mock import MagicMock, patch
 
 import pytest

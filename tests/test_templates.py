@@ -1,5 +1,3 @@
-"""Tests for the template management system."""
-
 from unittest.mock import patch
 
 from src.models.templates import (

@@ -1,5 +1,15 @@
 # Changelog
 <!--markdownlint-disable MD024-->
+## 0.6.1 — 2026-03-28
+
+### Fixed
+
+- Removed `disallow_untyped_defs = true` from mypy config — overly strict for an open-source project
+- Fixed `warn_return_any` error in `src/auth/router.py` (`_is_https` returning `Any`)
+- Fixed invalid `base_url` keyword argument passed to `Scope()` in `test_nuclei_scanner.py`
+- CI mypy job now checks `tests/` in addition to `src/`
+- Cleaned up redundant type annotations across test files
+
 ## 0.6.0 — 2026-03-27
 
 ### Added

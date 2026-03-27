@@ -1,5 +1,3 @@
-"""Tests for the ScanEngine orchestration."""
-
 from src.core.engine import ScanEngine
 from src.core.scanner import BaseScanner
 from src.models import (

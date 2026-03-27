@@ -1,5 +1,3 @@
-"""Tests for business-risk translation and risk posture assessment."""
-
 from src.core.risk import assess_risk_posture, get_business_impact, risk_posture_summary
 from src.models import Finding, OwaspCategory, RiskPosture, Severity
 

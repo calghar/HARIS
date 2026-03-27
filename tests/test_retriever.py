@@ -1,5 +1,3 @@
-"""Tests for the FindingRetriever FTS5-backed search component."""
-
 from __future__ import annotations
 
 import sqlite3

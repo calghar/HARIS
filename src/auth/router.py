@@ -103,7 +103,7 @@ def _clear_session_cookies(response: Response) -> None:
 
 
 def _is_https(request: Request) -> bool:
-    return request.url.scheme == "https"
+    return str(request.url.scheme) == "https"
 
 
 def _base_url(request: Request) -> str:

@@ -1,5 +1,3 @@
-"""Tests for the NucleiScanner adapter."""
-
 import json
 
 import pytest
@@ -16,9 +14,7 @@ from src.scanners.nuclei_scanner import (
 
 @pytest.fixture
 def target() -> Target:
-    return Target(
-        base_url="https://example.com", scope=Scope(base_url="https://example.com")
-    )
+    return Target(base_url="https://example.com", scope=Scope())
 
 
 class TestBuildCommand:
