@@ -1,5 +1,3 @@
-"""Unit tests for AuthService — user management, sessions, tokens, audit log."""
-
 import sqlite3
 from pathlib import Path
 
@@ -17,11 +15,6 @@ def auth_service(tmp_path: Path) -> AuthService:
     # ScanStore creates all tables including the V6 auth tables.
     ScanStore(db_path=db_path)
     return AuthService(db_path=db_path)
-
-
-# ---------------------------------------------------------------------------
-# User creation and retrieval
-# ---------------------------------------------------------------------------
 
 
 class TestCreateAndGetUser:
@@ -103,11 +96,6 @@ class TestHasAnyUser:
         assert auth_service.has_any_user() is True
 
 
-# ---------------------------------------------------------------------------
-# authenticate
-# ---------------------------------------------------------------------------
-
-
 class TestAuthenticate:
     def test_authenticate_correct_credentials_returns_user(self, auth_service):
         auth_service.create_user("leo@example.com", "correct-pass")
@@ -144,11 +132,6 @@ class TestAuthenticate:
         )
         result = auth_service.authenticate("oidcuser@example.com", "")
         assert result is None
-
-
-# ---------------------------------------------------------------------------
-# Sessions
-# ---------------------------------------------------------------------------
 
 
 class TestSessions:
@@ -241,11 +224,6 @@ class TestSessions:
         assert retrieved.user_agent == "TestBrowser/1.0"
 
 
-# ---------------------------------------------------------------------------
-# Remember tokens
-# ---------------------------------------------------------------------------
-
-
 class TestRememberTokens:
     def test_create_remember_token_returns_non_empty_string(self, auth_service):
         user = auth_service.create_user("wendy@example.com", "pass")
@@ -285,11 +263,6 @@ class TestRememberTokens:
         conn.close()
         result = auth_service.consume_remember_token("old-rem")
         assert result is None
-
-
-# ---------------------------------------------------------------------------
-# Email verification tokens
-# ---------------------------------------------------------------------------
 
 
 class TestEmailVerificationTokens:
@@ -358,11 +331,6 @@ class TestEmailVerificationTokens:
         assert result is None
 
 
-# ---------------------------------------------------------------------------
-# OIDC user linking
-# ---------------------------------------------------------------------------
-
-
 class TestLinkOrCreateOidcUser:
     def test_creates_new_user_when_no_match(self, auth_service):
         user = auth_service.link_or_create_oidc_user(
@@ -411,11 +379,6 @@ class TestLinkOrCreateOidcUser:
             sub="sub-006", email="lara@example.com"
         )
         assert linked.last_login_at != ""
-
-
-# ---------------------------------------------------------------------------
-# Audit log
-# ---------------------------------------------------------------------------
 
 
 class TestAuditLog:
@@ -484,11 +447,6 @@ class TestAuditLog:
         log = auth_service.get_audit_log(action=AuditAction.USER_LOGIN.value)
         assert len(log) == 1
         assert log[0]["action"] == AuditAction.USER_LOGIN.value
-
-
-# ---------------------------------------------------------------------------
-# Miscellaneous helpers
-# ---------------------------------------------------------------------------
 
 
 class TestPasswordHelpers:

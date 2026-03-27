@@ -1,5 +1,3 @@
-"""Tests for remediation planning."""
-
 from src.core.remediation import RemediationPlanner
 from src.models import Effort, Finding, Severity
 

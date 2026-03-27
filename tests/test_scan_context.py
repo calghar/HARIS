@@ -1,5 +1,3 @@
-"""Tests for ScanContext cross-scanner intelligence model."""
-
 from src.models.scan_context import ScanContext
 
 

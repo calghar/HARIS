@@ -1,5 +1,3 @@
-"""Tests for the ModelRouter task-based LLM routing."""
-
 from __future__ import annotations
 
 from unittest.mock import MagicMock, patch

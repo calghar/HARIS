@@ -43,7 +43,7 @@ jobs:
         run: uv sync --extra dev --extra web --extra reporting --extra llm-anthropic --extra llm-openai
 
       - name: Mypy
-        run: uv run mypy src/ --ignore-missing-imports
+        run: uv run mypy src/ tests/ --ignore-missing-imports
 
   test:
     name: Tests

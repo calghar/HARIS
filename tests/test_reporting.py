@@ -1,5 +1,3 @@
-"""Tests for report generators."""
-
 import json
 import tempfile
 from pathlib import Path

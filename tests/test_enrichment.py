@@ -1,5 +1,3 @@
-"""Tests for LLM enrichment services."""
-
 import json
 from unittest.mock import MagicMock
 
@@ -16,10 +14,6 @@ from src.models.enrichment import (
     TriagedFinding,
 )
 from src.models.llm import LLMResponse
-
-# ---------------------------------------------------------------------------
-# Fixtures
-# ---------------------------------------------------------------------------
 
 
 def _mock_backend(response_text: str) -> MagicMock:
@@ -57,11 +51,6 @@ def _make_target() -> Target:
     return Target(base_url="https://example.com")
 
 
-# ---------------------------------------------------------------------------
-# Enrichment models
-# ---------------------------------------------------------------------------
-
-
 class TestEnrichmentModels:
     def test_enriched_finding_defaults(self):
         ef = EnrichedFinding(finding_id="F001")
@@ -90,11 +79,6 @@ class TestEnrichmentModels:
             recommended_timeline="immediate",
         )
         assert tf.adjusted_severity == Severity.CRITICAL
-
-
-# ---------------------------------------------------------------------------
-# FindingEnricher
-# ---------------------------------------------------------------------------
 
 
 class TestFindingEnricher:
@@ -182,11 +166,6 @@ class TestFindingEnricher:
         assert backend.complete.call_count == 2
 
 
-# ---------------------------------------------------------------------------
-# LLMCorrelator
-# ---------------------------------------------------------------------------
-
-
 class TestLLMCorrelator:
     def test_identify_attack_chains(self):
         chains_json = json.dumps(
@@ -248,11 +227,6 @@ class TestLLMCorrelator:
         )
 
 
-# ---------------------------------------------------------------------------
-# SmartTriager
-# ---------------------------------------------------------------------------
-
-
 class TestSmartTriager:
     def test_triage_findings(self):
         triage_json = json.dumps(
@@ -295,11 +269,6 @@ class TestSmartTriager:
         backend.complete.assert_called_once()
 
 
-# ---------------------------------------------------------------------------
-# VariantAnalyzer
-# ---------------------------------------------------------------------------
-
-
 class TestVariantAnalyzer:
     def test_suggest_variants(self):
         variants_json = json.dumps(
@@ -332,11 +301,6 @@ class TestVariantAnalyzer:
         assert d["url_pattern"] == "/test"
 
 
-# ---------------------------------------------------------------------------
-# EnrichmentPromptBuilder
-# ---------------------------------------------------------------------------
-
-
 class TestEnrichmentPromptBuilder:
     def test_system_prompt(self):
         system = EnrichmentPromptBuilder.system()
@@ -353,7 +317,7 @@ class TestEnrichmentPromptBuilder:
         assert "JSON" in prompt
 
     def test_identify_attack_chains_prompt(self):
-        system, prompt = EnrichmentPromptBuilder.identify_attack_chains(
+        _, prompt = EnrichmentPromptBuilder.identify_attack_chains(
             [_make_finding(), _make_finding(finding_id="F002")],
         )
         assert "attack chain" in prompt.lower()
@@ -372,7 +336,7 @@ class TestEnrichmentPromptBuilder:
         assert "pci-dss" in prompt
 
     def test_suggest_variants_prompt(self):
-        system, prompt = EnrichmentPromptBuilder.suggest_variants(
+        _, prompt = EnrichmentPromptBuilder.suggest_variants(
             _make_finding(),
             _make_target(),
         )

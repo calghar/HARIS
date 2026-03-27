@@ -1,5 +1,3 @@
-"""Tests for database schema V6 (auth tables) migration."""
-
 import sqlite3
 
 import pytest

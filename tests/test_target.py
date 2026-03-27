@@ -1,5 +1,3 @@
-"""Tests for the Target and Scope models."""
-
 from src.models import AuthConfig, Scope, Target
 
 

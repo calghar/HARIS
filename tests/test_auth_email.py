@@ -1,5 +1,3 @@
-"""Unit tests for EmailSender — SMTP dispatch and disabled-mode logging."""
-
 import base64
 import re
 import smtplib
@@ -22,11 +20,6 @@ def _decode_mime_body(raw_msg: str) -> str:
     )
 
 
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
-
-
 def _make_sender(*, enabled: bool = False, use_tls: bool = True) -> EmailSender:
     cfg = SMTPConfig(
         enabled=enabled,
@@ -39,11 +32,6 @@ def _make_sender(*, enabled: bool = False, use_tls: bool = True) -> EmailSender:
         from_name="HARIS Test",
     )
     return EmailSender(cfg)
-
-
-# ---------------------------------------------------------------------------
-# send_verification_email — SMTP disabled
-# ---------------------------------------------------------------------------
 
 
 class TestSendVerificationEmailSmtpDisabled:
@@ -96,11 +84,6 @@ class TestSendVerificationEmailSmtpDisabled:
         joined = " ".join(r.message for r in caplog.records)
         assert "//auth/verify-email" not in joined
         assert "/auth/verify-email?token=t99" in joined
-
-
-# ---------------------------------------------------------------------------
-# send_verification_email — SMTP enabled
-# ---------------------------------------------------------------------------
 
 
 class TestSendVerificationEmailSmtpEnabled:
@@ -242,11 +225,6 @@ class TestSendVerificationEmailSmtpEnabled:
         mock_smtp_instance.sendmail.assert_called_once()
 
 
-# ---------------------------------------------------------------------------
-# send_password_reset_email — SMTP disabled
-# ---------------------------------------------------------------------------
-
-
 class TestSendPasswordResetEmailSmtpDisabled:
     def test_does_not_call_smtp_when_disabled(self):
         sender = _make_sender(enabled=False)
@@ -296,11 +274,6 @@ class TestSendPasswordResetEmailSmtpDisabled:
         joined = " ".join(r.message for r in caplog.records)
         assert "//auth/reset-password" not in joined
         assert "/auth/reset-password?token=rst-slash" in joined
-
-
-# ---------------------------------------------------------------------------
-# send_password_reset_email — SMTP enabled
-# ---------------------------------------------------------------------------
 
 
 class TestSendPasswordResetEmailSmtpEnabled:
@@ -357,11 +330,6 @@ class TestSendPasswordResetEmailSmtpEnabled:
                 token="rst-fail",
                 base_url="https://haris.example.com",
             )
-
-
-# ---------------------------------------------------------------------------
-# SMTPConfig defaults
-# ---------------------------------------------------------------------------
 
 
 class TestSMTPConfigDefaults:

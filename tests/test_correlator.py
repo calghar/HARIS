@@ -1,5 +1,3 @@
-"""Tests for cross-tool finding correlation."""
-
 from src.core.correlator import FindingCorrelator
 from src.models import Confidence, Finding, Severity
 

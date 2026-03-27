@@ -1,5 +1,3 @@
-"""Tests for the ChatMessage and Conversation models in src/models/chat.py."""
-
 from __future__ import annotations
 
 import pytest
