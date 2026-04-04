@@ -53,3 +53,4 @@ config/*secret*
 .env
 .env.*
 !.env.example
+.gitnexus
