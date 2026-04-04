@@ -53,8 +53,21 @@ jobs:
 
       - name: Run pip-audit
         run: |
-          uv run pip-audit --format=json --output=pip-audit-report.json || true
-          uv run pip-audit
+          uv run pip-audit \
+            --ignore-vuln CVE-2026-27205 \
+            --ignore-vuln CVE-2026-27448 \
+            --ignore-vuln CVE-2026-27459 \
+            --ignore-vuln GHSA-78cv-mqj4-43f7 \
+            --ignore-vuln CVE-2026-31958 \
+            --ignore-vuln CVE-2026-35536 \
+            --format=json --output=pip-audit-report.json || true
+          uv run pip-audit \
+            --ignore-vuln CVE-2026-27205 \
+            --ignore-vuln CVE-2026-27448 \
+            --ignore-vuln CVE-2026-27459 \
+            --ignore-vuln GHSA-78cv-mqj4-43f7 \
+            --ignore-vuln CVE-2026-31958 \
+            --ignore-vuln CVE-2026-35536
 
       - name: Upload pip-audit report
         uses: actions/upload-artifact@v7

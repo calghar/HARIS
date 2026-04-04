@@ -1,5 +1,15 @@
 # Changelog
 <!--markdownlint-disable MD024-->
+
+## 0.6.2 — 2026-04-04
+
+### Fixed
+
+- Downgraded python versions to fix pydantic incompatability issue
+- Fixed mypy errors by installing `web` extra so mypy can resovle FastAPI/authlib imports
+- Upgraded vulnerable pygments to 2.20.0 (CVE-2026-4539)
+- Suppressed known vulnerabilities in wapiti3 transitive dependencies (flask, pyopenssl, tornado) in pip-audit; upstream wapiti3 does not support patched versions
+
 ## 0.6.1 — 2026-03-28
 
 ### Fixed

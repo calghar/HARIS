@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import argparse
 import importlib
 import logging
@@ -18,6 +16,7 @@ from src.config.loader import load_config
 from src.core.decorators import all_registered
 from src.core.profiles import PROFILES, list_profiles
 from src.core.runner import ScanRunner
+from src.llm.base import create_backend
 from src.reporting import REPORTER_REGISTRY
 
 LEGAL_BANNER = """
@@ -57,7 +56,9 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--scanners", default=None, help="Comma-separated scanner list")
     parser.add_argument("--output", default=None, help="Output directory for reports")
     parser.add_argument(
-        "--formats", default=None, help="Report formats: markdown,json,html",
+        "--formats",
+        default=None,
+        help="Report formats: markdown,json,html",
     )
     parser.add_argument(
         "--log-level",
@@ -66,10 +67,14 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--yes", action="store_true", help="Skip authorisation prompt")
     parser.add_argument(
-        "--list-profiles", action="store_true", help="Show available profiles and exit",
+        "--list-profiles",
+        action="store_true",
+        help="Show available profiles and exit",
     )
     parser.add_argument(
-        "--list-scanners", action="store_true", help="Show available scanners and exit",
+        "--list-scanners",
+        action="store_true",
+        help="Show available scanners and exit",
     )
     parser.add_argument(
         "--web",
@@ -77,34 +82,48 @@ def build_parser() -> argparse.ArgumentParser:
         help="Start the web dashboard instead of CLI scan",
     )
     parser.add_argument(
-        "--host", default="0.0.0.0", help="Web UI bind address (with --web)",
+        "--host",
+        default="0.0.0.0",
+        help="Web UI bind address (with --web)",
     )
     parser.add_argument(
-        "--port", type=int, default=8000, help="Web UI port (with --web)",
+        "--port",
+        type=int,
+        default=8000,
+        help="Web UI port (with --web)",
     )
 
     parser.add_argument(
-        "--llm-enrich", action="store_true",
+        "--llm-enrich",
+        action="store_true",
         help="Enable LLM-powered finding enrichment during scan",
     )
     parser.add_argument(
-        "--llm-backend", default=None,
+        "--llm-backend",
+        default=None,
         help="LLM backend for enrichment (anthropic, openai, ollama)",
     )
 
     subparsers = parser.add_subparsers(dest="subcommand")
 
     tmpl_parser = subparsers.add_parser(
-        "update-templates", help="Update scanner templates from upstream",
+        "update-templates",
+        help="Update scanner templates from upstream",
     )
     tmpl_parser.add_argument(
-        "--scanner", default=None, help="Only update this scanner's templates",
+        "--scanner",
+        default=None,
+        help="Only update this scanner's templates",
     )
     tmpl_parser.add_argument(
-        "--force", action="store_true", help="Force re-download",
+        "--force",
+        action="store_true",
+        help="Force re-download",
     )
     tmpl_parser.add_argument(
-        "--list", action="store_true", dest="list_templates",
+        "--list",
+        action="store_true",
+        dest="list_templates",
         help="Show current template status and exit",
     )
     tmpl_parser.add_argument("--config", default=None, help="Config file")
@@ -114,17 +133,23 @@ def build_parser() -> argparse.ArgumentParser:
 
     ask_parser = llm_sub.add_parser("ask", help="Ask a question about a scan")
     ask_parser.add_argument(
-        "--scan-id", required=True, help="Scan ID or report file path",
+        "--scan-id",
+        required=True,
+        help="Scan ID or report file path",
     )
     ask_parser.add_argument("--question", required=True, help="Question to ask")
     ask_parser.add_argument(
-        "--backend", default="openai", help="LLM backend (openai, anthropic, ollama)",
+        "--backend",
+        default="openai",
+        help="LLM backend (openai, anthropic, ollama)",
     )
     ask_parser.add_argument("--model", default=None, help="Model name override")
 
     summarize_parser = llm_sub.add_parser("summarize", help="Summarize a scan report")
     summarize_parser.add_argument(
-        "--scan-id", required=True, help="Scan ID or report file path",
+        "--scan-id",
+        required=True,
+        help="Scan ID or report file path",
     )
     summarize_parser.add_argument(
         "--audience",
@@ -135,23 +160,32 @@ def build_parser() -> argparse.ArgumentParser:
     summarize_parser.add_argument("--model", default=None, help="Model name override")
 
     remediate_parser = llm_sub.add_parser(
-        "remediate", help="Generate a remediation plan",
+        "remediate",
+        help="Generate a remediation plan",
     )
     remediate_parser.add_argument(
-        "--scan-id", required=True, help="Scan ID or report file path",
+        "--scan-id",
+        required=True,
+        help="Scan ID or report file path",
     )
     remediate_parser.add_argument(
-        "--format", default="markdown", choices=["markdown", "jira", "email"],
+        "--format",
+        default="markdown",
+        choices=["markdown", "jira", "email"],
     )
     remediate_parser.add_argument("--backend", default="openai", help="LLM backend")
     remediate_parser.add_argument("--model", default=None, help="Model name override")
 
     tests_parser = llm_sub.add_parser("test-cases", help="Generate security test cases")
     tests_parser.add_argument(
-        "--scan-id", required=True, help="Scan ID or report file path",
+        "--scan-id",
+        required=True,
+        help="Scan ID or report file path",
     )
     tests_parser.add_argument(
-        "--framework", default="generic", help="Target test framework",
+        "--framework",
+        default="generic",
+        help="Target test framework",
     )
     tests_parser.add_argument("--backend", default="openai", help="LLM backend")
     tests_parser.add_argument("--model", default=None, help="Model name override")
@@ -206,13 +240,11 @@ def _resolve_report_path(scan_id: str) -> Path:
     sys.exit(1)
 
 
-def _create_backend(args: argparse.Namespace) -> object:
-    from src.llm.base import create_backend
-
+def _create_backend(args: argparse.Namespace):
     kwargs = {}
     if hasattr(args, "model") and args.model:
         kwargs["model"] = args.model
-    return create_backend(args.backend, **kwargs)
+    return create_backend(args.backend, **kwargs)  # type: ignore[return-value]
 
 
 def handle_update_templates(args: argparse.Namespace) -> int:
@@ -306,6 +338,7 @@ def _handle_non_scan_actions(args: argparse.Namespace) -> int | None:
 
     if args.web:
         from src.web.app import app
+
         uvicorn = importlib.import_module("uvicorn")
 
         print("Starting HARIS dashboard...")
