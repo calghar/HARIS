@@ -46,7 +46,7 @@ web = [
 ]
 # Report generation extras
 reporting = [
-    "markdown>=3.5",
+    "markdown>=3.10.2",
 ]
 # LLM adapter (choose one or more provider packages)
 llm-openai = [
