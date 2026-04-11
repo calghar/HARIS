@@ -64,7 +64,7 @@ dev = [
     "types-requests",
     "types-PyYAML",
     "bandit[toml]>=1.7.8",
-    "pip-audit>=2.7.0",
+    "pip-audit>=2.10.0",
     "pre-commit>=3.7.0",
 ]
 # Scanner Python packages (optional — scanners degrade gracefully if missing)
