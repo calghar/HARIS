@@ -21,6 +21,9 @@
 - Added built-in checks `sri_checks`, `cache_checks`, `method_checks` (OPTIONS and TRACE), `redirect_checks` (open redirect), `graphql_checks` (introspection), `openapi_checks`, `listing_checks` (directory listing) and `dns_checks` (CAA, SPF, DMARC), each with a class in `vuln_classes.yaml` and a prior in `confidence.yaml`
 - Added CSP and HSTS quality findings (`unsafe-inline`, `unsafe-eval`, wildcard sources, missing `object-src` or `base-uri`, short `max-age`, missing `includeSubDomains`)
 - Added a ruff `TID251` rule that bans `requests`, `httpx` and `urllib3` outside `haris/net`; `llm/providers.py`, `bench/` and `tests/` are ignored per file
+- Added a verification stage (`haris.verify`) that replays each finding's request through `ScopedClient` with a control, applies per-class oracles (`reflection`, `error_signature`, `timing`, `header_presence`, `canary`) and moves the tier only to `replay_verified` or `refuted`
+- Added `--verify {off,replay,llm}` (default `replay`); `llm` adds a case-level LLM verdict whose quoted spans are checked against the evidence and which changes the score, never the tier
+- Added `verify.yaml` for the request cap, timing delay, error signatures, valid header values and LLM abstain threshold
 
 ### Changed (packaging)
 
