@@ -72,6 +72,12 @@
 - Added per-scan token and cost budgets; LLM stages expose `last_report` with a status per finding (`ok`, `invalid`, `failed`, `skipped_budget`)
 - Added an offline LLM eval set in `tests/evals/` with prompt-injection and malformed-output cases
 
+### Added
+
+- Added a benchmark harness in `bench/`: loopback-only Docker Compose targets (Juice Shop, DVWA, WebGoat, an SPA catch-all fixture, a vulnerable AI app with a toy MCP server), YAML ground truth, a runner (`bench/run.py`) and a nightly `bench.yml` workflow
+- Added the `haris.bench` scorer (`python -m haris.bench score <report> <ground_truth.yaml>`) reporting precision, recall, F1, false-positive reduction, request count, cost and wall time with mean and stddev over runs
+- Added `docs/benchmarks.md` describing the benchmark methodology and what it does not claim
+
 ## 0.6.2 — 2026-04-04
 
 ### Fixed

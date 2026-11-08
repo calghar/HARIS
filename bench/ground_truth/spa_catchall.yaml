@@ -1,0 +1,4 @@
+# No vulnerabilities by construction: any finding on this target is a false positive.
+target: spa_catchall
+kind: fixture
+entries: []

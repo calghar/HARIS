@@ -1,0 +1,30 @@
+# Seed set from WebGoat lesson endpoints; confirm paths against the pinned image on the first full run.
+target: webgoat
+kind: external
+entries:
+  - id: webgoat-sqli-intro
+    method: POST
+    url: /WebGoat/SqlInjection/attack5a
+    parameter: account
+    vuln_class: sqli_error
+    cwe: CWE-89
+    expected: true_positive
+    source: https://github.com/WebGoat/WebGoat
+    notes: SQL Injection (intro) lesson.
+  - id: webgoat-xxe-simple
+    method: POST
+    url: /WebGoat/xxe/simple
+    vuln_class: xxe
+    cwe: CWE-611
+    expected: true_positive
+    source: https://github.com/WebGoat/WebGoat
+    notes: XXE lesson; the XML body is the injection point.
+  - id: webgoat-xss-reflected
+    method: GET
+    url: /WebGoat/CrossSiteScripting/attack5a
+    parameter: field1
+    vuln_class: xss_reflected
+    cwe: CWE-79
+    expected: true_positive
+    source: https://github.com/WebGoat/WebGoat
+    notes: Cross Site Scripting lesson.

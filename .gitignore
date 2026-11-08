@@ -54,3 +54,7 @@ config/*secret*
 .env.*
 !.env.example
 .gitnexus
+
+# Benchmark results (raw artifacts are published by CI, not committed)
+bench/results/*
+!bench/results/README.md
