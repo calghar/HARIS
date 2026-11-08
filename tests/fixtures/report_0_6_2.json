@@ -1,0 +1,150 @@
+{
+  "meta": {
+    "session_id": "20260401-101500",
+    "target": "https://example.com",
+    "profile": "Quick Scan",
+    "started_at": "2026-11-08T20:31:41.646680+00:00",
+    "finished_at": "2026-11-08T20:31:41.646728+00:00",
+    "duration_seconds": 4.8e-05,
+    "scanners_used": [
+      "wapiti",
+      "nuclei",
+      "header_checks",
+      "nmap"
+    ]
+  },
+  "risk_posture": {
+    "level": "moderate",
+    "description": "Some security issues were identified, mostly medium severity.  The application has a reasonable baseline but needs hardening in specific areas."
+  },
+  "summary": {
+    "session_id": "20260401-101500",
+    "target": "https://example.com",
+    "duration_seconds": 4.8e-05,
+    "total_findings": 4,
+    "multi_confirmed": 0,
+    "risk_posture": "moderate",
+    "by_severity": {
+      "critical": 0,
+      "high": 2,
+      "medium": 1,
+      "low": 1,
+      "info": 0
+    },
+    "scanners_used": [
+      "wapiti",
+      "nuclei",
+      "header_checks",
+      "nmap"
+    ],
+    "remediation_steps": 1,
+    "errors": [
+      "[nuclei] timeout"
+    ]
+  },
+  "findings": [
+    {
+      "finding_id": "931357e981e1",
+      "title": "Cross Site Scripting: q reflected",
+      "description": "Reflected XSS in q",
+      "severity": "high",
+      "confidence": "firm",
+      "owasp_category": "A05:2025 - Injection",
+      "cwe_id": "CWE-79",
+      "url": "/search?q=x",
+      "parameter": "q",
+      "method": "GET",
+      "evidence": "<script>",
+      "request_example": "",
+      "response_snippet": "",
+      "remediation": "",
+      "references": [],
+      "scanner": "wapiti",
+      "found_at": "2026-11-08T20:31:41.646284+00:00",
+      "tags": [
+        "xss"
+      ]
+    },
+    {
+      "finding_id": "fa9c5c9d8520",
+      "title": "Reflected XSS",
+      "description": "Nuclei xss",
+      "severity": "high",
+      "confidence": "tentative",
+      "owasp_category": "A05:2025 - Injection",
+      "cwe_id": "CWE-79",
+      "url": "https://example.com/search?q=y",
+      "parameter": "q",
+      "method": "GET",
+      "evidence": "",
+      "request_example": "",
+      "response_snippet": "",
+      "remediation": "",
+      "references": [],
+      "scanner": "nuclei",
+      "found_at": "2026-11-08T20:31:41.646582+00:00",
+      "tags": [
+        "xss"
+      ]
+    },
+    {
+      "finding_id": "0ceab4bcae6f",
+      "title": "Missing Strict-Transport-Security header",
+      "description": "No HSTS",
+      "severity": "medium",
+      "confidence": "confirmed",
+      "owasp_category": "A04:2025 - Cryptographic Failures",
+      "cwe_id": "CWE-523",
+      "url": "https://example.com",
+      "parameter": "",
+      "method": "GET",
+      "evidence": "",
+      "request_example": "",
+      "response_snippet": "",
+      "remediation": "Add HSTS",
+      "references": [
+        "https://owasp.org"
+      ],
+      "scanner": "header_checks",
+      "found_at": "2026-11-08T20:31:41.646593+00:00",
+      "tags": [
+        "missing_hsts"
+      ]
+    },
+    {
+      "finding_id": "cc60b682822a",
+      "title": "Server version disclosed: nginx 1.18",
+      "description": "banner",
+      "severity": "low",
+      "confidence": "firm",
+      "owasp_category": "",
+      "cwe_id": "",
+      "url": "https://example.com",
+      "parameter": "",
+      "method": "GET",
+      "evidence": "",
+      "request_example": "",
+      "response_snippet": "",
+      "remediation": "",
+      "references": [],
+      "scanner": "nmap",
+      "found_at": "2026-11-08T20:31:41.646601+00:00",
+      "tags": [
+        "version_disclosure"
+      ]
+    }
+  ],
+  "remediation": [
+    {
+      "title": "Add HSTS",
+      "description": "Add HSTS",
+      "effort": "moderate",
+      "impact": "medium",
+      "finding_count": 1,
+      "category": "A04:2025 - Cryptographic Failures"
+    }
+  ],
+  "errors": [
+    "[nuclei] timeout"
+  ]
+}

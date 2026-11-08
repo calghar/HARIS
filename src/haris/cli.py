@@ -3,9 +3,12 @@ import importlib
 import logging
 import re
 import sys
+from collections.abc import Callable
 from pathlib import Path
-from typing import Any
+from typing import Any, NoReturn
 from urllib.parse import urlparse
+
+from pydantic import ValidationError
 
 # Import checks and scanners to trigger @register_scanner / @register_check
 from haris import (
@@ -14,10 +17,21 @@ from haris import (
 )
 from haris.config.loader import load_config
 from haris.core.decorators import all_registered
+from haris.core.engine import DEFAULT_PARALLEL
+from haris.core.exit_codes import EXIT_INCOMPLETE, EXIT_USAGE, exit_code
 from haris.core.profiles import PROFILES, list_profiles
 from haris.core.runner import ScanRunner
+from haris.diff import ReportError, diff_reports, format_diff, load_report
+from haris.ignore import DEFAULT_IGNORE_FILE
 from haris.llm.base import create_backend
+from haris.models import ScanSession, Severity
+from haris.net import NetworkPolicy
 from haris.reporting import REPORTER_REGISTRY
+from haris.scan_files import (
+    baseline_summary,
+    resolve_ignore_file,
+    write_partial_session,
+)
 
 LEGAL_BANNER = """
 ============================================================
@@ -31,8 +45,32 @@ LEGAL_BANNER = """
 """
 
 
+class _UsageParser(argparse.ArgumentParser):
+    """Exits 3 (not argparse's 2) on usage errors; 2 means an incomplete scan."""
+
+    def error(self, message: str) -> NoReturn:
+        self.print_usage(sys.stderr)
+        self.exit(EXIT_USAGE, f"{self.prog}: error: {message}\n")
+
+
+def _severity(value: str) -> Severity:
+    try:
+        return Severity(value.lower())
+    except ValueError:
+        choices = ", ".join(s.value for s in Severity)
+        raise argparse.ArgumentTypeError(
+            f"invalid severity {value!r} (choose from {choices})"
+        ) from None
+
+
+def _positive_int(value: str) -> int:
+    if not value.isdigit() or int(value) < 1:
+        raise argparse.ArgumentTypeError(f"{value!r} is not a positive integer")
+    return int(value)
+
+
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(
+    parser = _UsageParser(
         description="HARIS: black-box web application security auditor",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=(
@@ -103,8 +141,45 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         help="LLM backend for enrichment (anthropic, openai, ollama)",
     )
+    parser.add_argument(
+        "--fail-on",
+        type=_severity,
+        default=None,
+        metavar="SEVERITY",
+        help="Exit 1 when a finding at or above this severity remains",
+    )
+    parser.add_argument(
+        "--baseline",
+        default=None,
+        metavar="REPORT.json",
+        help="Compare the scan with an earlier JSON report",
+    )
+    parser.add_argument(
+        "--ignore-file",
+        default=None,
+        metavar="PATH",
+        help=f"Suppression file (default: ./{DEFAULT_IGNORE_FILE} when present)",
+    )
+    parser.add_argument(
+        "--allow-private",
+        action="store_true",
+        help="Allow targets on private, loopback and link-local addresses",
+    )
+    parser.add_argument(
+        "--parallel",
+        type=_positive_int,
+        default=DEFAULT_PARALLEL,
+        help="Scanners to run concurrently (default: %(default)s)",
+    )
 
     subparsers = parser.add_subparsers(dest="subcommand")
+
+    diff_parser = subparsers.add_parser(
+        "diff",
+        help="Compare two JSON reports (new, fixed, not_retested, unchanged)",
+    )
+    diff_parser.add_argument("old", help="Earlier JSON report")
+    diff_parser.add_argument("new", help="Later JSON report")
 
     tmpl_parser = subparsers.add_parser(
         "update-templates",
@@ -278,6 +353,17 @@ def handle_update_templates(args: argparse.Namespace) -> int:
     return 0 if all(r.success for r in results) else 1
 
 
+def handle_diff(args: argparse.Namespace) -> int:
+    try:
+        old = load_report(Path(args.old))
+        new = load_report(Path(args.new))
+    except ReportError as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        return EXIT_USAGE
+    print(format_diff(diff_reports(old, new)))
+    return 0
+
+
 def handle_llm_command(args: argparse.Namespace) -> int:
     from haris.llm.qa import ReportQA
 
@@ -325,6 +411,8 @@ def _handle_non_scan_actions(args: argparse.Namespace) -> int | None:
         return handle_update_templates(args)
     if args.subcommand == "llm":
         return handle_llm_command(args)
+    if args.subcommand == "diff":
+        return handle_diff(args)
 
     if args.list_profiles:
         print("Available scan profiles:\n")
@@ -386,15 +474,26 @@ def _write_reports(session: Any, config: Any) -> None:
         print(f"Report: {out_path}")
 
 
-def _save_session_to_db(session: Any) -> None:
+def _save_session_to_db(session: Any, *, quiet: bool = False) -> None:
     try:
         from haris.db.store import ScanStore
 
         store = ScanStore()
         store.save_session(session)
-        print(f"Database: saved session {session.session_id}")
+        if not quiet:
+            print(f"Database: saved session {session.session_id}")
     except Exception as exc:
         logging.warning("Could not save to database: %s", exc)
+
+
+def _checkpoint(output_dir: str) -> Callable[[ScanSession], None]:
+    """Persist the session after each scanner so a crash keeps partial results."""
+
+    def save(session: ScanSession) -> None:
+        write_partial_session(session, Path(output_dir))
+        _save_session_to_db(session, quiet=True)
+
+    return save
 
 
 def _print_session_summary(session: Any) -> None:
@@ -427,8 +526,13 @@ def main(argv: list[str] | None = None) -> int:
     if non_scan_result is not None:
         return non_scan_result
 
-    overrides = _build_overrides(args)
-    config = load_config(config_path=args.config, overrides=overrides)
+    try:
+        config = load_config(config_path=args.config, overrides=_build_overrides(args))
+        ignore = resolve_ignore_file(args.ignore_file)
+        baseline = load_report(Path(args.baseline)) if args.baseline else None
+    except (ValueError, OSError, ValidationError) as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        return EXIT_USAGE
 
     logging.basicConfig(
         level=getattr(logging, config.log_level, logging.INFO),
@@ -438,7 +542,7 @@ def main(argv: list[str] | None = None) -> int:
 
     if not confirm_authorisation(config.target.base_url, skip=args.yes):
         print("Aborted. You must confirm authorisation to proceed.")
-        return 1
+        return EXIT_USAGE
 
     scanner_names = args.scanners.split(",") if args.scanners else None
 
@@ -454,17 +558,27 @@ def main(argv: list[str] | None = None) -> int:
             scanner_names=scanner_names,
             llm_enrich=args.llm_enrich,
             llm_backend_name=args.llm_backend,
+            parallel=args.parallel,
+            network_policy=NetworkPolicy(allow_private=args.allow_private),
+            ignore=ignore,
+            checkpoint=_checkpoint(config.output_dir),
         )
         session = runner.run()
     except RuntimeError as exc:
         print(f"Error: {exc}")
-        return 1
+        return EXIT_USAGE
+    except KeyboardInterrupt:
+        print("\nCancelled.")
+        return EXIT_INCOMPLETE
 
     _write_reports(session, config)
     _save_session_to_db(session)
     _print_session_summary(session)
+    if baseline is not None:
+        print("\nChanges since baseline:")
+        print(baseline_summary(session, baseline))
 
-    return 0
+    return exit_code(session, args.fail_on)
 
 
 if __name__ == "__main__":

@@ -1,3 +1,5 @@
+from typing import Any
+
 from pydantic import BaseModel, Field
 
 
@@ -27,6 +29,21 @@ class ScanContext(BaseModel):
     server_headers: dict[str, str] = Field(
         default_factory=dict,
         description="Server response headers captured by earlier scanners.",
+    )
+
+    http: Any = Field(
+        default=None,
+        exclude=True,
+        repr=False,
+        description="Scan-wide ScopedClient (typed Any to avoid an import cycle).",
+    )
+    tool_rate_rps: float = Field(
+        default=0.0,
+        description="Request rate each concurrent external tool may use.",
+    )
+    target_ip: str = Field(
+        default="",
+        description="Address vetted by the SSRF pre-flight, for tools that take one.",
     )
 
     def add_technologies(self, techs: list[str]) -> None:

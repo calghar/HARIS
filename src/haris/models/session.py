@@ -5,7 +5,7 @@ from pydantic import BaseModel, Field
 
 from .correlator import CorrelatedFinding
 from .enrichment import AttackChain, EnrichedFinding, TriagedFinding
-from .enums import OwaspCategory, RiskPosture, Severity
+from .enums import OwaspCategory, RiskPosture, ScanState, Severity
 from .finding import Finding
 from .remediation import RemediationStep
 from .scanner import ScannerResult
@@ -29,6 +29,7 @@ class ScanSession(BaseModel):
     risk_posture: RiskPosture = RiskPosture.EXCELLENT
     risk_posture_text: str = ""
     errors: list[str] = Field(default_factory=list)
+    scan_state: ScanState = ScanState.PENDING
 
     # LLM enrichment data (populated when enrichment_enabled is True)
     attack_chains: list[AttackChain] = Field(default_factory=list)
@@ -53,6 +54,25 @@ class ScanSession(BaseModel):
         start = datetime.fromisoformat(self.started_at)
         end = datetime.fromisoformat(self.finished_at)
         return (end - start).total_seconds()
+
+    @property
+    def scanner_status(self) -> dict[str, str]:
+        """Per scanner: ``completed`` when it returned without errors."""
+        return {
+            r.scanner_name: "completed" if r.success else "failed"
+            for r in self.scanner_results
+        }
+
+    def report_extras(self) -> dict[str, Any]:
+        """Report keys added in 0.7: scan state, scanner status, correlated."""
+        return {
+            "scan_state": self.scan_state.value,
+            "scanner_status": self.scanner_status,
+            "correlated": [
+                {**c.canonical.to_dict(), "sources": [list(s) for s in c.sources]}
+                for c in self.correlated
+            ],
+        }
 
     @property
     def findings_by_severity(
@@ -89,6 +109,7 @@ class ScanSession(BaseModel):
             "total_findings": len(self.all_findings),
             "multi_confirmed": self.multi_confirmed_count,
             "risk_posture": self.risk_posture.value,
+            "scan_state": self.scan_state.value,
             "by_severity": {
                 s.value: len(fs) for s, fs in self.findings_by_severity.items()
             },

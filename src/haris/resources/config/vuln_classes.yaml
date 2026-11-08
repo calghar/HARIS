@@ -1,0 +1,91 @@
+# aliases: per scanner, regexes matched (case-insensitive) against the title start, and against each tag and Nuclei template id in full.
+# Scanners not listed here are built-in checks and use the builtin aliases.
+external_scanners: [wapiti, nuclei, nikto, nmap, sslyze]
+
+classes:
+  - id: xss_stored
+    primary_cwe: CWE-79
+    granularity: parameter
+    aliases:
+      wapiti: ["Stored Cross Site Scripting"]
+
+  - id: xss_reflected
+    primary_cwe: CWE-79
+    granularity: parameter
+    oracle: reflection
+    aliases:
+      wapiti: ["(Reflected )?Cross Site Scripting"]
+      nuclei: ["(Reflected )?XSS", "xss", "reflected-xss"]
+
+  - id: sqli_time
+    primary_cwe: CWE-89
+    granularity: parameter
+    oracle: timing
+    aliases:
+      wapiti: ["Blind SQL Injection"]
+      nuclei: ["(Time|Blind)[- ]based SQL Injection"]
+
+  - id: sqli_error
+    primary_cwe: CWE-89
+    granularity: parameter
+    oracle: error_signature
+    aliases:
+      wapiti: ["SQL Injection"]
+      nuclei: ["SQL Injection", "sqli"]
+
+  - id: path_traversal
+    primary_cwe: CWE-22
+    granularity: parameter
+    aliases:
+      wapiti: ["Path Traversal"]
+      nuclei: ["lfi", "path-traversal"]
+
+  - id: open_redirect
+    primary_cwe: CWE-601
+    granularity: parameter
+    aliases:
+      wapiti: ["Open Redirect"]
+      nuclei: ["redirect", "open-redirect"]
+
+  - id: ssrf
+    primary_cwe: CWE-918
+    granularity: parameter
+    aliases:
+      wapiti: ["Server Side Request Forgery"]
+      nuclei: ["ssrf"]
+
+  - id: xxe
+    primary_cwe: CWE-611
+    granularity: parameter
+    aliases:
+      wapiti: ["XML External Entity"]
+      nuclei: ["xxe"]
+
+  - id: missing_header
+    primary_cwe: CWE-693
+    granularity: host
+    oracle: header_presence
+    aliases:
+      builtin: ["Missing .* header"]
+
+  - id: insecure_cookie
+    primary_cwe: CWE-614
+    granularity: host
+    aliases:
+      builtin: ["Cookie '.*' (missing|uses|has) .*"]
+      wapiti: ["(Secure|HttpOnly) Flag cookie"]
+
+  - id: sensitive_file
+    primary_cwe: CWE-538
+    granularity: path
+    oracle: content_validator
+    aliases:
+      builtin: ["Accessible sensitive path: .*", "Exposed debug endpoint: .*"]
+      wapiti: ["Backup file"]
+
+  - id: tls_weak_protocol
+    primary_cwe: CWE-326
+    granularity: host
+    aliases:
+      builtin: ["Weak TLS protocol negotiated: .*"]
+      sslyze: ["Deprecated protocol .* supported"]

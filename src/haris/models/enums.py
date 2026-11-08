@@ -38,6 +38,65 @@ class Confidence(enum.StrEnum):
     TENTATIVE = "tentative"
 
 
+def confidence_from_score(score: float) -> Confidence:
+    """Derive the confidence enum from a numeric score."""
+    if score >= 0.9:
+        return Confidence.CONFIRMED
+    if score >= 0.6:
+        return Confidence.FIRM
+    return Confidence.TENTATIVE
+
+
+_TIER_RANK: dict[str, int] = {
+    "exploit_validated": 3,
+    "replay_verified": 2,
+    "unverified": 1,
+    "refuted": 0,
+}
+
+
+class VerificationTier(enum.StrEnum):
+    """How far a finding has been verified; never changes its fingerprint."""
+
+    UNVERIFIED = "unverified"
+    REPLAY_VERIFIED = "replay_verified"
+    EXPLOIT_VALIDATED = "exploit_validated"
+    REFUTED = "refuted"
+
+    @property
+    def rank(self) -> int:
+        """Higher is stronger; picks the canonical finding of a bucket."""
+        return _TIER_RANK[self.value]
+
+
+class VerificationMethod(enum.StrEnum):
+    NONE = "none"
+    REPLAY = "replay"
+    AGENT = "agent"
+
+
+class VerificationOracle(enum.StrEnum):
+    NONE = "none"
+    REFLECTION = "reflection"
+    ERROR_SIGNATURE = "error_signature"
+    TIMING = "timing"
+    HEADER_PRESENCE = "header_presence"
+    CONTENT_VALIDATOR = "content_validator"
+    SOFT404 = "soft404"
+    CANARY = "canary"
+
+
+class ScanState(enum.StrEnum):
+    """Lifecycle state of a scan; drives the CLI exit code."""
+
+    PENDING = "pending"
+    RUNNING = "running"
+    COMPLETED = "completed"
+    INCOMPLETE = "incomplete"
+    FAILED = "failed"
+    CANCELLED = "cancelled"
+
+
 class OwaspCategory(enum.StrEnum):
     """OWASP Top 10 2025 categories."""
 
@@ -69,3 +128,4 @@ class RiskPosture(enum.StrEnum):
     MODERATE = "moderate"
     GOOD = "good"
     EXCELLENT = "excellent"
+    UNKNOWN = "unknown"
