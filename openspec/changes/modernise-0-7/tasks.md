@@ -3,7 +3,7 @@
 - [x] 1.1 Generated `tests/features/*.feature` with `openspec-bdd generate`; step bindings land with each workstream's tests, and every scenario maps to at least one test
 - [x] 1.2 Renamed package `src` to `haris`; 469 tests pass (regression guard for all later tasks)
 - [x] 1.3 Upgraded dependencies; `pip-audit` clean; ruff, mypy and pytest pass
-- [ ] 1.4 Added migration framework (yoyo) with `0001` baseline, hashed tokens, repository split of `store.py`; regression test: a 0.6.2 database opens and its scans, templates and users read back unchanged
+- [x] 1.4 Added migration framework (yoyo) with `0001` baseline, hashed tokens, repository split of `store.py`; regression test: a 0.6.2 database opens and its scans, templates and users read back unchanged
 
 ## 2. Parallel workstreams (disjoint ownership, each in its own worktree)
 
