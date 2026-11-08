@@ -179,6 +179,19 @@ def build_parser() -> argparse.ArgumentParser:
         default=DEFAULT_VERIFY_MODE.value,
         help="Verification: off, replay (default) or llm (replay plus LLM verdict)",
     )
+    parser.add_argument(
+        "--agent", action="store_true", help="Opt-in sandboxed validator"
+    )
+    parser.add_argument(
+        "--i-have-authorization",
+        action="store_true",
+        help="Confirm written authorisation; required with --agent",
+    )
+    parser.add_argument(
+        "--agent-allow-unsafe-methods",
+        action="store_true",
+        help="Allow POST replay of a finding that was observed as POST",
+    )
 
     subparsers = parser.add_subparsers(dest="subcommand")
 
@@ -529,6 +542,13 @@ def _print_session_summary(session: Any) -> None:
 def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
+
+    from haris.agent.policy import bind_cli
+
+    refused = bind_cli(args)
+    if refused is not None:
+        print("Agent mode requires --i-have-authorization.", file=sys.stderr)
+        return refused
 
     non_scan_result = _handle_non_scan_actions(args)
     if non_scan_result is not None:

@@ -102,6 +102,9 @@ conflicts = [
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-v --tb=short"
+markers = [
+    "docker: requires a local Docker daemon and the haris-agent-sandbox image",
+]
 filterwarnings = ["ignore:The default datetime adapter:DeprecationWarning"]
 
 [tool.ruff]
