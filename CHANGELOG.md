@@ -18,6 +18,7 @@
 
 ### Fixed
 
+- Fixed the profile page rendering a blank id for each session and failing to revoke it; sessions are now listed and revoked by token hash
 - Fixed `haris --web` binding to every interface by default; `--host` now defaults to `127.0.0.1`
 - Dropped all `pip-audit --ignore-vuln` entries; the audit and mypy CI jobs are now blocking
 - Added `types-authlib` so mypy resolves authlib imports; import order in tests and doc snippets reformatted for ruff 0.17
@@ -32,6 +33,9 @@
 
 - Improved test coverage for `NucleiScanner`: added 19 new tests covering `_run_phase()`, `_result_to_finding()`, `_write_url_list()`, `_generic_remediation()`, auth header forwarding, and full scan flow
 - Added 5 new tests for nuclei config schema validation in `tests/test_scanner_config.py`
+- Replaced the hand-rolled SQLite schema versioning with `yoyo-migrations`; a 0.6 database is backed up to `<db>.pre-0.7.bak` and adopted as the baseline, and `ScanStore` opens the database through one connection helper
+- Split `ScanStore` into scan, finding, template and website repositories behind an unchanged facade
+- Stored session, remember-me and email-verification tokens as SHA-256 hashes; existing rows were hashed in place so current sessions stay valid
 
 ## 0.6.2 — 2026-04-04
 

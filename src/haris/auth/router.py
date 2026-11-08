@@ -20,6 +20,7 @@ from .middleware import (
 from .models import AuditAction, AuditEvent, User, UserPublic, UserRole
 from .oidc import OIDCClient, OIDCConfig
 from .service import AuthService
+from .tokens import hash_token
 
 logger = logging.getLogger(__name__)
 
@@ -474,13 +475,9 @@ async def profile_page(
     current_user: Annotated[User, Depends(get_current_user)],
     auth_service: Annotated[AuthService, Depends(get_auth_service)],
 ) -> HTMLResponse:
-    sessions = []
-    with auth_service._connect() as conn:
-        rows = conn.execute(
-            "SELECT * FROM user_sessions WHERE user_id = ? ORDER BY last_seen_at DESC",
-            (current_user.user_id,),
-        ).fetchall()
-        sessions = [dict(r) for r in rows]
+    sessions = auth_service.list_user_sessions(
+        current_user.user_id, request.cookies.get("haris_session", "")
+    )
     return templates.TemplateResponse(
         request,
         "auth/profile.html",
@@ -522,12 +519,9 @@ async def profile_update(
             current_user = refreshed
         success = "Profile updated."
 
-    with auth_service._connect() as conn:
-        rows = conn.execute(
-            "SELECT * FROM user_sessions WHERE user_id = ? ORDER BY last_seen_at DESC",
-            (current_user.user_id,),
-        ).fetchall()
-        sessions = [dict(r) for r in rows]
+    sessions = auth_service.list_user_sessions(
+        current_user.user_id, request.cookies.get("haris_session", "")
+    )
 
     return templates.TemplateResponse(
         request,
@@ -550,17 +544,10 @@ async def revoke_session(
     auth_service: Annotated[AuthService, Depends(get_auth_service)],
 ) -> Response:
     """Revoke a specific session (other than the current one)."""
-    current_token = request.cookies.get("haris_session", "")
-    if token == current_token:
+    if token == hash_token(request.cookies.get("haris_session", "")):
         raise HTTPException(status_code=400, detail="Cannot revoke current session")
-    # Verify the session belongs to this user
-    with auth_service._connect() as conn:
-        row = conn.execute(
-            "SELECT user_id FROM user_sessions WHERE token = ?", (token,)
-        ).fetchone()
-    if not row or row["user_id"] != current_user.user_id:
+    if not auth_service.revoke_session_by_hash(current_user.user_id, token):
         raise HTTPException(status_code=404, detail="Session not found")
-    auth_service.delete_session(token)
     return Response(status_code=204)
 
 

@@ -33,6 +33,7 @@ dependencies = [
     "anthropic>=2.6.0",
     "bcrypt>=5.0.0",
     "starlette>=1.10.0",
+    "yoyo-migrations>=9.0.0",
 ]
 
 [project.optional-dependencies]
@@ -87,6 +88,7 @@ haris = [
     "web/static/**/*",
     "llm/templates/**/*",
     "resources/config/**/*",
+    "db/migrations/*",
 ]
 
 [tool.uv]
@@ -97,6 +99,7 @@ conflicts = [
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-v --tb=short"
+filterwarnings = ["ignore:The default datetime adapter:DeprecationWarning"]
 
 [tool.ruff]
 target-version = "py313"
@@ -111,6 +114,10 @@ ignore = ["B008"]
 python_version = "3.13"
 warn_return_any = true
 warn_unused_configs = true
+
+[[tool.mypy.overrides]]
+module = "yoyo.*"
+ignore_missing_imports = true
 
 [tool.bandit]
 exclude_dirs = ["tests", ".venv", "venv"]

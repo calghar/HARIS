@@ -72,7 +72,9 @@ class UserPublic(BaseModel):
 
 
 class UserSession(BaseModel):
-    token: str
+    token_hash: str
+    # Plaintext exists only on the object returned by create_session
+    token: str = ""
     user_id: str
     created_at: str
     expires_at: str

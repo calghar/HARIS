@@ -2,22 +2,19 @@ import json
 import logging
 import secrets
 import sqlite3
-from collections.abc import Generator
-from contextlib import contextmanager
+from contextlib import AbstractContextManager
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
 import bcrypt as _bcrypt_lib
 
+from ..db.connection import connect
+from ..db.migrate import migrate
 from .models import AuditEvent, AuthProvider, User, UserRole, UserSession
+from .tokens import hash_token
 
 logger = logging.getLogger(__name__)
-
-_SCHEMA_INIT_SQL = """
-PRAGMA journal_mode=WAL;
-PRAGMA foreign_keys=ON;
-"""
 
 
 def _now_iso() -> str:
@@ -32,20 +29,10 @@ def _future_iso(*, hours: int = 0, days: int = 0) -> str:
 class AuthService:
     def __init__(self, db_path: str | Path = "data/HARIS.db") -> None:
         self._db_path = Path(db_path)
+        migrate(self._db_path)
 
-    @contextmanager
-    def _connect(self) -> Generator[sqlite3.Connection]:
-        conn = sqlite3.connect(str(self._db_path), timeout=10)
-        conn.row_factory = sqlite3.Row
-        conn.executescript(_SCHEMA_INIT_SQL)
-        try:
-            yield conn
-            conn.commit()
-        except Exception:
-            conn.rollback()
-            raise
-        finally:
-            conn.close()
+    def _connect(self) -> AbstractContextManager[sqlite3.Connection, bool | None]:
+        return connect(self._db_path)
 
     def create_user(
         self,
@@ -188,6 +175,7 @@ class AuthService:
         expires = _future_iso(hours=ttl_hours)
         session = UserSession(
             token=token,
+            token_hash=hash_token(token),
             user_id=user_id,
             created_at=now,
             expires_at=expires,
@@ -203,7 +191,15 @@ class AuthService:
                     last_seen_at, ip_address, user_agent)
                 VALUES (?,?,?,?,?,?,?)
                 """,
-                (token, user_id, now, expires, now, ip_address, user_agent),
+                (
+                    session.token_hash,
+                    user_id,
+                    now,
+                    expires,
+                    now,
+                    ip_address,
+                    user_agent,
+                ),
             )
         return session
 
@@ -212,12 +208,12 @@ class AuthService:
         with self._connect() as conn:
             row = conn.execute(
                 "SELECT * FROM user_sessions WHERE token = ? AND expires_at > ?",
-                (token, now),
+                (hash_token(token), now),
             ).fetchone()
         if not row:
             return None
         return UserSession(
-            token=row["token"],
+            token_hash=row["token"],
             user_id=row["user_id"],
             created_at=row["created_at"],
             expires_at=row["expires_at"],
@@ -230,12 +226,41 @@ class AuthService:
         with self._connect() as conn:
             conn.execute(
                 "UPDATE user_sessions SET last_seen_at = ? WHERE token = ?",
-                (_now_iso(), token),
+                (_now_iso(), hash_token(token)),
             )
 
     def delete_session(self, token: str) -> None:
         with self._connect() as conn:
-            conn.execute("DELETE FROM user_sessions WHERE token = ?", (token,))
+            conn.execute(
+                "DELETE FROM user_sessions WHERE token = ?", (hash_token(token),)
+            )
+
+    def list_user_sessions(
+        self, user_id: str, current_token: str
+    ) -> list[dict[str, Any]]:
+        current_hash = hash_token(current_token)
+        with self._connect() as conn:
+            rows = conn.execute(
+                "SELECT * FROM user_sessions WHERE user_id = ? "
+                "ORDER BY last_seen_at DESC",
+                (user_id,),
+            ).fetchall()
+        return [
+            {
+                **dict(r),
+                "token_hash": r["token"],
+                "is_current": r["token"] == current_hash,
+            }
+            for r in rows
+        ]
+
+    def revoke_session_by_hash(self, user_id: str, token_hash: str) -> bool:
+        with self._connect() as conn:
+            cur = conn.execute(
+                "DELETE FROM user_sessions WHERE token = ? AND user_id = ?",
+                (token_hash, user_id),
+            )
+        return cur.rowcount > 0
 
     def delete_all_user_sessions(self, user_id: str) -> None:
         with self._connect() as conn:
@@ -264,24 +289,25 @@ class AuthService:
             conn.execute(
                 "INSERT INTO remember_tokens (token, user_id, created_at, expires_at,\
                       used_at) VALUES (?,?,?,?,?)",
-                (token, user_id, now, expires, ""),
+                (hash_token(token), user_id, now, expires, ""),
             )
         return token
 
     def consume_remember_token(self, token: str) -> User | None:
         """One-time use. Marks token as used and returns the associated user."""
         now = _now_iso()
+        token_hash = hash_token(token)
         with self._connect() as conn:
             row = conn.execute(
                 "SELECT * FROM remember_tokens WHERE token = ?"
                 " AND expires_at > ? AND used_at = ''",
-                (token, now),
+                (token_hash, now),
             ).fetchone()
             if not row:
                 return None
             conn.execute(
                 "UPDATE remember_tokens SET used_at = ? WHERE token = ?",
-                (now, token),
+                (now, token_hash),
             )
         return self.get_user_by_id(row["user_id"])
 
@@ -304,7 +330,7 @@ class AuthService:
                     (token, user_id, purpose, created_at, expires_at, used_at)
                 VALUES (?,?,?,?,?,'')
                 """,
-                (token, user_id, purpose, now, expires),
+                (hash_token(token), user_id, purpose, now, expires),
             )
         return token
 
@@ -312,17 +338,18 @@ class AuthService:
         """Marks the token as used, activates the user, returns the user
         or None if invalid."""
         now = _now_iso()
+        token_hash = hash_token(token)
         with self._connect() as conn:
             row = conn.execute(
                 "SELECT * FROM email_verifications WHERE token = ? AND expires_at"
                 " > ? AND used_at = ''",
-                (token, now),
+                (token_hash, now),
             ).fetchone()
             if not row:
                 return None
             conn.execute(
                 "UPDATE email_verifications SET used_at = ? WHERE token = ?",
-                (now, token),
+                (now, token_hash),
             )
             conn.execute(
                 "UPDATE users SET is_active = 1, updated_at = ? WHERE user_id = ?",
