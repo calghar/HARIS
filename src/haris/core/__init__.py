@@ -20,7 +20,6 @@ from ..models import (
     Severity,
     Target,
 )
-from .context import http_session, scan_context, temp_workspace
 from .correlator import FindingCorrelator
 from .decorators import (
     handle_scanner_errors,
@@ -63,13 +62,10 @@ __all__ = [
     "get_business_impact",
     "get_profile",
     "handle_scanner_errors",
-    "http_session",
     "list_profiles",
     "map_cwe_to_owasp",
     "map_to_owasp",
     "register_check",
     "register_scanner",
-    "scan_context",
-    "temp_workspace",
     "timed",
 ]

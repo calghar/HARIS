@@ -1,23 +1,29 @@
 import logging
+import threading
 import time
-from collections.abc import Callable as _Callable
-from datetime import UTC, datetime
+from collections import defaultdict
+from collections.abc import Callable
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from datetime import UTC, date, datetime
 from typing import Any
 
-from ..data.scanner_config import get_nikto_tech_keywords
+from ..ignore import IgnoreFile, apply_ignores
 from ..models import (
-    CorrelatedFinding,
     Finding,
-    OwaspCategory,
-    RemediationStep,
-    RiskPosture,
     ScannerResult,
     ScanSession,
-    Severity,
+    ScanState,
     Target,
 )
 from ..models.scan_context import ScanContext
-from .correlator import FindingCorrelator
+from ..net import NetworkError, NetworkPolicy, ScopedClient
+from ..net.ssrf import Resolver, system_resolver
+from .confidence import prior_for
+from .context_extract import extract_context
+from .correlator import FindingCorrelator, pick_best
+from .decorators import check_registry
+from .identity import assign_identity
+from .llm_enrichment import run_llm_enrichment
 from .owasp import map_to_owasp
 from .remediation import RemediationPlanner
 from .risk import assess_risk_posture, risk_posture_summary
@@ -25,9 +31,17 @@ from .scanner import BaseScanner
 
 logger = logging.getLogger(__name__)
 
+DEFAULT_PARALLEL = 3
+MIN_TOOL_RATE_RPS = 1.0
+RECON_SCANNERS = frozenset({"nmap"})
+
 
 class ScanEngine:
     """Orchestrates a full security audit.
+
+    Stages: ``recon`` (built-in checks and nmap, sequential, fills the
+    ``ScanContext``), ``scan`` (remaining scanners in parallel with a read-only
+    context), then identity, correlation, ignore file, risk and remediation.
 
     Usage::
 
@@ -42,69 +56,86 @@ class ScanEngine:
         template_manager: Any | None = None,
         llm_backend: Any | None = None,
         llm_config: dict[str, Any] | None = None,
+        *,
+        parallel: int = DEFAULT_PARALLEL,
+        network_policy: NetworkPolicy | None = None,
+        resolver: Resolver | None = None,
+        ignore: IgnoreFile | None = None,
+        today: date | None = None,
+        checkpoint: Callable[[ScanSession], None] | None = None,
     ) -> None:
         self.scanners: list[BaseScanner] = scanners or []
         self.session_id = session_id or datetime.now(UTC).strftime("%Y%m%d-%H%M%S")
+        self.parallel = max(1, parallel)
+        self.http: ScopedClient | None = None
         self._correlator = FindingCorrelator()
         self._planner = RemediationPlanner()
         self._template_manager = template_manager
         self._llm_backend = llm_backend
         self._llm_config: dict[str, Any] = llm_config or {}
+        self._network_policy = network_policy or NetworkPolicy()
+        self._resolver = resolver
+        self._ignore = ignore
+        self._today = today
+        self._checkpoint = checkpoint
+        self._cancelled = threading.Event()
 
     def add_scanner(self, scanner: BaseScanner) -> None:
         self.scanners.append(scanner)
+
+    def cancel(self) -> None:
+        """Stop starting scanners; the scan ends in state ``cancelled``."""
+        self._cancelled.set()
+
+    # Run
 
     def run(
         self,
         target: Target,
         config: dict[str, Any] | None = None,
     ) -> ScanSession:
-        """Execute all registered scanners against *target*.
-
-        Scanners run sequentially to avoid overwhelming the target and
-        to respect rate-limit constraints.  After all scanners finish,
-        findings are enriched with OWASP mappings, correlated across
-        tools, risk-assessed, and remediation is planned.
-        """
+        """Execute all registered scanners against *target*."""
         config = config or {}
         session = ScanSession(
             session_id=self.session_id,
             target=target,
             started_at=datetime.now(UTC).isoformat(),
+            scanners_used=[s.name for s in self.scanners],
+            scan_state=ScanState.RUNNING,
         )
-
         logger.info(
-            "Starting audit session %s against %s",
-            self.session_id,
-            target.base_url,
+            "Starting audit session %s against %s", self.session_id, target.base_url
         )
 
-        scan_context = ScanContext()
-
-        for scanner in self.scanners:
-            scanner_config = config.get(scanner.name, {})
-            self._run_single_scanner(
-                scanner,
-                target,
-                scanner_config,
-                session,
-                scan_context,
-            )
+        with ScopedClient(
+            target,
+            self._network_policy,
+            resolver=self._resolver or system_resolver,
+        ) as client:
+            self.http = client
+            self._run_stages(session, target, config, client)
+            if client.budget_exceeded:
+                session.errors.append(
+                    "[net] request cap max_requests="
+                    f"{target.scope.max_requests} reached; later requests were refused"
+                )
 
         session.finished_at = datetime.now(UTC).isoformat()
+        session.scan_state = self._final_state(session)
         self._enrich_findings(session)
         self._correlate_findings(session)
+        self._apply_ignores(session)
         self._assess_risk(session)
         self._plan_remediation(session)
 
-        # Optional LLM-powered enrichment pipeline
         if self._llm_backend and self._llm_config.get("enrichment_enabled"):
             self._llm_enrich(session)
 
         logger.info(
-            "Audit session %s complete — %d findings (%d correlated), "
+            "Audit session %s %s - %d findings (%d correlated), "
             "risk posture: %s, %.1fs",
             self.session_id,
+            session.scan_state.value,
             len(session.all_findings),
             len(session.correlated),
             session.risk_posture.value,
@@ -112,122 +143,192 @@ class ScanEngine:
         )
         return session
 
-    # Internal helpers
+    # Stages
 
-    def _run_single_scanner(
+    def _run_stages(
+        self,
+        session: ScanSession,
+        target: Target,
+        config: dict[str, Any],
+        client: ScopedClient,
+    ) -> None:
+        try:
+            target_ip = client.preflight(target.base_url)
+        except NetworkError as exc:
+            logger.error("Pre-flight blocked the scan: %s", exc)
+            for scanner in self.scanners:
+                self._record(
+                    session,
+                    scanner,
+                    ScannerResult(
+                        scanner_name=scanner.name,
+                        errors=[f"not started, pre-flight failed: {exc}"],
+                    ),
+                )
+            return
+
+        context = ScanContext(http=client, target_ip=target_ip)
+        recon = [s for s in self.scanners if self._is_recon(s)]
+        rest = [s for s in self.scanners if not self._is_recon(s)]
+        rps = target.scope.rate_limit_rps
+        for stage, workers in ((recon, 1), (rest, self.parallel)):
+            concurrent = max(1, min(workers, len(stage)))
+            context.tool_rate_rps = max(MIN_TOOL_RATE_RPS, rps / concurrent)
+            self._run_stage(stage, workers, session, target, config, context)
+
+    @staticmethod
+    def _is_recon(scanner: BaseScanner) -> bool:
+        return scanner.name in RECON_SCANNERS or scanner.name in check_registry()
+
+    def _run_stage(
+        self,
+        scanners: list[BaseScanner],
+        workers: int,
+        session: ScanSession,
+        target: Target,
+        config: dict[str, Any],
+        context: ScanContext,
+    ) -> None:
+        if not scanners:
+            return
+        # Only the recon stage may write to the context; the scan stage reads it.
+        writes_context = workers == 1
+        with ThreadPoolExecutor(max_workers=workers) as pool:
+            futures = {
+                pool.submit(
+                    self._execute, s, target, config.get(s.name, {}), context
+                ): s
+                for s in scanners
+            }
+            for future in as_completed(futures):
+                scanner = futures[future]
+                result = future.result()
+                if result is None:
+                    continue
+                self._record(session, scanner, result)
+                if writes_context:
+                    extract_context(scanner.name, result, context)
+
+    def _execute(
         self,
         scanner: BaseScanner,
         target: Target,
         scanner_config: dict[str, Any],
-        session: ScanSession,
-        context: ScanContext | None = None,
-    ) -> None:
-        """Run one scanner and collect its results into the session."""
+        context: ScanContext,
+    ) -> ScannerResult | None:
+        """Run one scanner; a raised exception becomes a failed result."""
+        if self._cancelled.is_set():
+            logger.info("Skipping %s: scan cancelled", scanner.name)
+            return None
         logger.info("Running scanner: %s", scanner.name)
-        session.scanners_used.append(scanner.name)
-
+        start = time.monotonic()
         try:
-            # Merge template-derived options before user config
             if self._template_manager:
-                template_opts = self._template_manager.get_scanner_options(
-                    scanner.name,
-                )
+                template_opts = self._template_manager.get_scanner_options(scanner.name)
                 if template_opts:
-                    merged = {**template_opts, **scanner_config}
-                    scanner_config = merged
-
+                    scanner_config = {**template_opts, **scanner_config}
             if scanner_config:
                 scanner.configure(scanner_config)
-
-            start = time.monotonic()
             result = scanner.scan(target, context=context)
-            elapsed = time.monotonic() - start
-
-            result.metadata["elapsed_seconds"] = round(elapsed, 2)
-            session.scanner_results.append(result)
-            session.all_findings.extend(result.findings)
-
-            if result.errors:
-                session.errors.extend(f"[{scanner.name}] {e}" for e in result.errors)
-
-            # Extract cross-scanner intelligence for downstream scanners
-            if context is not None:
-                self._extract_context(scanner.name, result, context)
-
-            logger.info(
-                "Scanner %s finished: %d findings, %d errors in %.1fs",
-                scanner.name,
-                len(result.findings),
-                len(result.errors),
-                elapsed,
+        except Exception as exc:
+            logger.exception("Scanner %s failed with an exception", scanner.name)
+            result = ScannerResult(
+                scanner_name=scanner.name,
+                errors=[f"failed with an exception: {type(exc).__name__}: {exc}"],
             )
+        elapsed = time.monotonic() - start
+        result.metadata["elapsed_seconds"] = round(elapsed, 2)
+        logger.info(
+            "Scanner %s finished: %d findings, %d errors in %.1fs",
+            scanner.name,
+            len(result.findings),
+            len(result.errors),
+            elapsed,
+        )
+        return result
 
-        except Exception:
-            msg = f"Scanner {scanner.name} failed with an exception"
-            logger.exception(msg)
-            session.errors.append(msg)
+    def _record(
+        self, session: ScanSession, scanner: BaseScanner, result: ScannerResult
+    ) -> None:
+        """Merge one result into the session and checkpoint it (main thread)."""
+        for finding in result.findings:
+            if not finding.scanner:
+                finding.scanner = scanner.name
+        session.scanner_results.append(result)
+        session.all_findings.extend(result.findings)
+        session.errors.extend(f"[{scanner.name}] {e}" for e in result.errors)
+        if self._checkpoint is not None:
+            try:
+                self._checkpoint(session)
+            except Exception:
+                logger.exception("Checkpoint after %s failed", scanner.name)
+
+    def _final_state(self, session: ScanSession) -> ScanState:
+        if self._cancelled.is_set():
+            return ScanState.CANCELLED
+        status = session.scanner_status
+        if not status:
+            return ScanState.FAILED if self.scanners else ScanState.COMPLETED
+        completed = sum(1 for s in status.values() if s == "completed")
+        if completed == 0:
+            return ScanState.FAILED
+        return ScanState.COMPLETED if completed == len(status) else ScanState.INCOMPLETE
+
+    # Post-processing
 
     def _enrich_findings(self, session: ScanSession) -> None:
-        """Post-process findings: de-duplicate, tag OWASP, sort."""
-        seen_ids: set[str] = set()
-        unique: list[Finding] = []
-
+        """Tag OWASP, assign identity, keep the best finding per fingerprint."""
+        base_url = session.target.base_url
+        buckets: dict[str, list[Finding]] = defaultdict(list)
         for finding in session.all_findings:
             if not finding.owasp_category:
                 self._auto_map_owasp(finding)
+            assign_identity(finding, base_url)
+            buckets[finding.fingerprint].append(finding)
 
-            dedup_key = (finding.title, finding.url, finding.parameter)
-            key_str = str(dedup_key)
-            if key_str not in seen_ids:
-                seen_ids.add(key_str)
-                unique.append(finding)
-
-        unique.sort(key=lambda f: f.severity.sort_key)
-        session.all_findings = unique
+        best = [pick_best(bucket) for bucket in buckets.values()]
+        session.all_findings = sorted(
+            best, key=lambda f: (f.severity.sort_key, -prior_for(f))
+        )
 
     def _correlate_findings(self, session: ScanSession) -> None:
-        """Cross-tool correlation and intelligent de-duplication."""
-        session.correlated = self._correlator.correlate(session.all_findings)
+        """Cross-tool correlation over every observation, not just the kept ones."""
+        session.correlated = self._correlator.correlate(
+            self._all_observations(session), session.target.base_url
+        )
+
+    @staticmethod
+    def _all_observations(session: ScanSession) -> list[Finding]:
+        return [f for r in session.scanner_results for f in r.findings]
+
+    def _apply_ignores(self, session: ScanSession) -> None:
+        if self._ignore is None:
+            return
+        canonicals = [c.canonical for c in session.correlated]
+        count = apply_ignores(
+            [*session.all_findings, *canonicals],
+            self._ignore,
+            base_url=session.target.base_url,
+            today=self._today,
+        )
+        logger.info("Ignore file suppressed %d findings", count)
 
     def _assess_risk(self, session: ScanSession) -> None:
-        """Compute overall risk posture."""
-        session.risk_posture = assess_risk_posture(session.all_findings)
+        """Compute overall risk posture from the correlated findings."""
+        status = session.scanner_status
+        session.risk_posture = assess_risk_posture(
+            session.correlated,
+            scanner_completed=not status or "completed" in status.values(),
+        )
         session.risk_posture_text = risk_posture_summary(session.risk_posture)
 
     def _plan_remediation(self, session: ScanSession) -> None:
         """Generate a prioritised remediation checklist."""
-        session.remediation_steps = self._planner.plan(session.all_findings)
-
-    @staticmethod
-    def _extract_context(
-        scanner_name: str,
-        result: ScannerResult,
-        context: ScanContext,
-    ) -> None:
-        """Extract cross-scanner intelligence from a scanner's results.
-
-        Populates *context* with technologies, URLs, and ports detected
-        by earlier scanners so downstream scanners can adapt.
-
-        Uses a dispatch dict to route extraction to per-scanner handlers,
-        replacing the previous if/elif chain.
-        """
-        for finding in result.findings:
-            # Collect discovered URLs for crawl-aware scanners
-            if finding.url and finding.url.startswith("http"):
-                context.add_urls([finding.url])
-
-        extractor = _CONTEXT_EXTRACTORS.get(scanner_name)
-        if extractor is not None:
-            extractor(result, context)
-
-        logger.debug(
-            "Context after %s: %d techs, %d urls, %d ports",
-            scanner_name,
-            len(context.detected_technologies),
-            len(context.discovered_urls),
-            len(context.open_ports),
+        session.remediation_steps = self._planner.plan(
+            [c.canonical for c in session.correlated if c.canonical.is_active]
         )
+
+    _extract_context = staticmethod(extract_context)
 
     @staticmethod
     def _auto_map_owasp(finding: Finding) -> None:
@@ -248,149 +349,4 @@ class ScanEngine:
                 finding.cwe_id = mapping.typical_cwes[0]
 
     def _llm_enrich(self, session: ScanSession) -> None:
-        """Run LLM-powered enrichment, correlation, and triage."""
-        try:
-            from ..llm.correlation import LLMCorrelator
-            from ..llm.enrichment import FindingEnricher
-            from ..llm.router import ModelRouter
-            from ..llm.triage import SmartTriager
-
-            if self._llm_backend is None:
-                logger.warning("LLM backend is not configured; skipping enrichment")
-                return
-            routing = self._llm_config.get("model_routing", {})
-            router = ModelRouter(self._llm_backend, routing)
-
-            threshold = self._llm_config.get(
-                "enrich_severity_threshold",
-                "high",
-            )
-            max_tokens = self._llm_config.get(
-                "max_tokens_per_finding",
-                1024,
-            )
-
-            # 1) Enrich individual findings
-            enricher = FindingEnricher(
-                router.for_task("enrichment"),
-                severity_threshold=threshold,
-                max_tokens=max_tokens,
-            )
-            session.llm_enrichments = enricher.batch_enrich(
-                session.all_findings,
-                session.target,
-            )
-
-            # 2) Identify attack chains
-            correlator = LLMCorrelator(
-                router.for_task("attack_chains"),
-            )
-            session.attack_chains = correlator.identify_attack_chains(
-                session.all_findings,
-            )
-
-            # 3) Smart triage
-            triage_ctx = self._llm_config.get("triage_context", {})
-            triager = SmartTriager(router.for_task("triage"))
-            session.triaged_findings = triager.triage_findings(
-                session.all_findings,
-                triage_ctx,
-            )
-
-            # 4) False positive detection
-            fp_correlator = LLMCorrelator(
-                router.for_task("false_positives"),
-            )
-            session.false_positive_assessments = fp_correlator.detect_false_positives(
-                session.all_findings,
-            )
-
-            # 5) Executive priorities
-            session.executive_priorities = triager.generate_executive_priorities(
-                session.all_findings,
-            )
-
-            logger.info(
-                "LLM enrichment complete: %d enrichments, %d attack chains, %d triaged",
-                len(session.llm_enrichments),
-                len(session.attack_chains),
-                len(session.triaged_findings),
-            )
-        except ImportError:
-            logger.warning("LLM enrichment modules not available — skipping")
-        except Exception:
-            logger.exception("LLM enrichment failed — continuing without it")
-
-
-# Silence unused-import warnings for names imported solely so
-# engine.py remains the single import point for legacy consumers.
-__all__ = [
-    "CorrelatedFinding",
-    "Finding",
-    "OwaspCategory",
-    "RemediationStep",
-    "RiskPosture",
-    "ScanEngine",
-    "ScannerResult",
-    "ScanSession",
-    "Severity",
-    "Target",
-]
-
-# Load Nikto tech keywords from config
-_NIKTO_TECH_KEYWORDS = get_nikto_tech_keywords()
-
-
-def _extract_nikto_tech(msg: str, context: ScanContext) -> None:
-    """Extract technology hints from a Nikto finding message."""
-    msg_lower = msg.lower()
-    for keyword, tech_name in _NIKTO_TECH_KEYWORDS:
-        if keyword in msg_lower:
-            context.add_technologies([tech_name])
-
-
-def _extract_nmap(result: ScannerResult, context: ScanContext) -> None:
-    """Extract ports, services and product info from Nmap findings."""
-    for finding in result.findings:
-        raw = finding.raw_data or {}
-        port = raw.get("port", "")
-        product = raw.get("product", "")
-        service = raw.get("service", "")
-        version = raw.get("version", "")
-        if port:
-            context.open_ports.append(str(port))
-        techs = [t for t in [product, service] if t]
-        if techs:
-            context.add_technologies(techs)
-        if product and version:
-            context.add_technologies([f"{product}/{version}"])
-
-
-def _extract_nikto_context(result: ScannerResult, context: ScanContext) -> None:
-    """Extract technology hints from Nikto finding descriptions."""
-    for finding in result.findings:
-        msg = (finding.description or "").lower()
-        _extract_nikto_tech(msg, context)
-
-
-def _extract_header_checks(result: ScannerResult, context: ScanContext) -> None:
-    """Extract server header technologies from header/misc/info checks."""
-    for finding in result.findings:
-        raw = finding.raw_data or {}
-        for hdr_name in ("server", "x-powered-by", "x-aspnet-version"):
-            val = raw.get(hdr_name, "")
-            if val:
-                context.server_headers[hdr_name] = val
-                context.add_technologies([val])
-
-
-# Dispatch dict mapping scanner name → context extractor function.
-# Scanners not in this dict rely only on the generic URL collection
-# performed in _extract_context before dispatching.
-_CONTEXT_EXTRACTORS: dict[str, _Callable[[ScannerResult, ScanContext], None]] = {
-    "nmap": _extract_nmap,
-    "nikto": _extract_nikto_context,
-    "header_checks": _extract_header_checks,
-    "misc_checks": _extract_header_checks,
-    "info_disclosure": _extract_header_checks,
-}
+        run_llm_enrichment(session, self._llm_backend, self._llm_config)

@@ -1,92 +1,64 @@
-import hashlib
-import logging
-from urllib.parse import urlparse
+from ..models import CorrelatedFinding, Finding
+from .confidence import consensus, prior_for, rescore
+from .identity import FINDING_ID_LENGTH, identify
 
-from ..models import Confidence, CorrelatedFinding, Finding
 
-logger = logging.getLogger(__name__)
+def pick_best(bucket: list[Finding]) -> Finding:
+    """Highest tier, then severity, then confidence."""
+    return max(
+        bucket,
+        key=lambda f: (f.verification.tier.rank, -f.severity.sort_key, prior_for(f)),
+    )
 
 
 class FindingCorrelator:
-    """Correlate and de-duplicate findings from multiple scanners.
+    """Group findings by fingerprint into one correlated finding per issue.
 
-    The correlator uses a fingerprint based on the normalised URL path,
-    HTTP parameter, vulnerability type (OWASP tag or title keyword),
-    and HTTP method.  Findings with the same fingerprint are merged.
-
-    When merging, the finding with the highest confidence wins as
-    the canonical entry.  If confidence is equal, the one with the
-    higher severity wins.  All contributing scanners are recorded
-    in ``sources``.
+    Inputs are never modified; the canonical finding is a deep copy.
     """
 
-    def __init__(self) -> None:
-        self._buckets: dict[str, list[Finding]] = {}
+    def correlate(
+        self, findings: list[Finding], base_url: str = ""
+    ) -> list[CorrelatedFinding]:
+        buckets: dict[str, list[Finding]] = {}
+        classes: dict[str, str] = {}
+        for finding in findings:
+            class_id, fingerprint = identify(finding, base_url)
+            buckets.setdefault(fingerprint, []).append(finding)
+            classes[fingerprint] = class_id
 
-    def correlate(self, findings: list[Finding]) -> list[CorrelatedFinding]:
-        """Group, merge, and return correlated findings."""
-        self._buckets.clear()
-
-        for f in findings:
-            key = self._fingerprint(f)
-            self._buckets.setdefault(key, []).append(f)
-
-        correlated: list[CorrelatedFinding] = []
-        for _key, bucket in self._buckets.items():
-            canonical = self._pick_canonical(bucket)
-            sources = [(f.scanner, f.finding_id) for f in bucket]
-
-            # Boost confidence when multiple scanners agree
-            if len({s[0] for s in sources}) > 1:
-                canonical.confidence = Confidence.CONFIRMED
-
-            cf = CorrelatedFinding(canonical=canonical, sources=sources)
-            correlated.append(cf)
-
-        # Sort: multi-confirmed first, then by severity
+        correlated = [
+            self._merge(fingerprint, classes[fingerprint], bucket)
+            for fingerprint, bucket in buckets.items()
+        ]
         correlated.sort(
             key=lambda c: (
                 not c.multi_confirmed,
                 c.canonical.severity.sort_key,
+                -c.canonical.confidence_score,
             )
         )
         return correlated
 
     @staticmethod
-    def _fingerprint(f: Finding) -> str:
-        """Compute a stable fingerprint for correlation.
+    def _merge(
+        fingerprint: str, class_id: str, bucket: list[Finding]
+    ) -> CorrelatedFinding:
+        best = pick_best(bucket)
+        canonical = best.model_copy(deep=True)
+        canonical.vuln_class = class_id
+        canonical.fingerprint = fingerprint
+        canonical.finding_id = fingerprint[:FINDING_ID_LENGTH]
+        canonical.severity = min(bucket, key=lambda f: f.severity.sort_key).severity
 
-        Two findings match if they concern the same URL path, parameter,
-        vulnerability type, and HTTP method.
-        """
-        parsed = urlparse(f.url)
-        path = parsed.path.rstrip("/") or "/"
+        per_scanner: dict[str, float] = {}
+        for f in bucket:
+            per_scanner[f.scanner] = max(per_scanner.get(f.scanner, 0.0), prior_for(f))
 
-        # Normalise vuln type from tags or title
-        vuln_type = ""
-        if f.tags:
-            vuln_type = f.tags[0]
-        elif f.owasp_category:
-            vuln_type = f.owasp_category
-        else:
-            # Fall back to first two title words lowercased
-            vuln_type = "_".join(f.title.lower().split()[:3])
-
-        raw = f"{parsed.hostname}|{path}|{f.parameter}|{vuln_type}|{f.method}"
-        return hashlib.sha256(raw.encode()).hexdigest()[:16]
-
-    @staticmethod
-    def _pick_canonical(bucket: list[Finding]) -> Finding:
-        """Choose the best representative from a group of duplicates."""
-        confidence_rank = {
-            Confidence.CONFIRMED: 0,
-            Confidence.FIRM: 1,
-            Confidence.TENTATIVE: 2,
-        }
-        bucket.sort(
-            key=lambda f: (
-                confidence_rank.get(f.confidence, 3),
-                f.severity.sort_key,
-            )
+        merged = CorrelatedFinding(
+            canonical=canonical,
+            sources=[(f.scanner, f.observation_id) for f in bucket],
+            consensus_score=consensus(per_scanner.values()),
         )
-        return bucket[0]
+        rescore(merged)
+        return merged

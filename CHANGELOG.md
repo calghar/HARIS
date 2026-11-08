@@ -3,6 +3,18 @@
 
 ## 0.6.3 — Unreleased
 
+### Added
+
+- Finding identity: every finding has a stable `fingerprint` (SHA-256 over CWE, vulnerability class, normalised URL, method and parameter), a per-sighting `observation_id`, a `confidence_score`, a `verification` tier and a `suppression`; 0.6.x JSON reports still load
+- Vulnerability classes in `vuln_classes.yaml` and per-scanner confidence priors in `confidence.yaml`
+- Correlator merges the same finding across scanners by fingerprint, scores consensus confidence and no longer mutates its input
+- `.haris-ignore.yaml` (`--ignore-file`) suppresses findings by fingerprint or class with a required reason, author and expiry date
+- `--fail-on SEVERITY`, `--baseline REPORT.json`, `--allow-private`, `--parallel N` and `haris diff OLD NEW` (new, fixed, not_retested, unchanged)
+- Exit codes: 0 clean, 1 findings at `--fail-on`, 2 incomplete, failed or cancelled scan, 3 usage error
+- Scan state (`completed`, `incomplete`, `failed`, `cancelled`) and partial results saved to `session.partial.json` and the database after each scanner
+- `haris.net.ScopedClient`: scope, SSRF (pinned resolution, private ranges blocked unless `--allow-private`), rate limit, request cap, per-hop redirect checks, retries and a redacted request log; exposed as `ScanContext.http`
+- SSRF pre-flight before any scanner starts, and a per-tool request rate (`ScanContext.tool_rate_rps`)
+
 ### Changed (packaging)
 
 - Renamed package `src` to `haris` (`src/haris/`); project name `haris`; console script `haris` replaces `scripts/run_scan.py`; `python -m haris` works
@@ -28,6 +40,7 @@
 - **Nuclei scanner config validation** — added Pydantic schema validation (`_NucleiConfig`) for `config/scanners/nuclei.yaml` with warn-only error handling to catch type mismatches early
 - **Nuclei scanner timeout defaults** — `timeout_per_request` now properly defaulted to 30 seconds in both `default_config.yaml` and `NucleiScanner.__init__()` instead of only as inline fallback
 - Added clarifying comments to `config/scanners/nuclei.yaml` documenting that workflow paths are relative to nuclei's built-in template root
+- A scan where every scanner fails no longer reports `EXCELLENT` and exit code 0
 
 ### Changed
 
@@ -36,6 +49,11 @@
 - Replaced the hand-rolled SQLite schema versioning with `yoyo-migrations`; a 0.6 database is backed up to `<db>.pre-0.7.bak` and adopted as the baseline, and `ScanStore` opens the database through one connection helper
 - Split `ScanStore` into scan, finding, template and website repositories behind an unchanged facade
 - Stored session, remember-me and email-verification tokens as SHA-256 hashes; existing rows were hashed in place so current sessions stay valid
+- Risk posture weights each correlated finding by its confidence score; `RiskPosture.UNKNOWN` replaces `EXCELLENT` when no scanner completed
+- Scanners after the recon stage run in parallel (default 3); remediation and risk use active (not suppressed, not refuted) correlated findings
+- Duplicate findings are collapsed by fingerprint, so `finding_id` is now the first 16 characters of the fingerprint
+- Moved the context extractors from `ScanEngine` to `core/context_extract.py` and the LLM stage to `core/llm_enrichment.py`
+- Removed the unused `core/context.py`
 
 ## 0.6.2 — 2026-04-04
 

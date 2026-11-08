@@ -15,7 +15,18 @@ from .enrichment import (
     TriageContext,
     TriagedFinding,
 )
-from .enums import Confidence, Effort, OwaspCategory, RiskPosture, Severity
+from .enums import (
+    Confidence,
+    Effort,
+    OwaspCategory,
+    RiskPosture,
+    ScanState,
+    Severity,
+    VerificationMethod,
+    VerificationOracle,
+    VerificationTier,
+    confidence_from_score,
+)
 from .finding import Finding
 from .llm import LLMResponse
 from .owasp import OwaspMapping
@@ -28,6 +39,7 @@ from .scanner import ScannerResult
 from .session import ScanSession
 from .target import AuthConfig, Scope, Target
 from .templates import TemplateConfig, TemplateMetadata, TemplateSource, UpdateResult
+from .verification import EvidenceExchange, LLMAssessment, Suppression, Verification
 
 __all__ = [
     # Enums
@@ -35,7 +47,12 @@ __all__ = [
     "Effort",
     "OwaspCategory",
     "RiskPosture",
+    "ScanState",
     "Severity",
+    "VerificationMethod",
+    "VerificationOracle",
+    "VerificationTier",
+    "confidence_from_score",
     # Models
     "ChatMessage",
     "Conversation",
@@ -47,7 +64,9 @@ __all__ = [
     "CorrelatedFinding",
     "EnrichedFinding",
     "EnrichmentContext",
+    "EvidenceExchange",
     "Finding",
+    "LLMAssessment",
     "LLMResponse",
     "OwaspMapping",
     "RemediationStep",
@@ -58,6 +77,7 @@ __all__ = [
     "ScanProfile",
     "ScanSession",
     "Scope",
+    "Suppression",
     "Target",
     "TriageContext",
     "TriagedFinding",
@@ -65,4 +85,5 @@ __all__ = [
     "TemplateMetadata",
     "TemplateSource",
     "UpdateResult",
+    "Verification",
 ]

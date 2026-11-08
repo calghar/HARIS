@@ -1,0 +1,13 @@
+# Prior probability that a report from this source is a true positive; keyed by scanner or check name.
+default: 0.5
+priors:
+  wapiti: 0.6
+  nuclei: 0.7
+  nikto: 0.4
+  nmap: 0.8
+  sslyze: 0.9
+  header_checks: 0.8
+  cookie_checks: 0.8
+  tls_checks: 0.8
+  misc_checks: 0.5
+  info_disclosure: 0.5

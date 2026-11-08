@@ -1,11 +1,15 @@
 import contextlib
 import logging
+from collections.abc import Callable
+from datetime import date
 from typing import Any
 
 from ..config.loader import load_config
+from ..ignore import IgnoreFile
 from ..models import Config, ScanSession, Target
+from ..net import NetworkPolicy
 from .decorators import all_registered
-from .engine import ScanEngine
+from .engine import DEFAULT_PARALLEL, ScanEngine
 from .profiles import get_profile
 
 logger = logging.getLogger(__name__)
@@ -28,6 +32,12 @@ class ScanRunner:
         llm_enrich: bool = False,
         llm_backend_name: str | None = None,
         scanner_options: dict[str, dict[str, Any]] | None = None,
+        *,
+        parallel: int = DEFAULT_PARALLEL,
+        network_policy: NetworkPolicy | None = None,
+        ignore: IgnoreFile | None = None,
+        today: date | None = None,
+        checkpoint: Callable[[ScanSession], None] | None = None,
     ) -> None:
         self._target = target
         self._profile_name = profile_name
@@ -37,6 +47,19 @@ class ScanRunner:
         self._llm_enrich = llm_enrich
         self._llm_backend_name = llm_backend_name
         self._scanner_options = scanner_options or {}
+        self._engine_options: dict[str, Any] = {
+            "parallel": parallel,
+            "network_policy": network_policy,
+            "ignore": ignore,
+            "today": today,
+            "checkpoint": checkpoint,
+        }
+        self._engine: ScanEngine | None = None
+
+    def cancel(self) -> None:
+        """Ask the running scan to stop; it ends in state ``cancelled``."""
+        if self._engine is not None:
+            self._engine.cancel()
 
     def run(self) -> ScanSession:
         """Execute the full scan pipeline and return the session."""
@@ -47,7 +70,10 @@ class ScanRunner:
         template_manager = self._create_template_manager()
         llm_backend, llm_config = self._create_llm_enrichment()
 
-        kwargs: dict[str, Any] = {"scanners": scanner_instances}
+        kwargs: dict[str, Any] = {
+            "scanners": scanner_instances,
+            **self._engine_options,
+        }
         if self._session_id:
             kwargs["session_id"] = self._session_id
         if template_manager:
@@ -56,8 +82,8 @@ class ScanRunner:
             kwargs["llm_backend"] = llm_backend
             kwargs["llm_config"] = llm_config
 
-        engine = ScanEngine(**kwargs)
-        session = engine.run(self._target)
+        self._engine = ScanEngine(**kwargs)
+        session = self._engine.run(self._target)
 
         profile = None
         with contextlib.suppress(KeyError):

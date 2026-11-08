@@ -1,4 +1,11 @@
-from ..models import BusinessImpact, Finding, OwaspCategory, RiskPosture, Severity
+from ..models import (
+    BusinessImpact,
+    CorrelatedFinding,
+    Finding,
+    OwaspCategory,
+    RiskPosture,
+    Severity,
+)
 
 # Map OWASP 2025 categories to business-language impact descriptions.
 # These are intentionally written for a non-technical audience.
@@ -144,40 +151,39 @@ def get_business_impact(finding: Finding) -> BusinessImpact:
     return _FALLBACK_IMPACT
 
 
-def assess_risk_posture(findings: list[Finding]) -> RiskPosture:
-    """Compute an overall risk posture from a list of findings.
+SEVERITY_WEIGHTS: dict[Severity, int] = {
+    Severity.CRITICAL: 25,
+    Severity.HIGH: 10,
+    Severity.MEDIUM: 3,
+    Severity.LOW: 1,
+    Severity.INFO: 0,
+}
+POSTURE_THRESHOLDS: tuple[tuple[float, RiskPosture], ...] = (
+    (50, RiskPosture.CRITICAL),
+    (25, RiskPosture.POOR),
+    (10, RiskPosture.MODERATE),
+)
 
-    Scoring heuristic:
-    - Each CRITICAL adds 25 points
-    - Each HIGH adds 10 points
-    - Each MEDIUM adds 3 points
-    - Each LOW adds 1 point
 
-    Thresholds:
-    - >= 50: CRITICAL
-    - >= 25: POOR
-    - >= 10: MODERATE
-    - >= 1:  GOOD
-    - 0:     EXCELLENT
+def assess_risk_posture(
+    correlated: list[CorrelatedFinding], *, scanner_completed: bool = True
+) -> RiskPosture:
+    """Posture from correlated findings: sum of severity weight x confidence.
+
+    Refuted and suppressed findings are excluded.  UNKNOWN when no scanner
+    completed, so a failed scan never reads as EXCELLENT.
     """
-    weights = {
-        Severity.CRITICAL: 25,
-        Severity.HIGH: 10,
-        Severity.MEDIUM: 3,
-        Severity.LOW: 1,
-        Severity.INFO: 0,
-    }
-    score = sum(weights.get(f.severity, 0) for f in findings)
-
-    if score >= 50:
-        return RiskPosture.CRITICAL
-    if score >= 25:
-        return RiskPosture.POOR
-    if score >= 10:
-        return RiskPosture.MODERATE
-    if score >= 1:
-        return RiskPosture.GOOD
-    return RiskPosture.EXCELLENT
+    if not scanner_completed:
+        return RiskPosture.UNKNOWN
+    score = sum(
+        SEVERITY_WEIGHTS[c.canonical.severity] * c.canonical.confidence_score
+        for c in correlated
+        if c.canonical.is_active
+    )
+    for threshold, posture in POSTURE_THRESHOLDS:
+        if score >= threshold:
+            return posture
+    return RiskPosture.GOOD if score > 0 else RiskPosture.EXCELLENT
 
 
 def risk_posture_summary(posture: RiskPosture) -> str:
@@ -206,6 +212,10 @@ def risk_posture_summary(posture: RiskPosture) -> str:
         RiskPosture.EXCELLENT: (
             "No significant security issues were found.  The "
             "application appears well-hardened against common attacks."
+        ),
+        RiskPosture.UNKNOWN: (
+            "No scanner completed, so the posture could not be assessed.  "
+            "Fix the scanner errors and run the scan again."
         ),
     }
     return summaries[posture]

@@ -1,0 +1,10 @@
+[lint]
+select = ["TID251"]
+
+[lint.flake8-tidy-imports.banned-api]
+"requests".msg = "Send HTTP through haris.net.ScopedClient."
+"httpx".msg = "Send HTTP through haris.net.ScopedClient."
+"urllib3".msg = "Send HTTP through haris.net.ScopedClient."
+
+[lint.per-file-ignores]
+"haris/net/**" = ["TID251"]

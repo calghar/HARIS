@@ -7,14 +7,14 @@ class CorrelatedFinding(BaseModel):
     """A finding confirmed by one or more scanners.
 
     Attributes:
-        canonical: The highest-confidence Finding chosen as
-            representative.
-        sources: List of (scanner_name, finding_id) that
-            reported the same issue.
+        canonical: Deep copy of the best member of the fingerprint bucket.
+        sources: (scanner_name, observation_id) of every member.
+        consensus_score: Cross-scanner score before tier and LLM adjustments.
     """
 
     canonical: Finding
     sources: list[tuple[str, str]] = Field(default_factory=list)
+    consensus_score: float = Field(default=0.0, ge=0.0, le=1.0)
 
     @property
     def confirmed_by(self) -> int:
