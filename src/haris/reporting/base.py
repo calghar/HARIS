@@ -1,6 +1,7 @@
 import abc
 from pathlib import Path
 
+from ..diff import LoadedReport
 from ..models import ScanSession
 
 
@@ -9,6 +10,10 @@ class BaseReporter(abc.ABC):
 
     format_name: str = "base"
     file_extension: str = ".txt"
+
+    def __init__(self, baseline: LoadedReport | None = None) -> None:
+        """Configure the optional earlier report that diff-aware formats compare to."""
+        self.baseline = baseline
 
     @abc.abstractmethod
     def generate(self, session: ScanSession) -> str:

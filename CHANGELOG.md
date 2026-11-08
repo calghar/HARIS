@@ -14,6 +14,9 @@
 - Scan state (`completed`, `incomplete`, `failed`, `cancelled`) and partial results saved to `session.partial.json` and the database after each scanner
 - `haris.net.ScopedClient`: scope, SSRF (pinned resolution, private ranges blocked unless `--allow-private`), rate limit, request cap, per-hop redirect checks, retries and a redacted request log; exposed as `ScanContext.http`
 - SSRF pre-flight before any scanner starts, and a per-tool request rate (`ScanContext.tool_rate_rps`)
+- SARIF 2.1.0 (`sarif`), CSV (`csv`) and JUnit XML (`junit`) report formats for `--formats`; SARIF carries partial fingerprints, web request and response, `suppressions` and, with `--baseline`, `baselineState`
+- JSON report adds `scan_state`, `scanner_status` and `correlated` (with `sources`); published JSON Schema at `src/haris/resources/schema/report.schema.json`
+- GitHub Action (`action.yml`) and GitLab CI template (`integrations/gitlab/templates/haris.yml`); see `docs/integrations.md`
 
 ### Changed (packaging)
 
@@ -63,6 +66,8 @@
 - Fixed OIDC linking a local account by an unverified email; `is_active` is enforced and `extract_role` handles string and list claims
 - Fixed inline handlers and scripts that the nonce CSP blocked; all page scripts now live in `static/js/`
 - Fixed role changes in the admin user table failing with a server error and the user table using a missing `user.id`
+- Markdown and HTML reports escape every target-controlled value (titles, URLs, parameters, evidence) and the HTML report sets a CSP; raw HTML and `javascript:` links no longer pass through
+- Reports list active findings only in the body and move refuted and suppressed findings to an appendix; each finding shows its verification tier and confidence, and risk posture `unknown` is shown
 
 ### Changed
 

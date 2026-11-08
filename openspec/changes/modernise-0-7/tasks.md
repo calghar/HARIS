@@ -14,7 +14,7 @@
 - [x] 2.5 LLM layer (`llm/`): structured output, redaction, fencing, budgets, config-driven models
 - [ ] 2.6 Verification stage (`verify/`, `agent/`): replay verifier, LLM verdict, sandboxed agent behind two flags
 - [ ] 2.7 AI-security module (`ai_security/`, `scanners/garak_scanner.py`, `scanners/promptfoo_scanner.py`)
-- [ ] 2.8 Reporting (`reporting/`): SARIF, CSV, JUnit, JSON schema, escaped HTML, CI integrations
+- [x] 2.8 Reporting (`reporting/`): SARIF, CSV, JUnit, JSON schema, escaped HTML, CI integrations
 - [x] 2.9 Benchmark harness (`bench/`): targets, ground truth, scorer, nightly workflow
 
 ## 3. Integration and release

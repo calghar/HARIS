@@ -73,6 +73,8 @@ dev = [
     "bandit[toml]>=1.9.4",
     "pip-audit>=2.10.1",
     "pre-commit>=4.7.0",
+    "jsonschema>=4.26.0",
+    "types-jsonschema>=4.26.0.20261006",
 ]
 
 [project.scripts]
@@ -88,6 +90,7 @@ haris = [
     "web/static/**/*",
     "llm/templates/**/*",
     "resources/config/**/*",
+    "resources/schema/**/*",
     "db/migrations/*",
 ]
 

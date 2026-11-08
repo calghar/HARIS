@@ -43,5 +43,6 @@ class JSONReporter(BaseReporter):
                 for s in session.remediation_steps
             ],
             "errors": session.errors,
+            **session.report_extras(),
         }
         return json.dumps(report, indent=2, ensure_ascii=False)

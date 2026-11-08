@@ -1,23 +1,26 @@
 import html
+from collections import Counter
 
 from ..models import ScanSession, Severity
 from .base import BaseReporter
+from .findings import split_findings
 from .markdown_report import MarkdownReporter
+
+CSP = "default-src 'none'; style-src 'unsafe-inline'"
 
 
 class HTMLReporter(BaseReporter):
     """Generates a self-contained HTML security report.
 
-    Uses the Markdown reporter internally and wraps the output in HTML.
-    If the ``markdown`` library is available, it converts Markdown to
-    HTML; otherwise it wraps the raw text in ``<pre>`` tags.
+    Converts the escaped Markdown report to HTML (``<pre>`` without the
+    ``markdown`` library); the page carries a CSP that blocks scripts.
     """
 
     format_name = "html"
     file_extension = ".html"
 
     def generate(self, session: ScanSession) -> str:
-        md_content = MarkdownReporter().generate(session)
+        md_content = MarkdownReporter(for_html=True).generate(session)
         body_html = self._md_to_html(md_content)
         severity_summary = self._severity_bar(session)
 
@@ -26,6 +29,7 @@ class HTMLReporter(BaseReporter):
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Content-Security-Policy" content="{CSP}">
 <title>Security Audit Report - {html.escape(session.target.base_url)}</title>
 <style>
   :root {{
@@ -94,8 +98,9 @@ class HTMLReporter(BaseReporter):
 
     def _severity_bar(self, session: ScanSession) -> str:
         """Generate a coloured severity distribution bar."""
-        by_sev = session.findings_by_severity
-        total = len(session.all_findings) or 1
+        active, _ = split_findings(session)
+        by_sev = Counter(f.severity for f in active)
+        total = len(active) or 1
         colors = {
             Severity.CRITICAL: "var(--critical)",
             Severity.HIGH: "var(--high)",
@@ -106,7 +111,7 @@ class HTMLReporter(BaseReporter):
 
         spans = []
         for sev in Severity:
-            count = len(by_sev[sev])
+            count = by_sev[sev]
             if count == 0:
                 continue
             pct = (count / total) * 100
