@@ -19,7 +19,7 @@ jobs:
           python-version: "3.13"
 
       - name: Install dev dependencies
-        run: uv sync --extra dev
+        run: uv sync
 
       - name: Ruff lint
         run: uv run ruff check src/ tests/
@@ -30,7 +30,6 @@ jobs:
   typecheck:
     name: Type check
     runs-on: ubuntu-latest
-    continue-on-error: true
     steps:
       - uses: actions/checkout@v6
 
@@ -40,10 +39,10 @@ jobs:
           python-version: "3.13"
 
       - name: Install dependencies
-        run: uv sync --extra dev --extra web --extra reporting --extra llm-anthropic --extra llm-openai
+        run: uv sync --extra web --extra reporting
 
       - name: Mypy
-        run: uv run mypy src/ tests/ --ignore-missing-imports
+        run: uv run mypy src/ tests/
 
   test:
     name: Tests
@@ -57,8 +56,8 @@ jobs:
           python-version: "3.13"
 
       - name: Install dependencies
-        # Excludes scanner extras (sslyze/wapiti3) — scanners are mocked in tests
-        run: uv sync --extra dev --extra web --extra reporting --extra llm-anthropic --extra llm-openai
+        # Excludes the scanners extra (sslyze/wapiti3) — scanners are mocked in tests
+        run: uv sync --extra web --extra reporting
 
       - name: Run tests
         run: uv run pytest tests/ -v --tb=short --cov=haris --cov-report=xml --cov-report=term-missing

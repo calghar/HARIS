@@ -3,6 +3,7 @@ from __future__ import annotations
 import sqlite3
 
 import pytest
+
 from haris.llm.retriever import FindingRetriever
 from haris.models import Confidence, Finding, Severity
 

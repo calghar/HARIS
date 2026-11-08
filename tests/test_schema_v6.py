@@ -1,6 +1,7 @@
 import sqlite3
 
 import pytest
+
 from haris.db.store import _SCHEMA_VERSION, ScanStore
 
 

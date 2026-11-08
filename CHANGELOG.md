@@ -10,9 +10,17 @@
 - Web logo served from `/static/haris_logo.png`; `/assets` mount removed
 - `haris.__version__` read from package metadata; the web app reports it
 - Added `itsdangerous` to the `web` extra (required by `SessionMiddleware`)
+- Upgraded all dependencies to latest stable (starlette 1.10, fastapi 0.162, openai 3.46, anthropic 2.6, cryptography 50, authlib 1.9.5, urllib3 2.8, mypy 2.4, ruff 0.17); `pip-audit` reports no vulnerabilities and dependency floors match the patched versions
+- `scanners` extra (sslyze, wapiti3) removed from `all` and declared conflicting with `web`; install both as isolated tools (`pipx`), as the Docker image now does under `/opt/tools`
+- Removed the redundant `llm-openai`/`llm-anthropic` extras (both SDKs are core dependencies); dev tools moved from the `dev` extra to the `dev` dependency group (`uv sync` installs it)
+- Documented minimum external tool versions in the README
+- Dependabot uses the `uv` ecosystem and groups minor/patch updates
 
 ### Fixed
 
+- Fixed `haris --web` binding to every interface by default; `--host` now defaults to `127.0.0.1`
+- Dropped all `pip-audit --ignore-vuln` entries; the audit and mypy CI jobs are now blocking
+- Added `types-authlib` so mypy resolves authlib imports; import order in tests and doc snippets reformatted for ruff 0.17
 - **Nuclei scanner Docker template persistence** — nuclei templates now persisted via `nuclei-data` volume across container rebuilds, avoiding 2GB+ re-download on every rebuild
 - **Nuclei scanner Dockerfile reliability** — split nuclei install into two RUN layers: binary installation (fails hard on error) and template pre-fetch (allowed to fail). Unsupported architectures now fail build instead of silently continuing with broken scanner
 - **Nuclei scanner template path validation** — added `_check_templates_available()` method with warning when template directory is missing; added workflow existence guard in `_resolve_targeted_selection()` to skip missing workflow files instead of passing invalid paths to nuclei

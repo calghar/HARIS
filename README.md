@@ -21,13 +21,15 @@ Orchestrates multiple security scanners, correlates findings, and produces a sin
 
 ## Scanners
 
-| Scanner | What It Tests | Install |
-| ------- | ------------- | ------- |
-| Wapiti | SQLi, XSS, SSRF, command injection, CRLF, XXE | `pipx install wapiti3` |
-| SSLyze | TLS protocols, cipher suites, certificate chain, Heartbleed/ROBOT | `pipx install sslyze` |
-| Nmap | Open ports, service versions, exposed databases | system package manager |
-| Nikto | Web server misconfigurations, outdated software, dangerous files | `brew install nikto` |
-| Nuclei | CVE detection, default credentials, exposed panels, tech fingerprinting (multi-phase) | `brew install nuclei` |
+| Scanner | What It Tests | Install | Min. version |
+| ------- | ------------- | ------- | ------------ |
+| Wapiti | SQLi, XSS, SSRF, command injection, CRLF, XXE | `pipx install wapiti3` | 3.2 |
+| SSLyze | TLS protocols, cipher suites, certificate chain, Heartbleed/ROBOT | `pipx install sslyze` | 6.0 |
+| Nmap | Open ports, service versions, exposed databases | system package manager | 7.90 |
+| Nikto | Web server misconfigurations, outdated software, dangerous files | `brew install nikto` | 2.6 |
+| Nuclei | CVE detection, default credentials, exposed panels, tech fingerprinting (multi-phase) | `brew install nuclei` | 3.7 |
+
+Install Wapiti and SSLyze as isolated tools (`pipx`), not into the HARIS environment: they pin `cryptography<47` and `tornado<6.6`, which carry known CVEs. The `scanners` extra exists for convenience but conflicts with `web` and is excluded from `all`. Versions are documented, not checked at runtime.
 
 ## Built-in Checks
 

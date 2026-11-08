@@ -33,6 +33,14 @@ RUN ARCH=$(dpkg --print-architecture) \
 RUN nuclei -update-templates \
     || echo "nuclei template pre-fetch failed — will download on first run"
 
+# Scanner CLIs in isolated venvs: their pins (cryptography<47, tornado<6.6) block patched app deps.
+RUN set -eu; for tool in wapiti3:wapiti sslyze:sslyze; do \
+      pkg="${tool%%:*}"; bin="${tool##*:}"; \
+      python -m venv "/opt/tools/$bin"; \
+      "/opt/tools/$bin/bin/pip" install --no-cache-dir "$pkg"; \
+      ln -s "/opt/tools/$bin/bin/$bin" "/usr/local/bin/$bin"; \
+    done
+
 WORKDIR /app
 
 # Copy application code and install (non-editable)

@@ -1,6 +1,7 @@
 import json
 
 import pytest
+
 from haris.models import Finding, Severity
 from haris.models.scan_context import ScanContext
 from haris.models.target import Scope, Target

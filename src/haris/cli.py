@@ -83,7 +83,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--host",
-        default="0.0.0.0",
+        default="127.0.0.1",
         help="Web UI bind address (with --web)",
     )
     parser.add_argument(

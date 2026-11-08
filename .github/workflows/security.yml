@@ -21,7 +21,7 @@ jobs:
           python-version: "3.13"
 
       - name: Install dev dependencies
-        run: uv sync --extra dev
+        run: uv sync
 
       - name: Run Bandit (medium+ severity)
         run: |
@@ -39,7 +39,6 @@ jobs:
   dependency-audit:
     name: Dependency Audit (pip-audit)
     runs-on: ubuntu-latest
-    continue-on-error: true
     steps:
       - uses: actions/checkout@v6
 
@@ -49,25 +48,13 @@ jobs:
           python-version: "3.13"
 
       - name: Install dependencies
-        run: uv sync --extra dev --extra web --extra reporting --extra llm-anthropic --extra llm-openai
+        run: uv sync --extra web --extra reporting
 
       - name: Run pip-audit
         run: |
-          uv run pip-audit \
-            --ignore-vuln CVE-2026-27205 \
-            --ignore-vuln CVE-2026-27448 \
-            --ignore-vuln CVE-2026-27459 \
-            --ignore-vuln GHSA-78cv-mqj4-43f7 \
-            --ignore-vuln CVE-2026-31958 \
-            --ignore-vuln CVE-2026-35536 \
+          uv run pip-audit --skip-editable \
             --format=json --output=pip-audit-report.json || true
-          uv run pip-audit \
-            --ignore-vuln CVE-2026-27205 \
-            --ignore-vuln CVE-2026-27448 \
-            --ignore-vuln CVE-2026-27459 \
-            --ignore-vuln GHSA-78cv-mqj4-43f7 \
-            --ignore-vuln CVE-2026-31958 \
-            --ignore-vuln CVE-2026-35536
+          uv run pip-audit --skip-editable
 
       - name: Upload pip-audit report
         uses: actions/upload-artifact@v7

@@ -1,6 +1,7 @@
 from unittest.mock import MagicMock, patch
 
 import pytest
+
 from haris.core.runner import ScanRunner, build_scan_list
 from haris.models import Scope, Target
 

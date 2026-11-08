@@ -1,4 +1,5 @@
 import pytest
+
 from haris.core.profiles import PROFILES, get_profile, list_profiles
 
 

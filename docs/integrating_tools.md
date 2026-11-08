@@ -119,24 +119,29 @@ class MyToolScanner(BaseScanner):
             severity = SEVERITY_MAP.get(item["severity"], Severity.INFO)
             tags = CATEGORY_TAGS.get(item["category"], [])
 
-            findings.append(Finding(
-                title=item["name"],
-                description=item["description"],
-                severity=severity,
-                confidence=Confidence.FIRM,
-                url=item.get("url", ""),
-                scanner=self.name,
-                tags=tags,
-            ))
+            findings.append(
+                Finding(
+                    title=item["name"],
+                    description=item["description"],
+                    severity=severity,
+                    confidence=Confidence.FIRM,
+                    url=item.get("url", ""),
+                    scanner=self.name,
+                    tags=tags,
+                )
+            )
 
         return findings
 
     def _build_command(self, target: Target, output_path: str) -> list[str]:
         return [
             "my-tool",
-            "--target", target.base_url,
-            "--output", output_path,
-            "--format", "json",
+            "--target",
+            target.base_url,
+            "--output",
+            output_path,
+            "--format",
+            "json",
         ]
 ```
 
@@ -146,6 +151,7 @@ In `src/haris/scanners/__init__.py`:
 
 ```python
 from .my_tool_scanner import MyToolScanner
+
 SCANNER_REGISTRY["my_tool"] = MyToolScanner
 ```
 
@@ -200,6 +206,7 @@ Use mock output files to test parsing without running the actual tool:
 ```python
 from pathlib import Path
 from haris.scanners.my_tool_scanner import MyToolScanner
+
 
 def test_parse_results():
     mock_output = Path("tests/fixtures/my_tool_output.json").read_text()

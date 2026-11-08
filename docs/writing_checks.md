@@ -51,15 +51,17 @@ class CORSCheckScanner(BaseScanner):
 
         acao = resp.headers.get("Access-Control-Allow-Origin", "")
         if acao == "*":
-            result.findings.append(Finding(
-                title="Wildcard CORS policy",
-                description="ACAO is set to *",
-                severity=Severity.MEDIUM,
-                confidence=Confidence.CONFIRMED,
-                url=target.base_url,
-                scanner=self.name,
-                tags=["cors_misconfiguration"],
-            ))
+            result.findings.append(
+                Finding(
+                    title="Wildcard CORS policy",
+                    description="ACAO is set to *",
+                    severity=Severity.MEDIUM,
+                    confidence=Confidence.CONFIRMED,
+                    url=target.base_url,
+                    scanner=self.name,
+                    tags=["cors_misconfiguration"],
+                )
+            )
 
         return result
 
@@ -86,7 +88,7 @@ CUSTOM_CHECK_REGISTRY["cors_check"] = CORSCheckScanner
 Use tags from `src/haris/core/owasp.py` `OWASP_MAPPINGS` keys to enable auto-mapping:
 
 ```python
-tags=["cors_misconfiguration"]  # Maps to A01: Broken Access Control
+tags = ["cors_misconfiguration"]  # Maps to A01: Broken Access Control
 ```
 
 ### 4. Write tests
@@ -97,6 +99,7 @@ Create `tests/test_cors_check.py` with mocked HTTP responses:
 from unittest.mock import patch, MagicMock
 from haris.checks.cors_check import CORSCheckScanner
 from haris.core.target import Target
+
 
 def test_wildcard_cors():
     mock_resp = MagicMock()

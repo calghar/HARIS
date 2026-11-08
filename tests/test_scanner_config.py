@@ -1,6 +1,7 @@
 """Tests for scanner_config.py validation logic."""
 
 import pytest
+
 from haris.data.scanner_config import _validate_nuclei_config
 
 

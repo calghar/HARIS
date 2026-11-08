@@ -4,6 +4,7 @@ import smtplib
 from unittest.mock import MagicMock, patch
 
 import pytest
+
 from haris.auth.email import EmailSender, SMTPConfig
 
 _B64_RE = re.compile(r"(?:[A-Za-z0-9+/]{4})+(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?")

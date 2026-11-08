@@ -2,6 +2,7 @@ import sqlite3
 from pathlib import Path
 
 import pytest
+
 from haris.auth.models import AuditAction, AuditEvent, AuthProvider, UserRole
 from haris.auth.service import AuthService
 from haris.db.store import ScanStore

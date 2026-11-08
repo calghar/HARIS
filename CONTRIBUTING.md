@@ -4,9 +4,10 @@
 
 ```bash
 git clone <repo-url> && cd HARIS
-uv venv .venv && source .venv/bin/activate
-uv pip install -e ".[all]"
+uv sync --extra web --extra reporting
 ```
+
+Dev tools (pytest, ruff, mypy, bandit, pip-audit) come from the `dev` dependency group, which `uv sync` installs by default. Scanner CLIs are installed separately with `pipx` (see README).
 
 Copy `.env.example` to `.env` and fill in any API keys you need for testing.
 
