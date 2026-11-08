@@ -96,7 +96,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--formats",
         default=None,
-        help="Report formats: markdown,json,html",
+        help="Report formats: " + ",".join(REPORTER_REGISTRY),
     )
     parser.add_argument(
         "--log-level",
@@ -457,7 +457,7 @@ def _domain_slug(url: str) -> str:
     return re.sub(r"[^a-zA-Z0-9._-]", "_", hostname)
 
 
-def _write_reports(session: Any, config: Any) -> None:
+def _write_reports(session: Any, config: Any, baseline: Any = None) -> None:
     output_dir = Path(config.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -468,7 +468,7 @@ def _write_reports(session: Any, config: Any) -> None:
         if reporter_cls is None:
             logging.warning("Unknown report format: %s", fmt)
             continue
-        reporter = reporter_cls()
+        reporter = reporter_cls(baseline=baseline)
         filename = f"report_{domain}_{session.session_id}{reporter.file_extension}"
         out_path = reporter.write(session, output_dir / filename)
         print(f"Report: {out_path}")
@@ -571,7 +571,7 @@ def main(argv: list[str] | None = None) -> int:
         print("\nCancelled.")
         return EXIT_INCOMPLETE
 
-    _write_reports(session, config)
+    _write_reports(session, config, baseline)
     _save_session_to_db(session)
     _print_session_summary(session)
     if baseline is not None:

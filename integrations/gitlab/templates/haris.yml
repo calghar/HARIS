@@ -1,0 +1,48 @@
+spec:
+  inputs:
+    url:
+      description: Target URL. Scan only targets you are authorised to test.
+      type: string
+    authorised:
+      description: Confirms you are authorised to scan the target.
+      type: string
+      options: ["true"]
+    install_spec:
+      description: pip requirement that installs HARIS, for example a git URL pinned to a tag.
+      type: string
+    profile:
+      description: HARIS scan profile.
+      default: quick
+    fail_on:
+      description: Fail the job when a finding at or above this severity remains.
+      default: high
+    stage:
+      default: test
+    image:
+      description: Image with Python 3.13 or newer.
+      default: python:3.13-slim
+    output_dir:
+      default: haris-reports
+---
+haris-scan:
+  stage: $[[ inputs.stage ]]
+  image: $[[ inputs.image ]]
+  variables:
+    HARIS_URL: $[[ inputs.url ]]
+    HARIS_INSTALL: $[[ inputs.install_spec ]]
+    HARIS_PROFILE: $[[ inputs.profile ]]
+    HARIS_FAIL_ON: $[[ inputs.fail_on ]]
+    HARIS_OUTPUT: $[[ inputs.output_dir ]]
+  script:
+    - pip install --no-cache-dir "$HARIS_INSTALL"
+    - >-
+      haris --url "$HARIS_URL" --profile "$HARIS_PROFILE" --yes
+      --formats sarif,junit,json --output "$HARIS_OUTPUT"
+      --fail-on "$HARIS_FAIL_ON"
+  artifacts:
+    when: always
+    expire_in: 30 days
+    paths:
+      - $[[ inputs.output_dir ]]/
+    reports:
+      junit: $[[ inputs.output_dir ]]/*.xml

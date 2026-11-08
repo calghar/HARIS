@@ -14,6 +14,9 @@
 - Scan state (`completed`, `incomplete`, `failed`, `cancelled`) and partial results saved to `session.partial.json` and the database after each scanner
 - `haris.net.ScopedClient`: scope, SSRF (pinned resolution, private ranges blocked unless `--allow-private`), rate limit, request cap, per-hop redirect checks, retries and a redacted request log; exposed as `ScanContext.http`
 - SSRF pre-flight before any scanner starts, and a per-tool request rate (`ScanContext.tool_rate_rps`)
+- SARIF 2.1.0 (`sarif`), CSV (`csv`) and JUnit XML (`junit`) report formats for `--formats`; SARIF carries partial fingerprints, web request and response, `suppressions` and, with `--baseline`, `baselineState`
+- JSON report adds `scan_state`, `scanner_status` and `correlated` (with `sources`); published JSON Schema at `src/haris/resources/schema/report.schema.json`
+- GitHub Action (`action.yml`) and GitLab CI template (`integrations/gitlab/templates/haris.yml`); see `docs/integrations.md`
 
 ### Changed (packaging)
 
@@ -44,6 +47,8 @@
 - Fixed the OpenAI backend choosing `max_completion_tokens` by `startswith("o")`; the capability table in `llm_models.yaml` now decides the token parameter and whether `temperature` is sent
 - Fixed Anthropic requests failing on a `temperature` argument the installed SDK does not accept; temperature is sent only where the capability table allows it
 - Fixed silent truncation to 25 or 30 findings in false-positive, attack-chain and triage prompts; every finding is sent in severity-ordered batches or marked `skipped_budget`
+- Markdown and HTML reports escape every target-controlled value (titles, URLs, parameters, evidence) and the HTML report sets a CSP; raw HTML and `javascript:` links no longer pass through
+- Reports list active findings only in the body and move refuted and suppressed findings to an appendix; each finding shows its verification tier and confidence, and risk posture `unknown` is shown
 
 ### Changed
 
