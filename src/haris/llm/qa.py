@@ -7,7 +7,9 @@ from ..models import Finding, ScanSession
 from ..models.chat import ChatMessage
 from .base import BaseLLMBackend, LLMResponse
 from .prompts import PromptBuilder
+from .redaction import fence, new_nonce
 from .retriever import FindingRetriever
+from .settings import load_settings
 
 logger = logging.getLogger(__name__)
 
@@ -129,8 +131,6 @@ class ReportQA:
             max_tokens=max_tokens,
         )
 
-    _RETRIEVAL_THRESHOLD = 15
-
     @classmethod
     def _build_chat_messages(
         cls,
@@ -145,7 +145,7 @@ class ReportQA:
         select only the most relevant findings for the context,
         significantly reducing token usage.
         """
-        if len(session.all_findings) > cls._RETRIEVAL_THRESHOLD:
+        if len(session.all_findings) > load_settings().limits.retrieval_threshold:
             retriever = FindingRetriever(session.all_findings)
             try:
                 relevant = retriever.retrieve(question, top_k=10)
@@ -155,7 +155,9 @@ class ReportQA:
         else:
             context = PromptBuilder._format_session_context(session)
 
-        context_msg = "Here is the scan report context:\n\n" + context
+        context_msg = "Here is the scan report context:\n\n" + fence(
+            context, new_nonce()
+        )
         ack_msg = "I've reviewed the scan report. What would you like to know?"
         messages: list[dict[str, str]] = [
             {"role": "user", "content": context_msg},

@@ -1,29 +1,34 @@
-import json
 import logging
 from typing import Any
 
-from ..models import Finding, Severity
+from ..models import Finding
 from ..models.enrichment import TriageContext, TriagedFinding
-from .base import BaseLLMBackend
+from .backend import BaseLLMBackend
+from .budget import BudgetExceededError
 from .enrichment_prompts import EnrichmentPromptBuilder
+from .schemas import TriageOut
+from .settings import load_settings
+from .structured import STATUS_SKIPPED_BUDGET, StageReport, by_severity, run_chunks
 
 logger = logging.getLogger(__name__)
 
-_SEVERITY_MAP = {
-    "critical": Severity.CRITICAL,
-    "high": Severity.HIGH,
-    "medium": Severity.MEDIUM,
-    "low": Severity.LOW,
-    "info": Severity.INFO,
-}
+EXECUTIVE_SUFFIX = (
+    "\n\nAlso provide a 3-sentence executive summary of the "
+    "top priorities after the JSON object."
+)
 
 
 class SmartTriager:
-    """Uses LLM to prioritise findings with business context."""
+    """Uses LLM to prioritise findings with business context.
+
+    ``last_report`` records a status for every finding sent, including
+    ``skipped_budget``.
+    """
 
     def __init__(self, backend: BaseLLMBackend) -> None:
         self.backend = backend
         self._prompts = EnrichmentPromptBuilder()
+        self.last_report = StageReport()
 
     def triage_findings(
         self,
@@ -31,6 +36,7 @@ class SmartTriager:
         triage_context: dict[str, Any] | TriageContext | None = None,
     ) -> list[TriagedFinding]:
         """Triage all findings with LLM-assessed priorities."""
+        self.last_report = StageReport()
         if not findings:
             return []
 
@@ -41,96 +47,51 @@ class SmartTriager:
         else:
             ctx = triage_context
 
-        system, prompt = self._prompts.triage_findings(findings, ctx)
-
-        try:
-            response = self.backend.complete(
-                prompt,
-                system=system,
-                temperature=0.1,
-                max_tokens=2048,
-            )
-            return self._parse_triage(response.text, findings)
-        except Exception:
-            logger.warning("Smart triage failed", exc_info=True)
-            return []
+        parsed = run_chunks(
+            self.backend,
+            findings,
+            self.last_report,
+            prompt_for=lambda chunk: self._prompts.triage_findings(chunk, ctx),
+            model=TriageOut,
+            temperature=0.1,
+            max_tokens=2048,
+        )
+        severity_by_id = {f.finding_id: f.severity for f in findings}
+        triaged: list[TriagedFinding] = []
+        for item in parsed:
+            original = severity_by_id.get(item.finding_id)
+            if original is None:
+                self.last_report.errors.append(f"unknown finding {item.finding_id}")
+                continue
+            triaged.append(item.to_model(original))
+        return triaged
 
     def generate_executive_priorities(
         self,
         findings: list[Finding],
     ) -> str:
-        """Return a plain-text executive priority summary."""
-        ctx = TriageContext()
-        system, prompt = self._prompts.triage_findings(findings, ctx)
-        prompt += (
-            "\n\nAlso provide a 3-sentence executive summary of the "
-            "top priorities after the JSON array."
-        )
-
+        """Summary over the most severe findings; the rest are marked omitted."""
+        report = StageReport()
+        self.last_report = report
+        if not findings:
+            return ""
+        size = load_settings().limits.batch_size
+        ranked = by_severity(findings)
+        for omitted in ranked[size:]:
+            report.statuses[omitted.finding_id] = "omitted_from_summary"
+        system, prompt = self._prompts.triage_findings(ranked[:size], TriageContext())
         try:
-            response = self.backend.complete(
-                prompt,
+            return self.backend.complete(
+                prompt + EXECUTIVE_SUFFIX,
                 system=system,
                 temperature=0.2,
                 max_tokens=2048,
+            ).text
+        except BudgetExceededError as exc:
+            report.statuses.update(
+                {f.finding_id: STATUS_SKIPPED_BUDGET for f in ranked[:size]}
             )
-            return response.text
+            report.errors.append(str(exc))
         except Exception:
             logger.warning("Executive priorities failed", exc_info=True)
-            return ""
-
-    # Parser
-
-    @staticmethod
-    def _parse_triage(
-        raw_text: str,
-        findings: list[Finding],
-    ) -> list[TriagedFinding]:
-        """Parse LLM JSON into TriagedFinding objects."""
-        severity_by_id = {f.finding_id: f.severity for f in findings}
-
-        try:
-            text = raw_text.strip()
-            if text.startswith("```"):
-                text = text.split("\n", 1)[1]
-                text = text.rsplit("```", 1)[0]
-            # Handle case where LLM adds commentary after JSON
-            if text.startswith("["):
-                bracket_end = text.rfind("]")
-                if bracket_end > 0:
-                    text = text[: bracket_end + 1]
-
-            data: list[dict[str, Any]] = json.loads(text)
-            results: list[TriagedFinding] = []
-
-            for item in data:
-                fid = item.get("finding_id", "")
-                original = severity_by_id.get(fid, Severity.INFO)
-                adjusted = _SEVERITY_MAP.get(
-                    item.get("adjusted_severity", "").lower(),
-                    original,
-                )
-
-                results.append(
-                    TriagedFinding(
-                        finding_id=fid,
-                        original_severity=original,
-                        adjusted_severity=adjusted,
-                        exploitability_score=int(
-                            item.get("exploitability_score", 5),
-                        ),
-                        business_priority=int(
-                            item.get("business_priority", 5),
-                        ),
-                        triage_rationale=item.get("triage_rationale", ""),
-                        recommended_timeline=item.get(
-                            "recommended_timeline",
-                            "",
-                        ),
-                    )
-                )
-
-            return results
-        except (TypeError, ValueError):
-            logger.warning("Could not parse triage response")
-            return []
+        return ""

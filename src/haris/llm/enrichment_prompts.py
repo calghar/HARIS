@@ -1,5 +1,6 @@
 from ..models import Finding, Target
 from ..models.enrichment import TriageContext
+from .redaction import DATA_CLAUSE
 from .template_loader import render_template
 
 
@@ -8,7 +9,7 @@ class EnrichmentPromptBuilder:
 
     @staticmethod
     def system() -> str:
-        return render_template("enrichment/system.j2")
+        return render_template("enrichment/system.j2") + "\n\n" + DATA_CLAUSE
 
     @classmethod
     def enrich_finding(

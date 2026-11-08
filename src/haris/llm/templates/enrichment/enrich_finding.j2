@@ -1,10 +1,11 @@
 ## Finding to Analyse
-- Title: {{ finding.title }}
+{% filter untrusted %}
+- Title: {{ finding.title[:limits.title] }}
 - Severity: {{ finding.severity.value }}
 - URL: {{ finding.url }}
 - Scanner: {{ finding.scanner }}
-- Description: {{ finding.description[:500] }}
-- Evidence: {{ finding.evidence[:300] }}
+- Description: {{ finding.description[:limits.description] }}
+- Evidence: {{ finding.evidence[:limits.evidence] }}
 - Tags: {{ finding.tags | join(', ') }}
 - CWE: {{ finding.cwe_id or 'unknown' }}
 
@@ -13,8 +14,9 @@
 
 ## Other Findings in This Scan
 {% for t in sibling_titles[:15] %}
-- {{ t }}
+- {{ t[:limits.title] }}
 {% endfor %}
+{% endfilter %}
 
 ## Task
 Analyse this finding and respond with a JSON object containing:

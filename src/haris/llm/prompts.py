@@ -1,4 +1,5 @@
 from ..models import Finding, ScanSession
+from .redaction import DATA_CLAUSE
 from .template_loader import render_template
 
 _AUDIENCE_INSTRUCTIONS = {
@@ -57,7 +58,7 @@ class PromptBuilder:
 
     @staticmethod
     def system_prompt() -> str:
-        return render_template("qa/system.j2")
+        return render_template("qa/system.j2") + "\n\n" + DATA_CLAUSE
 
     @staticmethod
     def _format_finding_context(finding: Finding) -> str:

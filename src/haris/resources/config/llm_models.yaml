@@ -1,0 +1,68 @@
+# LLM runtime settings, model IDs and capability table.
+# Override by placing a file of the same name in ./config/.
+#
+# [UNVERIFIED] Default model IDs were copied from the type hints of the
+# installed SDKs (anthropic 2.6.0 `types/model.py`, openai 3.46.0
+# `types/shared/chat_model.py`). Re-verify every ID and capability against the
+# provider documentation at release time. `resolve_model()` prefers the
+# provider's model-list API whenever an API key is present.
+
+providers:
+  anthropic:
+    default: claude-sonnet-5-5
+    fallbacks: [claude-sonnet-5, claude-sonnet-4-6, claude-haiku-5-5]
+  openai:
+    default: gpt-5.5
+    fallbacks: [gpt-5.4, gpt-4.1]
+  ollama:
+    # Local model tag, not an SDK-hinted ID. Matches the pre-0.7 default.
+    default: llama3.1
+    fallbacks: []
+
+# First matching `match` glob per provider wins.
+# token_param: request field that caps output tokens.
+# temperature: model accepts a sampling temperature.
+# json_schema / json_object: provider-side structured output (parsing is always validated).
+capabilities:
+  anthropic:
+    # The installed SDK exposes no `temperature` parameter on messages.create.
+    - {match: "claude-*", token_param: max_tokens, temperature: false, json_schema: true, json_object: false}
+  openai:
+    - {match: "o[0-9]*", token_param: max_completion_tokens, temperature: false, json_schema: true, json_object: true}
+    - {match: "gpt-[5-9]*", token_param: max_completion_tokens, temperature: false, json_schema: true, json_object: true}
+    - {match: "gpt-4*", token_param: max_tokens, temperature: true, json_schema: true, json_object: true}
+    # OpenAI-compatible servers (vLLM, Azure, proxies): conservative.
+    - {match: "*", token_param: max_tokens, temperature: true, json_schema: false, json_object: true}
+  ollama:
+    - {match: "*", token_param: num_predict, temperature: true, json_schema: true, json_object: true}
+
+# USD per million tokens. Unknown model = no price = token cap only.
+# - {match: "<model id glob>", input_per_mtok: 0.0, output_per_mtok: 0.0}
+pricing: []
+
+runtime:
+  timeout_s: 60
+  max_retries: 3
+  backoff_base_s: 1.0
+  backoff_max_s: 30.0
+  max_retry_after_s: 120
+  max_concurrency: 4
+  chars_per_token: 4
+  min_output_tokens: 64
+
+# Per-scan caps; null disables a cap.
+budget:
+  max_tokens: 200000
+  max_cost_usd: 2.0
+
+redaction:
+  emails: false
+  extra_patterns: []
+
+# Findings per call for chain, triage and false-positive stages, and field clips (chars).
+limits:
+  batch_size: 30
+  retrieval_threshold: 15
+  title: 200
+  description: 500
+  evidence: 500

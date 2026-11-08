@@ -1,9 +1,9 @@
-{{ context }}
+{{ context | untrusted }}
 
 ## Task
 Explain this specific finding for a {{ audience }} audience:
 
-{{ finding_detail }}
+{{ finding_detail | untrusted }}
 
 Cover:
 1. What this vulnerability means in practical terms

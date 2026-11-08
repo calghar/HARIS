@@ -1,12 +1,14 @@
 ## Confirmed Finding
-- Title: {{ finding.title }}
+{% filter untrusted %}
+- Title: {{ finding.title[:limits.title] }}
 - URL: {{ finding.url }}
 - Parameter: {{ finding.parameter }}
 - Method: {{ finding.method }}
 - Tags: {{ finding.tags | join(', ') }}
-- Description: {{ finding.description[:400] }}
+- Description: {{ finding.description[:limits.description] }}
 
 ## Target: {{ target.base_url }}
+{% endfilter %}
 
 ## Task
 Given this confirmed vulnerability, suggest similar vulnerabilities that may exist elsewhere in the application.  Consider:
@@ -14,13 +16,11 @@ Given this confirmed vulnerability, suggest similar vulnerabilities that may exi
 - The same vulnerability type on related endpoints
 - Escalation paths from this finding
 
-Respond with a JSON array of suggestions:
-[
-  {
-    "description": "What to check and where",
-    "rationale": "Why this variant is likely",
-    "url_pattern": "Suggested URL/endpoint to test"
-  }
-]
+Respond with a JSON object whose "items" array holds suggestions:
+{
+  "description": "What to check and where",
+  "rationale": "Why this variant is likely",
+  "url_pattern": "Suggested URL/endpoint to test"
+}
 
-IMPORTANT: These are suggestions for manual review only, not automated scanning directives.  Return ONLY the JSON array.
+IMPORTANT: These are suggestions for manual review only, not automated scanning directives.  Return ONLY the JSON object.

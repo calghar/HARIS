@@ -28,6 +28,9 @@
 - **Nuclei scanner config validation** — added Pydantic schema validation (`_NucleiConfig`) for `config/scanners/nuclei.yaml` with warn-only error handling to catch type mismatches early
 - **Nuclei scanner timeout defaults** — `timeout_per_request` now properly defaulted to 30 seconds in both `default_config.yaml` and `NucleiScanner.__init__()` instead of only as inline fallback
 - Added clarifying comments to `config/scanners/nuclei.yaml` documenting that workflow paths are relative to nuclei's built-in template root
+- Fixed the OpenAI backend choosing `max_completion_tokens` by `startswith("o")`; the capability table in `llm_models.yaml` now decides the token parameter and whether `temperature` is sent
+- Fixed Anthropic requests failing on a `temperature` argument the installed SDK does not accept; temperature is sent only where the capability table allows it
+- Fixed silent truncation to 25 or 30 findings in false-positive, attack-chain and triage prompts; every finding is sent in severity-ordered batches or marked `skipped_budget`
 
 ### Changed
 
@@ -36,6 +39,20 @@
 - Replaced the hand-rolled SQLite schema versioning with `yoyo-migrations`; a 0.6 database is backed up to `<db>.pre-0.7.bak` and adopted as the baseline, and `ScanStore` opens the database through one connection helper
 - Split `ScanStore` into scan, finding, template and website repositories behind an unchanged facade
 - Stored session, remember-me and email-verification tokens as SHA-256 hashes; existing rows were hashed in place so current sessions stay valid
+- Changed LLM enrichment, attack-chain, triage, false-positive and variant output to one shared pydantic parser; a malformed item is dropped and recorded without losing the batch
+- Changed LLM prompts to wrap scanner and target text in a per-call nonce `<untrusted-data>` fence, and the system prompts to state that fenced text is data
+- Changed LLM calls to use provider structured output where the capability table allows it, a request timeout, jittered retries that honour `Retry-After`, and a bounded concurrency gate
+- Changed LLM backends to default to the models in `llm_models.yaml`; `create_backend()` resolves the model through the provider model list when a key is set
+- Changed the Ollama backend to call `/api/chat` for single and multi-turn requests
+- Changed the chat retrieval threshold and prompt field limits to read from `llm_models.yaml`
+
+### Added
+
+- Added `resources/config/llm_models.yaml` with default model IDs (`[UNVERIFIED]`, re-check at release), a per-model capability table, optional prices, runtime limits and the per-scan budget
+- Added `resolve_model()`, which uses the provider model-list API when a key is present and the config default otherwise
+- Added redaction of API keys, `Authorization` and `Cookie` values, bearer tokens, JWTs, private keys and URL credentials (emails via `redaction.emails`) before every provider call
+- Added per-scan token and cost budgets; LLM stages expose `last_report` with a status per finding (`ok`, `invalid`, `failed`, `skipped_budget`)
+- Added an offline LLM eval set in `tests/evals/` with prompt-injection and malformed-output cases
 
 ## 0.6.2 — 2026-04-04
 

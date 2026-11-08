@@ -1,10 +1,11 @@
-import json
 import logging
-from typing import Any
 
 from ..models import Finding, Target
-from .base import BaseLLMBackend
+from .backend import BaseLLMBackend
+from .budget import BudgetExceededError
 from .enrichment_prompts import EnrichmentPromptBuilder
+from .schemas import VariantOut
+from .structured import STATUS_SKIPPED_BUDGET, StageReport, call_structured
 
 logger = logging.getLogger(__name__)
 
@@ -42,6 +43,7 @@ class VariantAnalyzer:
     def __init__(self, backend: BaseLLMBackend) -> None:
         self.backend = backend
         self._prompts = EnrichmentPromptBuilder()
+        self.last_report = StageReport()
 
     def suggest_variants(
         self,
@@ -49,42 +51,26 @@ class VariantAnalyzer:
         target: Target,
     ) -> list[VariantSuggestion]:
         """Return variant suggestions for a confirmed finding."""
+        self.last_report = StageReport()
         system, prompt = self._prompts.suggest_variants(finding, target)
-
         try:
-            response = self.backend.complete(
+            result = call_structured(
+                self.backend,
                 prompt,
                 system=system,
+                model=VariantOut,
+                many=True,
                 temperature=0.3,
                 max_tokens=1024,
             )
-            return self._parse_suggestions(response.text)
+        except BudgetExceededError as exc:
+            self.last_report.statuses[finding.finding_id] = STATUS_SKIPPED_BUDGET
+            self.last_report.errors.append(str(exc))
+            return []
         except Exception:
             logger.warning(
-                "Variant analysis failed for %s",
-                finding.finding_id,
-                exc_info=True,
+                "Variant analysis failed for %s", finding.finding_id, exc_info=True
             )
             return []
-
-    @staticmethod
-    def _parse_suggestions(raw_text: str) -> list[VariantSuggestion]:
-        """Parse LLM JSON into VariantSuggestion objects."""
-        try:
-            text = raw_text.strip()
-            if text.startswith("```"):
-                text = text.split("\n", 1)[1]
-                text = text.rsplit("```", 1)[0]
-
-            data: list[dict[str, Any]] = json.loads(text)
-            return [
-                VariantSuggestion(
-                    description=item.get("description", ""),
-                    rationale=item.get("rationale", ""),
-                    url_pattern=item.get("url_pattern", ""),
-                )
-                for item in data
-            ]
-        except (json.JSONDecodeError, TypeError):
-            logger.warning("Could not parse variant suggestions")
-            return []
+        self.last_report.errors.extend(result.errors)
+        return [VariantSuggestion(**item.model_dump()) for item in result.items]

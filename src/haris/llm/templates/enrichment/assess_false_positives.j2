@@ -1,21 +1,22 @@
 ## Findings
-{% for f in findings[:25] %}
-- [{{ f.finding_id }}] {{ f.title }} (scanner={{ f.scanner }}, confidence={{ f.confidence.value }}, evidence={{ f.evidence[:100] }})
+{% filter untrusted %}
+{% for f in findings %}
+- [{{ f.finding_id }}] {{ f.title[:limits.title] }} (scanner={{ f.scanner }}, confidence={{ f.confidence.value }}, evidence={{ f.evidence[:limits.evidence] }})
 {% endfor %}
+{% endfilter %}
 
 ## Task
 Review these findings and identify any that are likely false positives.
 Consider: evidence quality, scanner reliability for this finding type,
 and whether the evidence actually supports the claimed vulnerability.
+Your verdicts are advisory annotations; they never remove a finding.
 
-Respond with a JSON array:
-[
-  {
-    "finding_id": "...",
-    "false_positive_likelihood": "low | medium | high",
-    "rationale": "Why this may be a false positive"
-  }
-]
+Respond with a JSON object whose "items" array holds:
+{
+  "finding_id": "...",
+  "false_positive_likelihood": "low | medium | high",
+  "rationale": "Why this may be a false positive"
+}
 
 Only include findings with medium or high false positive likelihood.
-Return ONLY the JSON array.
+Return ONLY the JSON object.

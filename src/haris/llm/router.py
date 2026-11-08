@@ -3,11 +3,13 @@
 Routes different task types (summary, enrichment, triage, etc.)
 to different models based on configuration. Falls back to the
 default model when no routing is configured for a task type.
+One per-scan budget is shared by every backend the router hands out.
 """
 
 import logging
 
 from .base import BaseLLMBackend, create_backend
+from .budget import LLMBudget
 
 logger = logging.getLogger(__name__)
 
@@ -17,7 +19,7 @@ class ModelRouter:
 
     Usage::
 
-        router = ModelRouter(default_backend, {"summary": "claude-haiku-4-5"})
+        router = ModelRouter(default_backend, {"summary": "fast-model"})
         backend = router.for_task("summary")  # returns haiku backend
         backend = router.for_task("enrichment")  # returns default
     """
@@ -26,8 +28,11 @@ class ModelRouter:
         self,
         default_backend: BaseLLMBackend,
         routing: dict[str, str] | None = None,
+        budget: LLMBudget | None = None,
     ) -> None:
+        self.budget = budget or LLMBudget()
         self._default = default_backend
+        self._default.budget = self.budget
         self._routing = routing or {}
         self._cache: dict[str, BaseLLMBackend] = {}
 
@@ -48,6 +53,7 @@ class ModelRouter:
 
         try:
             backend = create_backend(self._default.name, model=model)
+            backend.budget = self.budget
             self._cache[task_type] = backend
             logger.debug(
                 "Routed task %s to model %s",
