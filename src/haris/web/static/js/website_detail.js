@@ -83,7 +83,7 @@
     }
   }
 
-  fetch('/api/website/' + encodeURIComponent(document.getElementById('website-page').dataset.hostname) + '/trends')
+  fetch('/api/v1/websites/' + encodeURIComponent(document.getElementById('website-page').dataset.hostname) + '/trends')
     .then(function(r) { return r.json(); })
     .then(function(data) {
       trendsData = data;

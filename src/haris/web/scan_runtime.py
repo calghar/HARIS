@@ -1,28 +1,55 @@
 import logging
 import re
-from datetime import UTC, datetime
 from typing import Any
 from urllib.parse import urlparse
 
 from fastapi import HTTPException
+from pydantic import BaseModel, Field
 
 from ..auth.models import User
 from ..core.runner import ScanRunner
-from ..models import ScanSession, Target
+from ..db.jobs import Job, JobStatus
+from ..models import AuthConfig, ScanSession, ScanState, Scope, Target
+from ..net import NetworkPolicy
 from ..reporting import REPORTER_REGISTRY
-from .access import Access, require_scan_access, scan_access
+from .access import Access, require_scan_access
+from .job_queue import CancelToken
 from .state import AppState
 
 logger = logging.getLogger(__name__)
 
 SCAN_ID_LENGTH = 10
+IN_PROGRESS = frozenset({ScanState.PENDING, ScanState.RUNNING})
+ERROR_STATES = frozenset({ScanState.FAILED.value, ScanState.INCOMPLETE.value})
+FINISHED = frozenset({ScanState.COMPLETED, ScanState.INCOMPLETE, ScanState.CANCELLED})
+AUTH_LOST_ERROR = "Target credentials were not retained across a server restart"
 
 
-class ScanStatus:
-    PENDING = "pending"
-    RUNNING = "running"
-    COMPLETED = "completed"
-    FAILED = "failed"
+class ScanJobParams(BaseModel):
+    """Everything a queued scan needs except the target credential (memory only)."""
+
+    target_url: str
+    profile_name: str
+    report_formats: list[str]
+    excluded_paths: list[str] = Field(default_factory=list)
+    rate_limit: float
+    max_requests: int
+    auth_method: str = "none"
+    llm_enrich: bool = False
+    llm_backend_name: str | None = None
+    template_id: str = ""
+    scanner_options: dict[str, dict[str, Any]] = Field(default_factory=dict)
+
+    def target(self, header_value: str) -> Target:
+        return Target(
+            base_url=self.target_url,
+            scope=Scope(
+                excluded_paths=self.excluded_paths,
+                rate_limit_rps=self.rate_limit,
+                max_requests=self.max_requests,
+            ),
+            auth=AuthConfig(method=self.auth_method, header_value=header_value),
+        )
 
 
 def domain_slug(url: str) -> str:
@@ -31,107 +58,101 @@ def domain_slug(url: str) -> str:
     return re.sub(r"[^a-zA-Z0-9._-]", "_", hostname)
 
 
-def load_scan(
-    state: AppState, scan_id: str
-) -> tuple[dict[str, Any], ScanSession | None]:
-    """In-memory scan record, hydrated from the database when not cached."""
-    scan = state.scans.get(scan_id)
-    if scan:
-        return scan, scan.get("session")
-    session = state.store.load_session(scan_id)
-    if session is None:
+def execute_scan(state: AppState, job: Job, token: CancelToken) -> JobStatus:
+    """Run one queued scan to completion and persist its session and reports."""
+    params = ScanJobParams.model_validate(job.params)
+    header_value = state.scan_credentials.pop(job.scan_id, "")
+    if params.auth_method != "none" and not header_value:
+        raise RuntimeError(AUTH_LOST_ERROR)
+
+    def stamp(session: ScanSession) -> ScanSession:
+        session.template_id = params.template_id
+        session.profile_name = session.profile_name or params.profile_name
+        return session
+
+    def checkpoint(session: ScanSession) -> None:
+        state.store.save_session(stamp(session), job.owner_user_id)
+        if token.cancelled:
+            runner.cancel()
+
+    runner = ScanRunner(
+        target=params.target(header_value),
+        profile_name=params.profile_name,
+        session_id=job.scan_id,
+        llm_enrich=params.llm_enrich,
+        llm_backend_name=params.llm_backend_name,
+        scanner_options=params.scanner_options,
+        network_policy=NetworkPolicy.from_env(),
+        checkpoint=checkpoint,
+    )
+    token.on_cancel(runner.cancel)
+    if token.cancelled:
+        return JobStatus.CANCELLED
+    session = stamp(runner.run())
+    state.store.save_session(session, job.owner_user_id)
+    write_reports(state, session, params.report_formats)
+    try:
+        return JobStatus(session.scan_state.value)
+    except ValueError:
+        return JobStatus.FAILED
+
+
+def write_reports(
+    state: AppState, session: ScanSession, report_formats: list[str]
+) -> None:
+    reports_dir = state.settings.reports_dir
+    reports_dir.mkdir(parents=True, exist_ok=True)
+    domain = domain_slug(session.target.base_url)
+    for fmt in report_formats:
+        reporter_cls = REPORTER_REGISTRY.get(fmt)
+        if reporter_cls:
+            reporter = reporter_cls()
+            filename = f"report_{domain}_{session.session_id}{reporter.file_extension}"
+            reporter.write(session, state.settings.reports_dir / filename)
+
+
+def _record_or_404(state: AppState, scan_id: str) -> dict[str, Any]:
+    record = state.store.get_scan_record(scan_id)
+    if record is None:
         raise HTTPException(status_code=404, detail="Scan not found")
-    scan = {
-        "scan_id": scan_id,
-        "target_url": session.target.base_url,
-        "profile": session.profile_name,
-        "status": ScanStatus.COMPLETED,
-        "started_at": session.started_at,
-        "finished_at": session.finished_at,
-        "session": session,
-        "report_formats": ["markdown", "json", "html"],
-        "error": None,
+    return record
+
+
+def get_scan_record(state: AppState, user: User, scan_id: str) -> dict[str, Any]:
+    """Summary row of a scan the user may see; anything else is a 404."""
+    require_scan_access(state, user, scan_id)
+    return _record_or_404(state, scan_id)
+
+
+def scan_view(state: AppState, record: dict[str, Any]) -> dict[str, Any]:
+    """Record shaped for the scan page template and the status endpoint."""
+    job = state.store.jobs.get(record["session_id"])
+    status = record["scan_state"]
+    return {
+        "scan_id": record["session_id"],
+        "target_url": record["target_url"],
+        "profile": record["profile_name"],
+        "status": status,
+        "started_at": record["started_at"],
+        "finished_at": record["finished_at"] or None,
+        "report_formats": list(REPORTER_REGISTRY),
+        "llm_enrich": bool(job and job.params.get("llm_enrich")),
+        "error": (record["errors"] or [None])[0] if status in ERROR_STATES else None,
     }
-    state.scans[scan_id] = scan
-    return scan, session
 
 
 def get_scan_for_user(
     state: AppState, user: User, scan_id: str
 ) -> tuple[dict[str, Any], ScanSession | None, Access]:
-    """Scan visible to `user`; anything else is a 404."""
     access = require_scan_access(state, user, scan_id)
-    scan, session = load_scan(state, scan_id)
-    return scan, session, access
-
-
-def active_scans(
-    state: AppState, user: User, statuses: tuple[str, ...]
-) -> list[dict[str, Any]]:
-    """In-memory scans in the given states that the user may see."""
-    return [
-        s
-        for s in state.scans.values()
-        if s["status"] in statuses
-        and scan_access(state, user, s["scan_id"]) is not Access.NONE
-    ]
+    record = _record_or_404(state, scan_id)
+    return scan_view(state, record), state.store.load_session(scan_id), access
 
 
 def get_completed_session(state: AppState, user: User, scan_id: str) -> ScanSession:
-    scan, session, _ = get_scan_for_user(state, user, scan_id)
-    if scan["status"] != ScanStatus.COMPLETED or not session:
+    """Session of a scan that has finished running (any end state with results)."""
+    record = get_scan_record(state, user, scan_id)
+    session = state.store.load_session(scan_id)
+    if ScanState(record["scan_state"]) not in FINISHED or session is None:
         raise HTTPException(status_code=404, detail="Scan not found or not complete")
     return session
-
-
-def run_scan_blocking(
-    state: AppState,
-    scan_id: str,
-    target: Target,
-    profile_name: str,
-    report_formats: list[str],
-    llm_enrich: bool = False,
-    llm_backend_name: str | None = None,
-    template_id: str = "",
-    scanner_options: dict[str, dict[str, Any]] | None = None,
-) -> None:
-    scan = state.scans[scan_id]
-    scan["status"] = ScanStatus.RUNNING
-
-    try:
-        runner = ScanRunner(
-            target=target,
-            profile_name=profile_name,
-            session_id=scan_id,
-            llm_enrich=llm_enrich,
-            llm_backend_name=llm_backend_name,
-            scanner_options=scanner_options,
-        )
-        session = runner.run()
-        session.template_id = template_id
-
-        scan["session"] = session
-        scan["status"] = ScanStatus.COMPLETED
-        scan["finished_at"] = datetime.now(UTC).isoformat()
-
-        try:
-            state.store.save_session(session)
-            logger.info("Saved session %s to database", scan_id)
-        except Exception as db_exc:
-            logger.warning("Could not save session to database: %s", db_exc)
-
-        reports_dir = state.settings.reports_dir
-        reports_dir.mkdir(parents=True, exist_ok=True)
-        domain = domain_slug(target.base_url)
-        for fmt in report_formats:
-            reporter_cls = REPORTER_REGISTRY.get(fmt)
-            if reporter_cls:
-                reporter = reporter_cls()
-                filename = f"report_{domain}_{scan_id}{reporter.file_extension}"
-                reporter.write(session, reports_dir / filename)
-
-    except Exception as exc:
-        logger.exception("Scan %s failed", scan_id)
-        scan["status"] = ScanStatus.FAILED
-        scan["error"] = str(exc)
-        scan["finished_at"] = datetime.now(UTC).isoformat()

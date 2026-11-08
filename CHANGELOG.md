@@ -133,6 +133,28 @@
 
 - App-wide CSRF check on every `POST`, `PUT`, `PATCH` and `DELETE` (`X-CSRF-Token` header or `csrf_token` form field); the token is derived from the session cookie
 - `TestClient` suites for the route matrix, ownership, CSRF, login redirects, template rendering and OIDC (`tests/test_web_*.py`, `tests/test_auth_oidc.py`)
+- Migrations `0003`–`0007`: finding identity columns (`observation_id`, `fingerprint`, `vuln_class`, `confidence_score`, `verification_json`, `suppression_json`), scan owner and state columns, and the `api_tokens`, `authorized_targets` and `jobs` tables; every step has a rollback
+- Persisted scans reload with fingerprint, observation id, confidence, verification, suppression, correlated findings, scan state and scanner status; 0.6 rows get their identity recomputed on read
+- Scan and template ownership are columns (`scans.owner_user_id`, backfilled from `started_by`, and `scan_config_templates.owner_user_id`); list, dashboard and trend queries filter by owner in SQL
+- Web scans need an authorised target: the host must pass the SSRF guard (400 otherwise) and match `HARIS_TARGET_ALLOWLIST` or hold a proof verified in the last 30 days (403 otherwise)
+- Proof of ownership per (user, host): `haris-verify=<32 hex>` in a DNS TXT record at `<host>` or `_haris-verify.<host>`, or in `/.well-known/haris-verify.txt`, fetched without redirects
+- `POST/GET /api/v1/targets`, `POST /api/v1/targets/{host}/verify` and `DELETE /api/v1/targets/{host}` manage proofs
+- API tokens (`haris_pat_…`, SHA-256 at rest, scopes `scans:read`, `scans:write`, `targets:write`, `admin`, 90-day default and 365-day maximum expiry, revocable) via `/api/v1/tokens`; accepted only as `Authorization: Bearer` on `/api/v1/*` and exempt from CSRF
+- DB-backed scan queue with persisted `queued`, `running`, `completed`, `failed`, `cancelled` and `incomplete` states, cancellation (`POST /api/v1/scans/{id}/cancel`), restart recovery and `HARIS_MAX_CONCURRENT_SCANS` (default 2)
+- `GET /api/v1/llm/conversations` and `GET /api/v1/admin/users`
+- `haris --web --proxy-headers`
+
+### Changed
+
+- JSON endpoints moved from `/api/*` to `/api/v1/*` with declared response models; the old paths return 404. Migration: `/api/scan/start` is `POST /api/v1/scans`, `/api/scan/{id}/status` is `GET /api/v1/scans/{id}`, `/api/scan/{id}/report/{fmt}` is `GET /api/v1/scans/{id}/report.{fmt}`, `/api/scan/{id}/findings|enrichment` sit under `/api/v1/scans/{id}/`, `/api/website/{host}/…` is `/api/v1/websites/{host}/…`, and the LLM routes are `/api/v1/llm/{ask,chat,summarize,explain,remediation-plan,test-cases,mitigations,filter-findings}` with `scan_id` in the JSON body
+- `DELETE /api/v1/scans/{id}` returns 204 and 409 while the scan is queued or running
+- LLM routes return 429 when the budget is exhausted and a generic message for other failures; exception text is logged, not returned
+- Scans survive a server restart as `incomplete`; target credentials are held in memory only and never stored with the job
+- `haris --web` builds the app with `create_app()`; the compose healthcheck calls `/health`
+
+### Removed
+
+- `web/ownership.py` (`ResourceOwners`) and `web/scoped_views.py`, replaced by owner-aware queries
 
 ## 0.6.2 — 2026-04-04
 

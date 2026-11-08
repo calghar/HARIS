@@ -15,18 +15,28 @@
     </p>
   </div>
   <span class="status-{{ scan.status }}" style="font-size:1rem;font-weight:600;">
-    {% if scan.status == 'running' %}<span class="spinner"></span>{% endif %}
+    {% if scan.status in ['pending', 'running'] %}<span class="spinner"></span>{% endif %}
     {{ scan.status }}
   </span>
 </div>
 
-{% if scan.status == 'running' %}
+{% if scan.status in ['cancelled', 'incomplete'] %}
+<div class="card" style="border-color:var(--medium);">
+  <strong>Scan {{ scan.status }}</strong>
+  <p class="mt-1">Results below are partial.{% if scan.error %} {{ scan.error }}{% endif %}</p>
+</div>
+{% endif %}
+
+{% if scan.status in ['pending', 'running'] %}
 <!-- Polling for status -->
 <div class="card" style="text-align:center;padding:2rem;"
-     hx-get="/api/scan/{{ scan.scan_id }}/status" hx-trigger="every 3s"
+     hx-get="/api/v1/scans/{{ scan.scan_id }}" hx-trigger="every 3s"
      hx-swap="none">
   <span class="spinner" style="width:32px;height:32px;border-width:3px;"></span>
-  <p class="mt-2">Scan in progress... this page will refresh when complete.</p>
+  <p class="mt-2">Scan {{ 'queued' if scan.status == 'pending' else 'in progress' }}... this page will refresh when it ends.</p>
+  <button class="btn btn-sm mt-2" style="background:var(--critical);" data-action="cancel-scan">
+    Cancel Scan
+  </button>
 </div>
 
 {% elif scan.status == 'failed' %}
@@ -94,7 +104,7 @@
 <!-- Download reports & actions -->
 <div class="flex gap-1 mt-2 mb-2" style="flex-wrap:wrap;">
   {% for fmt in scan.report_formats %}
-  <a href="/api/scan/{{ scan.scan_id }}/report/{{ fmt }}" class="btn btn-secondary btn-sm">
+  <a href="/api/v1/scans/{{ scan.scan_id }}/report.{{ fmt }}" class="btn btn-secondary btn-sm">
     Download {{ fmt | upper }}
   </a>
   {% endfor %}

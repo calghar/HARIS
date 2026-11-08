@@ -23,7 +23,7 @@
       return;
     }
     try {
-      const resp = await fetch('/api/scan-templates/' + encodeURIComponent(this.value));
+      const resp = await fetch('/api/v1/scan-templates/' + encodeURIComponent(this.value));
       if (!resp.ok) return;
       const tpl = await resp.json();
       templateDesc.textContent = tpl.description || '';
@@ -81,7 +81,7 @@
     btn.disabled = true;
     haris.setSpinner(status, 'Starting scan...');
     try {
-      const resp = await fetch('/api/scan/start', { method: 'POST', body: new FormData(this) });
+      const resp = await fetch('/api/v1/scans', { method: 'POST', body: new FormData(this) });
       const body = await resp.json();
       if (resp.ok) {
         globalThis.location.href = body.redirect;

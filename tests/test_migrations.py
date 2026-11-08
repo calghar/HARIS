@@ -84,7 +84,9 @@ def upgraded(tmp_path: Path) -> tuple[Path, dict[str, list[tuple[object, ...]]]]
 def test_upgrade_keeps_data_and_backs_up(upgraded):
     db, before = upgraded
 
-    assert {table: _rows(db, table) for table in DATA_TABLES} == before
+    for table, rows in before.items():
+        width = len(rows[0])
+        assert [r[:width] for r in _rows(db, table)] == rows, table
     assert Path(str(db) + BACKUP_SUFFIX).exists()
     session = ScanStore(db).load_session("s1")
     assert session is not None
@@ -107,6 +109,7 @@ def test_upgrade_hashes_every_token_in_place(upgraded):
 
 
 def test_migrated_cookie_authenticates_and_new_sessions_store_only_hashes(upgraded):
+    """Scenario: Migrated session survives."""
     db, _ = upgraded
     auth = AuthService(db)
 

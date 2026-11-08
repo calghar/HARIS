@@ -1127,6 +1127,7 @@ dependencies = [
 [package.optional-dependencies]
 all = [
     { name = "authlib" },
+    { name = "dnspython" },
     { name = "fastapi" },
     { name = "httpx" },
     { name = "itsdangerous" },
@@ -1143,6 +1144,7 @@ scanners = [
 ]
 web = [
     { name = "authlib" },
+    { name = "dnspython" },
     { name = "fastapi" },
     { name = "httpx" },
     { name = "itsdangerous" },
@@ -1171,6 +1173,7 @@ requires-dist = [
     { name = "anthropic", specifier = ">=2.6.0" },
     { name = "authlib", marker = "extra == 'web'", specifier = ">=1.9.5" },
     { name = "bcrypt", specifier = ">=5.0.0" },
+    { name = "dnspython", marker = "extra == 'web'", specifier = ">=2.8.0" },
     { name = "fastapi", marker = "extra == 'web'", specifier = ">=0.162.2" },
     { name = "haris", extras = ["web", "reporting"], marker = "extra == 'all'" },
     { name = "httpx", marker = "extra == 'web'", specifier = ">=0.28.1" },

@@ -80,7 +80,7 @@
     <div class="form-group">
       <label for="excluded_paths">Excluded Paths <span class="text-muted text-sm">(one per line, regex supported)</span></label>
       <textarea id="excluded_paths" name="excluded_paths" rows="3"
-                placeholder="/logout&#10;/api/admin/.*">{{ (template.excluded_paths | join('\n')) if template and template.excluded_paths else '' }}</textarea>
+                placeholder="/logout&#10;/admin/.*">{{ (template.excluded_paths | join('\n')) if template and template.excluded_paths else '' }}</textarea>
     </div>
 
     <div class="form-group">

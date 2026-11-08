@@ -1,17 +1,10 @@
-from typing import Any
-
 from fastapi import Depends, HTTPException, Request
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse
 
 from ...auth.middleware import require_user
 from ...auth.models import User
+from ..access import visible_owner
 from ..routing import protected_router
-from ..scoped_views import (
-    dashboard_summary,
-    list_websites,
-    scans_for_hostname,
-    severity_trends,
-)
 from ..state import AppState, get_state
 from ..templating import template_context, templates
 
@@ -31,7 +24,7 @@ async def websites_page(
             request,
             user=user,
             nav_active="websites",
-            websites=list_websites(state, user),
+            websites=state.store.list_websites(visible_owner(state, user)),
         ),
     )
 
@@ -43,7 +36,7 @@ async def website_detail(
     user: User = Depends(require_user),
     state: AppState = Depends(get_state),
 ) -> HTMLResponse:
-    scans = scans_for_hostname(state, user, hostname)
+    scans = state.store.get_scans_for_hostname(hostname, visible_owner(state, user))
     if not scans:
         raise HTTPException(status_code=404, detail="Website not found")
     template_names = {
@@ -63,36 +56,3 @@ async def website_detail(
             template_names=template_names,
         ),
     )
-
-
-@router.get("/api/dashboard/summary")
-async def api_dashboard_summary(
-    user: User = Depends(require_user), state: AppState = Depends(get_state)
-) -> JSONResponse:
-    return JSONResponse(dashboard_summary(state, user))
-
-
-@router.get("/api/websites")
-async def api_list_websites(
-    user: User = Depends(require_user), state: AppState = Depends(get_state)
-) -> JSONResponse:
-    return JSONResponse(list_websites(state, user))
-
-
-@router.get("/api/website/{hostname}/scans")
-async def api_website_scans(
-    hostname: str,
-    user: User = Depends(require_user),
-    state: AppState = Depends(get_state),
-) -> JSONResponse:
-    return JSONResponse(scans_for_hostname(state, user, hostname))
-
-
-@router.get("/api/website/{hostname}/trends")
-async def api_website_trends(
-    hostname: str,
-    user: User = Depends(require_user),
-    state: AppState = Depends(get_state),
-) -> JSONResponse:
-    data: dict[str, Any] = severity_trends(state, user, hostname)
-    return JSONResponse(data)

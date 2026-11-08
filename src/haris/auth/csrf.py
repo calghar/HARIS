@@ -4,6 +4,7 @@ import secrets
 
 from fastapi import HTTPException, Request
 
+from .bearer import has_bearer_credentials
 from .cookies import SEED_COOKIE, SESSION_COOKIE
 from .public import PUBLIC_ROUTES
 
@@ -50,7 +51,7 @@ async def _submitted_token(request: Request) -> str:
 
 async def csrf_protect(request: Request) -> None:
     """App-wide guard: unsafe methods must echo the token bound to the cookie."""
-    if request.method in SAFE_METHODS:
+    if request.method in SAFE_METHODS or has_bearer_credentials(request):
         return
     subject = _subject(request)
     if not subject:

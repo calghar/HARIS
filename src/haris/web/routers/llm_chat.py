@@ -1,144 +1,95 @@
-import logging
 import uuid
-from typing import Any
 
-from fastapi import Depends, HTTPException, Request
-from fastapi.responses import JSONResponse
+from fastapi import Depends, HTTPException
 
 from ...auth.middleware import require_user
 from ...auth.models import User
-from ...llm.base import (
-    create_backend,
-    get_available_backends,
-    get_default_backend_name,
-)
-from ...llm.qa import ReportQA
+from ...llm.base import get_available_backends, get_default_backend_name
 from ...models.chat import Conversation
-from ..routing import protected_router
+from ..access import Access, scan_access
+from ..llm_support import answer, llm_errors, make_qa
+from ..routing import api_router
 from ..scan_runtime import get_completed_session
+from ..schemas.llm import (
+    Answer,
+    AskIn,
+    BackendList,
+    ChatAnswer,
+    ChatIn,
+    ConversationDeleted,
+    ConversationOut,
+    ConversationSummary,
+)
 from ..state import AppState, get_state
 
-logger = logging.getLogger(__name__)
-
-router = protected_router(tags=["llm"])
+router = api_router("scans:read", "scans:write", prefix="/llm", tags=["llm"])
 
 CONVERSATION_ID_LENGTH = 12
+NOT_FOUND = "Conversation not found"
 
 
-def _question(body: dict[str, Any]) -> str:
-    question = str(body.get("question", "")).strip()
-    if not question:
-        raise HTTPException(status_code=400, detail="question is required")
-    return question
-
-
-@router.get("/api/llm/backends")
-async def llm_backends() -> JSONResponse:
-    """Return available LLM backends and which is the current default."""
-    return JSONResponse(
-        {
-            "backends": get_available_backends(),
-            "default": get_default_backend_name(),
-        }
+@router.get("/backends")
+async def llm_backends() -> BackendList:
+    """Available LLM backends and the current default."""
+    return BackendList.model_validate(
+        {"backends": get_available_backends(), "default": get_default_backend_name()}
     )
 
 
-@router.get(
-    "/api/scan/{scan_id}/enrichment",
+@router.post(
+    "/ask",
     responses={404: {"description": "Scan not found or not complete"}},
 )
-async def get_enrichment(
-    scan_id: str,
-    user: User = Depends(require_user),
-    state: AppState = Depends(get_state),
-) -> JSONResponse:
-    """Return LLM enrichment data for a completed scan."""
-    session = get_completed_session(state, user, scan_id)
-    enrichments = {fid: e.model_dump() for fid, e in session.llm_enrichments.items()}
-    chains = [c.model_dump() for c in session.attack_chains]
-    triaged = [t.model_dump() for t in session.triaged_findings]
-    return JSONResponse(
-        {
-            "enrichments": enrichments,
-            "attack_chains": chains,
-            "triaged_findings": triaged,
-            "has_enrichment": bool(enrichments or chains or triaged),
-        }
-    )
-
-
-@router.post(
-    "/api/scan/{scan_id}/ask",
-    responses={
-        400: {"description": "Bad request"},
-        404: {"description": "Scan not found or not complete"},
-    },
-)
 async def ask_about_scan(
-    scan_id: str,
-    request: Request,
+    body: AskIn,
     user: User = Depends(require_user),
     state: AppState = Depends(get_state),
-) -> JSONResponse:
-    session = get_completed_session(state, user, scan_id)
-    body = await request.json()
-    question = _question(body)
-    try:
-        backend_name = body.get("backend") or get_default_backend_name()
-        qa = ReportQA(backend=create_backend(backend_name))
-        response = qa.ask(session, question)
-        return JSONResponse(
-            {
-                "answer": response.text,
-                "model": response.model,
-                "tokens": response.token_count,
-            }
-        )
-    except ImportError as exc:
-        return JSONResponse(
-            {"error": f"LLM backend not available: {exc}"}, status_code=501
-        )
-    except Exception as exc:
-        logger.exception("LLM query failed for scan %s", scan_id)
-        return JSONResponse({"error": str(exc)}, status_code=500)
+) -> Answer:
+    session = get_completed_session(state, user, body.scan_id)
+    with llm_errors("ask"):
+        return answer(make_qa(body.backend).ask(session, body.question))
+
+
+def _readable_conversation(
+    state: AppState, user: User, conversation_id: str
+) -> Conversation:
+    """Conversation of the user on a scan they may still see, else 404."""
+    conv = state.conversations.get(conversation_id, user)
+    if conv is None or scan_access(state, user, conv.scan_id) is Access.NONE:
+        raise HTTPException(status_code=404, detail=NOT_FOUND)
+    return conv
 
 
 @router.post(
-    "/api/scan/{scan_id}/chat",
-    responses={
-        400: {"description": "Bad request"},
-        404: {"description": "Scan or conversation not found"},
-    },
+    "/chat",
+    responses={404: {"description": "Scan or conversation not found"}},
 )
 async def chat_with_scan(
-    scan_id: str,
-    request: Request,
+    body: ChatIn,
     user: User = Depends(require_user),
     state: AppState = Depends(get_state),
-) -> JSONResponse:
+) -> ChatAnswer:
     """Multi-turn chat about a completed scan."""
-    session = get_completed_session(state, user, scan_id)
-    body = await request.json()
-    question = _question(body)
-    conv_id = body.get("conversation_id")
+    session = get_completed_session(state, user, body.scan_id)
     state.conversations.evict_expired()
-
     conv: Conversation | None = None
-    if conv_id:
-        conv = state.conversations.get(conv_id, scan_id, user)
-        if conv is None and state.conversations.exists(conv_id):
-            raise HTTPException(status_code=404, detail="Conversation not found")
-    try:
-        backend_name = body.get("backend") or get_default_backend_name()
+    if body.conversation_id:
+        conv = state.conversations.get(body.conversation_id, user)
+        if conv is not None and conv.scan_id != body.scan_id:
+            raise HTTPException(status_code=404, detail=NOT_FOUND)
+        if conv is None and state.conversations.exists(body.conversation_id):
+            raise HTTPException(status_code=404, detail=NOT_FOUND)
+    question = body.question
+    with llm_errors("chat"):
+        backend_name = body.backend or get_default_backend_name()
+        qa = make_qa(backend_name)
         if conv is None:
             conv = Conversation(
                 conversation_id=uuid.uuid4().hex[:CONVERSATION_ID_LENGTH],
-                scan_id=scan_id,
+                scan_id=body.scan_id,
                 backend_name=backend_name,
             )
             state.conversations.add(conv, user.user_id)
-        qa = ReportQA(backend=create_backend(backend_name))
-
         if session.template_id:
             tpl = state.store.get_scan_config_template(session.template_id)
             if tpl:
@@ -147,53 +98,46 @@ async def chat_with_scan(
                     f"'{tpl.name}': {tpl.description}. "
                     f"Profile: {tpl.profile}.]\n\n{question}"
                 )
-
         response = qa.chat(session, question, conv.messages)
         conv.add_message("user", question)
         conv.add_message("assistant", response.text, token_count=response.token_count)
-        return JSONResponse(
-            {
-                "answer": response.text,
-                "model": response.model,
-                "tokens": response.token_count,
-                "conversation_id": conv.conversation_id,
-                "message_count": conv.message_count,
-                "total_tokens": conv.total_tokens,
-            }
+        return ChatAnswer(
+            **answer(response).model_dump(),
+            conversation_id=conv.conversation_id,
+            message_count=conv.message_count,
+            total_tokens=conv.total_tokens,
         )
-    except ImportError as exc:
-        return JSONResponse(
-            {"error": f"LLM backend not available: {exc}"}, status_code=501
-        )
-    except Exception as exc:
-        logger.exception("Chat failed for scan %s", scan_id)
-        return JSONResponse({"error": str(exc)}, status_code=500)
 
 
-def _owned_conversation(
-    state: AppState, user: User, scan_id: str, conversation_id: str
-) -> Conversation:
-    """Conversation readable by the user on a scan they may see, else 404."""
-    get_completed_session(state, user, scan_id)
-    conv = state.conversations.get(conversation_id, scan_id, user)
-    if conv is None:
-        raise HTTPException(status_code=404, detail="Conversation not found")
-    return conv
+@router.get("/conversations")
+async def list_conversations(
+    user: User = Depends(require_user), state: AppState = Depends(get_state)
+) -> list[ConversationSummary]:
+    """The caller's conversations (all for admins) on scans still visible to them."""
+    return [
+        ConversationSummary(
+            conversation_id=c.conversation_id,
+            scan_id=c.scan_id,
+            backend_name=c.backend_name,
+            created_at=c.created_at,
+            message_count=c.message_count,
+            total_tokens=c.total_tokens,
+        )
+        for c in state.conversations.list_for(user)
+        if scan_access(state, user, c.scan_id) is not Access.NONE
+    ]
 
 
 @router.get(
-    "/api/scan/{scan_id}/chat/{conversation_id}",
-    responses={404: {"description": "Conversation not found"}},
+    "/conversations/{conversation_id}", responses={404: {"description": NOT_FOUND}}
 )
 async def get_conversation(
-    scan_id: str,
     conversation_id: str,
     user: User = Depends(require_user),
     state: AppState = Depends(get_state),
-) -> JSONResponse:
-    """Retrieve conversation history."""
-    conv = _owned_conversation(state, user, scan_id, conversation_id)
-    return JSONResponse(
+) -> ConversationOut:
+    conv = _readable_conversation(state, user, conversation_id)
+    return ConversationOut.model_validate(
         {
             "conversation_id": conv.conversation_id,
             "messages": [m.model_dump() for m in conv.messages],
@@ -203,16 +147,13 @@ async def get_conversation(
 
 
 @router.delete(
-    "/api/scan/{scan_id}/chat/{conversation_id}",
-    responses={404: {"description": "Conversation not found"}},
+    "/conversations/{conversation_id}", responses={404: {"description": NOT_FOUND}}
 )
 async def delete_conversation(
-    scan_id: str,
     conversation_id: str,
     user: User = Depends(require_user),
     state: AppState = Depends(get_state),
-) -> JSONResponse:
-    """Clear a conversation."""
-    _owned_conversation(state, user, scan_id, conversation_id)
+) -> ConversationDeleted:
+    _readable_conversation(state, user, conversation_id)
     state.conversations.delete(conversation_id)
-    return JSONResponse({"deleted": conversation_id})
+    return ConversationDeleted(deleted=conversation_id)

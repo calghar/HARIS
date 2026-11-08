@@ -45,7 +45,7 @@ globalThis.haris = {
     el.replaceChildren(spinner, document.createTextNode(text ? ' ' + text : ''));
   },
   fillBackends(select, saved) {
-    return fetch('/api/llm/backends')
+    return fetch('/api/v1/llm/backends')
       .then(function(r) { return r.json(); })
       .then(function(data) {
         select.replaceChildren();

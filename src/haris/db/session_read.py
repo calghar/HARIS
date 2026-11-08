@@ -9,15 +9,32 @@ from ..models import (
     RiskPosture,
     ScannerResult,
     ScanSession,
+    ScanState,
     Severity,
     Target,
 )
+from ..models.correlator import CorrelatedFinding
+from ..models.verification import Suppression, Verification
 from .llm_data import read_llm_data
 
 
-def _finding(row: sqlite3.Row) -> Finding:
-    return Finding(
+def _finding(row: sqlite3.Row, base_url: str) -> Finding:
+    finding = Finding(
         finding_id=row["finding_id"],
+        observation_id=row["observation_id"],
+        fingerprint=row["fingerprint"],
+        vuln_class=row["vuln_class"],
+        confidence_score=row["confidence_score"],
+        verification=(
+            Verification.model_validate_json(row["verification_json"])
+            if row["verification_json"]
+            else Verification()
+        ),
+        suppression=(
+            Suppression.model_validate_json(row["suppression_json"])
+            if row["suppression_json"]
+            else None
+        ),
         title=row["title"],
         description=row["description"],
         severity=Severity(row["severity"]),
@@ -36,6 +53,23 @@ def _finding(row: sqlite3.Row) -> Finding:
         found_at=row["found_at"],
         tags=json.loads(row["tags_json"]),
     )
+    if not row["verification_json"]:
+        # 0.6 row: identity is recomputed on read; the stored finding_id stays.
+        from ..core.identity import identify
+
+        finding.vuln_class, finding.fingerprint = identify(finding, base_url)
+    return finding
+
+
+def _correlated(raw: str) -> list[CorrelatedFinding]:
+    return [
+        CorrelatedFinding(
+            canonical=Finding.from_dict(item["canonical"]),
+            sources=[(s[0], s[1]) for s in item["sources"]],
+            consensus_score=item["consensus_score"],
+        )
+        for item in json.loads(raw)
+    ]
 
 
 def _scanner_results(
@@ -80,8 +114,9 @@ def read_session(conn: sqlite3.Connection, session_id: str) -> ScanSession | Non
     if scan_row is None:
         return None
 
+    base_url = scan_row["target_url"]
     findings = [
-        _finding(row)
+        _finding(row, base_url)
         for row in conn.execute(
             "SELECT * FROM findings WHERE session_id = ? ORDER BY id", (session_id,)
         )
@@ -117,6 +152,8 @@ def read_session(conn: sqlite3.Connection, session_id: str) -> ScanSession | Non
             conn, session_id, findings, scanners_used, session_errors
         ),
         all_findings=findings,
+        correlated=_correlated(scan_row["correlated_json"]),
+        scan_state=ScanState(scan_row["scan_state"]),
         remediation_steps=remediation_steps,
         risk_posture=RiskPosture(scan_row["risk_posture"]),
         risk_posture_text=scan_row["risk_posture_text"],

@@ -14,11 +14,10 @@ from haris.models import (
     Finding,
     RemediationStep,
     ScanSession,
+    ScanState,
     Severity,
     Target,
 )
-from haris.web.ownership import SCAN
-from haris.web.scan_runtime import ScanStatus
 from haris.web.templating import STATIC_DIR, TEMPLATES_DIR
 
 from .test_web_env import WebEnv
@@ -119,32 +118,25 @@ def pages(tmp_path_factory: pytest.TempPathFactory) -> Iterator[list[Page]]:
             )
         ],
     )
-    env.state.store.save_session(session)
-    env.state.owners.assign(SCAN, "rich0001", env.admin.user_id)
+    session.scan_state = ScanState.COMPLETED
+    env.state.store.save_session(session, owner_user_id=env.admin.user_id)
     template_id = env.add_template(env.admin)
-    running = env.add_scan(env.admin)
-    failed = env.add_scan(env.admin)
-    env.state.scans[running] = {
-        "scan_id": running,
-        "target_url": "https://run.example.com",
-        "profile": "quick",
-        "status": ScanStatus.RUNNING,
-        "started_at": "2026-01-02T03:04:05+00:00",
-        "finished_at": None,
-        "session": None,
-        "report_formats": ["json"],
-        "error": None,
-    }
-    env.state.scans[failed] = {
-        **env.state.scans[running],
-        "scan_id": failed,
-        "status": ScanStatus.FAILED,
-        "error": "boom <script>alert(1)</script>",
-    }
+    running = env.add_scan(
+        env.admin, url="https://run.example.com", state=ScanState.RUNNING
+    )
+    queued = env.add_scan(
+        env.admin, url="https://queue.example.com", state=ScanState.PENDING
+    )
+    failed = env.add_scan(
+        env.admin,
+        state=ScanState.FAILED,
+        errors=["boom <script>alert(1)</script>"],
+    )
     paths = [
         *ADMIN_PAGES,
         "/scan/rich0001",
         f"/scan/{running}",
+        f"/scan/{queued}",
         f"/scan/{failed}",
         f"/templates/{template_id}/edit",
     ]
