@@ -3,6 +3,7 @@ from fastapi import APIRouter
 from . import (
     account,
     admin,
+    admin_api,
     auth_login,
     health,
     llm_chat,
@@ -12,7 +13,12 @@ from . import (
     scan_data,
     scan_templates,
     scans,
+    scans_api,
+    targets,
+    templates_api,
+    tokens,
     websites,
+    websites_api,
 )
 
 ALL_ROUTERS: list[APIRouter] = [
@@ -21,11 +27,17 @@ ALL_ROUTERS: list[APIRouter] = [
     oidc.router,
     account.router,
     admin.router,
+    admin_api.router,
     pages.router,
     websites.router,
+    websites_api.router,
     scans.router,
+    scans_api.router,
     scan_data.router,
     scan_templates.router,
+    templates_api.router,
     llm_scan.router,
     llm_chat.router,
+    targets.router,
+    tokens.router,
 ]

@@ -7,42 +7,72 @@ from .connection import connect
 
 _SEVERITIES = ("critical", "high", "medium", "low", "info")
 _RECENT_WEBSITES = 5
-
-_SESSION_ROWS_SQL = """SELECT s.session_id, s.target_url, s.started_at,
-                              s.risk_posture, COUNT(f.id) AS finding_count
-                       FROM scans s
-                       LEFT JOIN findings f ON f.session_id = s.session_id
-                       GROUP BY s.session_id
-                       ORDER BY s.started_at DESC"""
+_FINISHED = "s.scan_state NOT IN ('pending', 'running')"
 
 
 def _hostname(url: str) -> str:
     return urlparse(url).hostname or "unknown"
 
 
+def _owned(owner_user_id: str | None, *clauses: str) -> tuple[str, list[str]]:
+    """WHERE clause for the owner filter plus *clauses*; None means every owner."""
+    parts = list(clauses)
+    params: list[str] = []
+    if owner_user_id is not None:
+        parts.append("s.owner_user_id = ?")
+        params.append(owner_user_id)
+    return (" WHERE " + " AND ".join(parts) if parts else ""), params
+
+
 class WebsiteRepository:
     def __init__(self, db_path: Path) -> None:
         self._db_path = db_path
 
-    def dashboard_summary(self) -> dict[str, Any]:
+    def _finished_rows(self, owner_user_id: str | None) -> list[Any]:
+        where, params = _owned(owner_user_id, _FINISHED)
         with connect(self._db_path) as conn:
-            total_scans = conn.execute("SELECT COUNT(*) AS c FROM scans").fetchone()[
-                "c"
-            ]
-            urls = conn.execute("SELECT DISTINCT target_url FROM scans").fetchall()
+            return conn.execute(
+                f"""SELECT s.session_id, s.target_url, s.started_at, s.risk_posture,
+                           s.profile_name, s.template_id, s.scanners_used,
+                           COUNT(f.id) AS finding_count
+                    FROM scans s
+                    LEFT JOIN findings f ON f.session_id = s.session_id
+                    {where}
+                    GROUP BY s.session_id
+                    ORDER BY s.started_at DESC""",  # nosec B608
+                params,
+            ).fetchall()
+
+    def dashboard_summary(self, owner_user_id: str | None = None) -> dict[str, Any]:
+        where, params = _owned(owner_user_id)
+        severe_where, severe_params = _owned(
+            owner_user_id, "f.severity IN ('critical', 'high')"
+        )
+        with connect(self._db_path) as conn:
+            total_scans = conn.execute(
+                f"SELECT COUNT(*) AS c FROM scans s{where}",  # nosec B608
+                params,
+            ).fetchone()["c"]
+            urls = conn.execute(
+                f"SELECT DISTINCT s.target_url FROM scans s{where}",  # nosec B608
+                params,
+            ).fetchall()
             critical_findings = conn.execute(
-                """SELECT f.finding_id, f.title, f.severity, f.url,
-                          s.session_id, s.target_url
-                   FROM findings f
-                   JOIN scans s ON s.session_id = f.session_id
-                   WHERE f.severity IN ('critical', 'high')
-                   ORDER BY s.started_at DESC
-                   LIMIT 10"""
+                f"""SELECT f.finding_id, f.title, f.severity, f.url,
+                           s.session_id, s.target_url
+                    FROM findings f
+                    JOIN scans s ON s.session_id = f.session_id
+                    {severe_where}
+                    ORDER BY s.started_at DESC
+                    LIMIT 10""",  # nosec B608
+                severe_params,
             ).fetchall()
             latest = conn.execute(
-                "SELECT started_at FROM scans ORDER BY started_at DESC LIMIT 1"
+                f"SELECT s.started_at FROM scans s{where}"  # nosec B608
+                " ORDER BY s.started_at DESC LIMIT 1",
+                params,
             ).fetchone()
-            session_rows = conn.execute(_SESSION_ROWS_SQL).fetchall()
+        session_rows = self._finished_rows(owner_user_id)
 
         recent_findings = [
             {
@@ -85,12 +115,9 @@ class WebsiteRepository:
             "recent_websites": recent_websites,
         }
 
-    def list_websites(self) -> list[dict[str, Any]]:
-        with connect(self._db_path) as conn:
-            rows = conn.execute(_SESSION_ROWS_SQL).fetchall()
-
+    def list_websites(self, owner_user_id: str | None = None) -> list[dict[str, Any]]:
         websites: dict[str, dict[str, Any]] = {}
-        for row in rows:
+        for row in self._finished_rows(owner_user_id):
             host = _hostname(row["target_url"])
             if host not in websites:
                 websites[host] = {
@@ -106,18 +133,9 @@ class WebsiteRepository:
                 websites[host]["first_scanned"] = row["started_at"]
         return list(websites.values())
 
-    def get_scans_for_hostname(self, hostname: str) -> list[dict[str, Any]]:
-        with connect(self._db_path) as conn:
-            rows = conn.execute(
-                """SELECT s.session_id, s.target_url, s.profile_name,
-                          s.started_at, s.risk_posture, s.template_id,
-                          s.scanners_used,
-                          COUNT(f.id) AS finding_count
-                   FROM scans s
-                   LEFT JOIN findings f ON f.session_id = s.session_id
-                   GROUP BY s.session_id
-                   ORDER BY s.started_at DESC"""
-            ).fetchall()
+    def get_scans_for_hostname(
+        self, hostname: str, owner_user_id: str | None = None
+    ) -> list[dict[str, Any]]:
         return [
             {
                 "session_id": row["session_id"],
@@ -129,19 +147,24 @@ class WebsiteRepository:
                 "template_id": row["template_id"],
                 "scanners_used": json.loads(row["scanners_used"]),
             }
-            for row in rows
+            for row in self._finished_rows(owner_user_id)
             if _hostname(row["target_url"]) == hostname
         ]
 
-    def get_severity_trends(self, hostname: str) -> dict[str, Any]:
+    def get_severity_trends(
+        self, hostname: str, owner_user_id: str | None = None
+    ) -> dict[str, Any]:
+        where, params = _owned(owner_user_id, _FINISHED)
         with connect(self._db_path) as conn:
             rows = conn.execute(
-                """SELECT s.session_id, s.started_at, s.target_url,
-                          f.severity, COUNT(f.id) AS count
-                   FROM scans s
-                   JOIN findings f ON f.session_id = s.session_id
-                   GROUP BY s.session_id, f.severity
-                   ORDER BY s.started_at ASC"""
+                f"""SELECT s.session_id, s.started_at, s.target_url,
+                           f.severity, COUNT(f.id) AS count
+                    FROM scans s
+                    JOIN findings f ON f.session_id = s.session_id
+                    {where}
+                    GROUP BY s.session_id, f.severity
+                    ORDER BY s.started_at ASC""",  # nosec B608
+                params,
             ).fetchall()
 
         scans_order: list[str] = []

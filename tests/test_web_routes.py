@@ -20,7 +20,8 @@ class Case(NamedTuple):
     llm: bool = False  # 5xx expected: the test backend does not exist
 
 
-LLM_BODY = {"question": "x", "backend": "none"}
+LLM_BODY = {"scan_id": "{scan_id}", "question": "x", "backend": "none"}
+TOKEN_BODY = {"name": "t", "scopes": ["scans:read"]}
 
 CASES = [
     Case("GET", "/auth/profile", "open"),
@@ -39,51 +40,63 @@ CASES = [
     Case("GET", "/licenses", "open"),
     Case("GET", "/websites", "open"),
     Case("GET", "/website/{hostname}", "website"),
-    Case("GET", "/api/dashboard/summary", "open"),
-    Case("GET", "/api/websites", "open"),
-    Case("GET", "/api/website/{hostname}/scans", "open"),
-    Case("GET", "/api/website/{hostname}/trends", "open"),
     Case("GET", "/scan/new", "open"),
     Case("GET", "/scan/{scan_id}", "scan"),
-    Case(
-        "POST", "/api/scan/start", "open", data={"target_url": "https://a.example.com"}
-    ),
-    Case("GET", "/api/scan/{scan_id}/status", "scan"),
-    Case("GET", "/api/scan/{scan_id}/report/{fmt}", "scan"),
-    Case("GET", "/api/scans", "open"),
-    Case("DELETE", "/api/scan/{scan_id}", "scan"),
-    Case("GET", "/api/scan/{scan_id}/findings", "scan"),
     Case("GET", "/templates", "open"),
     Case("GET", "/templates/new", "open"),
     Case("GET", "/templates/{template_id}/edit", "template"),
-    Case("GET", "/api/templates/status", "open"),
-    Case("POST", "/api/templates/update", "admin", json={"source_name": "none"}),
-    Case("GET", "/api/scan-templates", "open"),
-    Case("GET", "/api/scan-templates/{template_id}", "template"),
-    Case("POST", "/api/scan-templates", "open", json={"name": "n"}),
-    Case("PUT", "/api/scan-templates/{template_id}", "template", json={"name": "n"}),
-    Case("DELETE", "/api/scan-templates/{template_id}", "template"),
-    Case("POST", "/api/scan-templates/{template_id}/set-default", "admin"),
-    Case("POST", "/api/scan/{scan_id}/summarize", "scan", json=LLM_BODY, llm=True),
+    Case("GET", "/api/v1/dashboard/summary", "open"),
+    Case("GET", "/api/v1/websites", "open"),
+    Case("GET", "/api/v1/websites/{hostname}/scans", "open"),
+    Case("GET", "/api/v1/websites/{hostname}/trends", "open"),
+    Case("POST", "/api/v1/scans", "open", data={"target_url": "https://a.example.com"}),
+    Case("GET", "/api/v1/scans", "open"),
+    Case("GET", "/api/v1/scans/{scan_id}", "scan"),
+    Case("POST", "/api/v1/scans/{scan_id}/cancel", "scan"),
+    Case("DELETE", "/api/v1/scans/{scan_id}", "scan"),
+    Case("GET", "/api/v1/scans/{scan_id}/report.{fmt}", "scan"),
+    Case("GET", "/api/v1/scans/{scan_id}/findings", "scan"),
+    Case("GET", "/api/v1/scans/{scan_id}/enrichment", "scan"),
+    Case("GET", "/api/v1/templates/status", "open"),
+    Case("POST", "/api/v1/templates/update", "admin", json={"source_name": "none"}),
+    Case("GET", "/api/v1/scan-templates", "open"),
+    Case("GET", "/api/v1/scan-templates/{template_id}", "template"),
+    Case("POST", "/api/v1/scan-templates", "open", json={"name": "n"}),
+    Case("PUT", "/api/v1/scan-templates/{template_id}", "template", json={"name": "n"}),
+    Case("DELETE", "/api/v1/scan-templates/{template_id}", "template"),
+    Case("POST", "/api/v1/scan-templates/{template_id}/set-default", "admin"),
+    Case("GET", "/api/v1/llm/backends", "open"),
+    Case("POST", "/api/v1/llm/ask", "scan", json=LLM_BODY, llm=True),
+    Case("POST", "/api/v1/llm/chat", "scan", json=LLM_BODY, llm=True),
+    Case("GET", "/api/v1/llm/conversations", "open"),
+    Case("GET", "/api/v1/llm/conversations/{conversation_id}", "scan"),
+    Case("DELETE", "/api/v1/llm/conversations/{conversation_id}", "scan"),
+    Case("POST", "/api/v1/llm/summarize", "scan", json=LLM_BODY, llm=True),
     Case(
         "POST",
-        "/api/scan/{scan_id}/explain/{finding_id}",
+        "/api/v1/llm/explain",
         "scan",
-        json=LLM_BODY,
+        json={**LLM_BODY, "finding_id": "none"},
         llm=True,
     ),
+    Case("POST", "/api/v1/llm/remediation-plan", "scan", json=LLM_BODY, llm=True),
+    Case("POST", "/api/v1/llm/test-cases", "scan", json=LLM_BODY, llm=True),
+    Case("POST", "/api/v1/llm/mitigations", "scan", json=LLM_BODY, llm=True),
     Case(
-        "POST", "/api/scan/{scan_id}/remediation-plan", "scan", json=LLM_BODY, llm=True
+        "POST",
+        "/api/v1/llm/filter-findings",
+        "scan",
+        json={**LLM_BODY, "criteria": "x"},
+        llm=True,
     ),
-    Case("POST", "/api/scan/{scan_id}/test-cases", "scan", json=LLM_BODY, llm=True),
-    Case("POST", "/api/scan/{scan_id}/mitigations", "scan", json=LLM_BODY, llm=True),
-    Case("POST", "/api/scan/{scan_id}/filter-findings", "scan", json=LLM_BODY),
-    Case("GET", "/api/llm/backends", "open"),
-    Case("GET", "/api/scan/{scan_id}/enrichment", "scan"),
-    Case("POST", "/api/scan/{scan_id}/ask", "scan", json=LLM_BODY, llm=True),
-    Case("POST", "/api/scan/{scan_id}/chat", "scan", json=LLM_BODY, llm=True),
-    Case("GET", "/api/scan/{scan_id}/chat/{conversation_id}", "scan"),
-    Case("DELETE", "/api/scan/{scan_id}/chat/{conversation_id}", "scan"),
+    Case("GET", "/api/v1/admin/users", "admin"),
+    Case("POST", "/api/v1/tokens", "open", json=TOKEN_BODY),
+    Case("GET", "/api/v1/tokens", "open"),
+    Case("DELETE", "/api/v1/tokens/{token_id}", "open"),
+    Case("POST", "/api/v1/targets", "open", json={"host": "app.example.com"}),
+    Case("GET", "/api/v1/targets", "open"),
+    Case("POST", "/api/v1/targets/{host}/verify", "open"),
+    Case("DELETE", "/api/v1/targets/{host}", "open"),
 ]
 
 
@@ -133,24 +146,31 @@ def test_every_allow_listed_route_exists(env: WebEnv) -> None:
 
 
 @pytest.mark.parametrize(
-    ("path", "status"),
+    ("method", "path", "status"),
     [
-        ("/health", 200),
-        ("/login", 200),
-        ("/static/main.js", 200),
-        ("/", 303),
-        ("/scan/abc123", 303),
-        ("/api/scans", 401),
-        ("/api/llm/backends", 401),
-        ("/api/templates/status", 401),
-        ("/api/scan-templates/t1", 401),
-        ("/auth/users", 303),
-        ("/docs", 404),
-        ("/openapi.json", 404),
+        ("GET", "/health", 200),
+        ("GET", "/login", 200),
+        ("GET", "/static/main.js", 200),
+        ("GET", "/", 303),
+        ("GET", "/scan/abc123", 303),
+        ("GET", "/api/v1/scans", 401),
+        ("POST", "/api/v1/scans", 401),
+        ("GET", "/api/v1/llm/backends", 401),
+        ("POST", "/api/v1/llm/ask", 401),
+        ("GET", "/api/v1/llm/conversations", 401),
+        ("GET", "/api/v1/templates/status", 401),
+        ("GET", "/api/v1/scan-templates/t1", 401),
+        ("GET", "/api/v1/admin/users", 401),
+        ("GET", "/auth/users", 303),
+        ("GET", "/docs", 404),
+        ("GET", "/openapi.json", 404),
     ],
 )
-def test_anonymous_route_matrix(env: WebEnv, path: str, status: int) -> None:
-    assert env.anonymous().get(path).status_code == status
+def test_anonymous_route_matrix(
+    env: WebEnv, method: str, path: str, status: int
+) -> None:
+    """Scenario Outline: Route matrix without a session."""
+    assert env.anonymous().request(method, path).status_code == status
 
 
 def test_every_unsafe_route_runs_csrf_guard(env: WebEnv) -> None:
@@ -162,12 +182,22 @@ def test_every_unsafe_route_runs_csrf_guard(env: WebEnv) -> None:
     assert unguarded == []
 
 
+def case_json(case: Case, resources: dict[str, str]) -> dict[str, Any] | None:
+    """Request body with path parameters (e.g. `scan_id`) filled in."""
+    if not case.json:
+        return None
+    return {
+        k: v.format_map(resources) if isinstance(v, str) else v
+        for k, v in case.json.items()
+    }
+
+
 def _send(client: Any, case: Case, resources: dict[str, str], *, csrf: bool) -> int:
     headers = client.csrf_headers if csrf else {}
     status: int = client.request(
         case.method,
         case.path.format_map(resources),
-        json=case.json,
+        json=case_json(case, resources),
         data=case.data,
         headers=headers,
     ).status_code

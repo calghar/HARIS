@@ -1,7 +1,9 @@
 (function() {
   const root = document.getElementById('scan-page');
   const scanId = root.dataset.scanId;
-  const scanUrl = '/api/scan/' + encodeURIComponent(scanId);
+  const scanUrl = '/api/v1/scans/' + encodeURIComponent(scanId);
+  const llmUrl = '/api/v1/llm';
+  const TERMINAL = ['completed', 'failed', 'cancelled', 'incomplete'];
   let conversationId = null;
   let totalTokens = 0;
 
@@ -15,7 +17,7 @@
   document.body.addEventListener('htmx:afterRequest', function(e) {
     try {
       const data = JSON.parse(e.detail.xhr.responseText);
-      if (data.status === 'completed' || data.status === 'failed') {
+      if (TERMINAL.includes(data.status)) {
         globalThis.location.reload();
       }
     } catch (err) {
@@ -73,9 +75,9 @@
     appendMessage('user', question);
     showTyping();
 
-    const payload = { question: question, backend: backendSelect.value };
+    const payload = { scan_id: scanId, question: question, backend: backendSelect.value };
     if (conversationId) payload.conversation_id = conversationId;
-    postJson(scanUrl + '/chat', payload)
+    postJson(llmUrl + '/chat', payload)
       .then(function(data) {
         hideTyping();
         askButton.disabled = false;
@@ -102,10 +104,10 @@
     document.getElementById('tab-ask').classList.add('active');
     appendMessage('user', 'Explain finding ' + findingId);
     showTyping();
-    postJson(scanUrl + '/explain/' + encodeURIComponent(findingId), { backend: backendSelect.value })
+    postJson(llmUrl + '/explain', { scan_id: scanId, finding_id: findingId, backend: backendSelect.value })
       .then(function(data) {
         hideTyping();
-        appendMessage('assistant', data.error ? 'Error: ' + data.error : data.answer);
+        appendMessage('assistant', data.answer === undefined ? 'Error: ' + (data.error || data.detail) : data.answer);
       })
       .catch(function(err) {
         hideTyping();
@@ -131,6 +133,18 @@
       submitQuestion();
     },
     'explain-finding': function(el) { explainFinding(el.dataset.findingId); },
+    'cancel-scan': function() {
+      if (!confirm('Cancel this scan?')) return;
+      fetch(scanUrl + '/cancel', { method: 'POST' })
+        .then(async function(r) {
+          if (r.ok) {
+            globalThis.location.reload();
+          } else {
+            alert(await haris.errorMessage(r));
+          }
+        })
+        .catch(function(err) { alert('Cancel failed: ' + err); });
+    },
     'delete-scan': function() {
       if (!confirm('Delete this scan and all its reports? This cannot be undone.')) return;
       fetch(scanUrl, { method: 'DELETE' })

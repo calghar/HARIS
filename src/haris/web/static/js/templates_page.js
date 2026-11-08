@@ -29,7 +29,7 @@
   }
 
   function updateSources(statusEls, payload, onDone) {
-    return fetch('/api/templates/update', {
+    return fetch('/api/v1/templates/update', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
@@ -54,7 +54,7 @@
     'delete-template': function(el) {
       const id = el.dataset.templateId;
       if (!confirm('Delete configuration "' + el.dataset.templateName + '"? This cannot be undone.')) return;
-      request('/api/scan-templates/' + encodeURIComponent(id), 'DELETE')
+      request('/api/v1/scan-templates/' + encodeURIComponent(id), 'DELETE')
         .then(function() {
           const card = document.getElementById('tpl-' + id);
           if (!card) return;
@@ -64,16 +64,16 @@
         .catch(fail);
     },
     'set-default-template': function(el) {
-      request('/api/scan-templates/' + encodeURIComponent(el.dataset.templateId) + '/set-default', 'POST')
+      request('/api/v1/scan-templates/' + encodeURIComponent(el.dataset.templateId) + '/set-default', 'POST')
         .then(function() { globalThis.location.reload(); })
         .catch(fail);
     },
     'clone-template': function(el) {
-      request('/api/scan-templates/' + encodeURIComponent(el.dataset.templateId), 'GET')
+      request('/api/v1/scan-templates/' + encodeURIComponent(el.dataset.templateId), 'GET')
         .then(function(tpl) {
           tpl.name = 'Copy of ' + el.dataset.templateName;
           ['template_id', 'is_default', 'created_at', 'updated_at'].forEach(function(k) { delete tpl[k]; });
-          return request('/api/scan-templates', 'POST', tpl);
+          return request('/api/v1/scan-templates', 'POST', tpl);
         })
         .then(function() { globalThis.location.reload(); })
         .catch(fail);

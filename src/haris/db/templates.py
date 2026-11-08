@@ -33,16 +33,35 @@ class TemplateRepository:
     def __init__(self, db_path: Path) -> None:
         self._db_path = db_path
 
-    def save(self, tpl: ScanConfigTemplate) -> None:
+    def save(self, tpl: ScanConfigTemplate, owner_user_id: str = "") -> None:
+        """Upsert a template; the stored owner is kept when none is given."""
         with connect(self._db_path) as conn:
             conn.execute(
-                """INSERT OR REPLACE INTO scan_config_templates
+                """INSERT INTO scan_config_templates
                    (template_id, name, description, profile,
                     rate_limit_rps, max_requests, excluded_paths,
                     auth_method, report_formats, llm_enrichment,
                     llm_backend, scanner_options, tags, is_default,
-                    created_at, updated_at)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                    created_at, updated_at, owner_user_id)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                   ON CONFLICT(template_id) DO UPDATE SET
+                     name = excluded.name,
+                     description = excluded.description,
+                     profile = excluded.profile,
+                     rate_limit_rps = excluded.rate_limit_rps,
+                     max_requests = excluded.max_requests,
+                     excluded_paths = excluded.excluded_paths,
+                     auth_method = excluded.auth_method,
+                     report_formats = excluded.report_formats,
+                     llm_enrichment = excluded.llm_enrichment,
+                     llm_backend = excluded.llm_backend,
+                     scanner_options = excluded.scanner_options,
+                     tags = excluded.tags,
+                     is_default = excluded.is_default,
+                     created_at = excluded.created_at,
+                     updated_at = excluded.updated_at,
+                     owner_user_id = COALESCE(NULLIF(excluded.owner_user_id, ''),
+                                              scan_config_templates.owner_user_id)""",
                 (
                     tpl.template_id,
                     tpl.name,
@@ -60,8 +79,18 @@ class TemplateRepository:
                     int(tpl.is_default),
                     tpl.created_at,
                     tpl.updated_at,
+                    owner_user_id,
                 ),
             )
+
+    def owner_of(self, template_id: str) -> str | None:
+        """Owner user id ('' for built-ins); None when the template is missing."""
+        with connect(self._db_path) as conn:
+            row = conn.execute(
+                "SELECT owner_user_id FROM scan_config_templates WHERE template_id = ?",
+                (template_id,),
+            ).fetchone()
+        return None if row is None else str(row["owner_user_id"])
 
     def get(self, template_id: str) -> ScanConfigTemplate | None:
         with connect(self._db_path) as conn:
@@ -90,6 +119,7 @@ class TemplateRepository:
                 "is_default": bool(row["is_default"]),
                 "created_at": row["created_at"],
                 "updated_at": row["updated_at"],
+                "owner_user_id": row["owner_user_id"],
             }
             for row in rows
         ]

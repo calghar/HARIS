@@ -8,10 +8,9 @@ from ...auth.middleware import require_admin, require_user
 from ...auth.models import User
 from ...config.loader import load_config
 from ...core.decorators import all_registered
+from ..access import visible_owner
 from ..routing import protected_router
-from ..scan_runtime import ScanStatus, active_scans
 from ..scanner_info import SCANNER_INFO
-from ..scoped_views import dashboard_summary, list_scans, list_websites
 from ..state import AppState, get_state
 from ..templating import template_context, templates
 
@@ -26,9 +25,9 @@ async def dashboard(
     user: User = Depends(require_user),
     state: AppState = Depends(get_state),
 ) -> HTMLResponse:
-    summary = dashboard_summary(state, user)
-    summary["total_scans"] += len(active_scans(state, user, (ScanStatus.RUNNING,)))
-    hostnames = sorted({w["hostname"] for w in list_websites(state, user)})
+    owner = visible_owner(state, user)
+    summary = state.store.dashboard_summary(owner)
+    hostnames = sorted({w["hostname"] for w in state.store.list_websites(owner)})
     return templates.TemplateResponse(
         request,
         "dashboard.html",
@@ -58,35 +57,16 @@ async def scans_page(
     state: AppState = Depends(get_state),
 ) -> HTMLResponse:
     page = max(page, 1)
-    rows, total = list_scans(
-        state,
-        user,
+    owner = visible_owner(state, user)
+    rows, total = state.store.list_sessions_paginated(
         page=page,
         per_page=SCANS_PER_PAGE,
         hostname=hostname or None,
         severity=severity or None,
         date_from=date_from or None,
         date_to=date_to or None,
+        owner_user_id=owner,
     )
-    scans = rows
-    if page == 1 and not any([hostname, severity, date_from, date_to]):
-        running = active_scans(state, user, (ScanStatus.RUNNING, ScanStatus.PENDING))
-        scans = [
-            {
-                "session_id": s["scan_id"],
-                "scan_id": s["scan_id"],
-                "target_url": s["target_url"],
-                "profile_name": s.get("profile", ""),
-                "status": s["status"],
-                "started_at": s.get("started_at", ""),
-                "risk_posture": "",
-                "finding_count": len(s["session"].all_findings)
-                if s.get("session")
-                else 0,
-            }
-            for s in running
-        ] + rows
-        total += len(running)
     filters = {
         "hostname": hostname,
         "severity": severity,
@@ -106,9 +86,9 @@ async def scans_page(
             request,
             user=user,
             nav_active="scans",
-            scans=scans,
+            scans=rows,
             total=total,
-            hostnames=sorted({w["hostname"] for w in list_websites(state, user)}),
+            hostnames=sorted({w["hostname"] for w in state.store.list_websites(owner)}),
             filters=filters,
             pagination=pagination,
         ),

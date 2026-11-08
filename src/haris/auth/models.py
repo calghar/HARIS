@@ -18,6 +18,10 @@ class AuthProvider(enum.Enum):
 class AuditAction(enum.Enum):
     SCAN_STARTED = "scan.started"
     SCAN_DELETED = "scan.deleted"
+    SCAN_CANCELLED = "scan.cancelled"
+    TOKEN_CREATED = "token.created"
+    TOKEN_REVOKED = "token.revoked"
+    TARGET_VERIFIED = "target.verified"
     TEMPLATE_CREATED = "template.created"
     TEMPLATE_UPDATED = "template.updated"
     TEMPLATE_DELETED = "template.deleted"

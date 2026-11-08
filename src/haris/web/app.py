@@ -17,8 +17,10 @@ from ..auth.bootstrap import bootstrap_admin_from_env
 from ..auth.csrf import csrf_protect
 from ..auth.redirects import login_url
 from ..auth.security_headers import SecurityHeadersMiddleware
+from . import scan_runtime
 from .logging_setup import configure_logging
 from .routers import ALL_ROUTERS
+from .routing import API_PREFIX
 from .settings import WebSettings
 from .state import AppState
 from .templating import STATIC_DIR
@@ -26,7 +28,6 @@ from .templating import STATIC_DIR
 logger = logging.getLogger(__name__)
 
 SESSION_CLEANUP_INTERVAL_S = 3600
-API_PREFIX = "/api/"
 
 
 async def _periodic_session_cleanup(state: AppState) -> None:
@@ -46,8 +47,10 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     state: AppState = app.state.haris
     bootstrap_admin_from_env(state.auth)
     cleanup_task = asyncio.create_task(_periodic_session_cleanup(state))
+    state.jobs.dispatch()
     yield
     cleanup_task.cancel()
+    state.jobs.shutdown()
 
 
 def create_app(settings: WebSettings | None = None) -> FastAPI:
@@ -63,7 +66,7 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
         redoc_url=None,
         openapi_url=None,
     )
-    app.state.haris = AppState(settings)
+    app.state.haris = AppState(settings, scan_runtime.execute_scan)
 
     @app.exception_handler(StarletteHTTPException)
     async def http_exception_handler(
@@ -71,7 +74,7 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
     ) -> Response:
         """Unauthenticated HTML requests go to /login; API/HTMX callers get JSON."""
         htmx = request.headers.get("HX-Request") == "true"
-        is_api = request.url.path.startswith(API_PREFIX)
+        is_api = request.url.path.startswith(API_PREFIX + "/")
         if exc.status_code == 401 and not htmx and not is_api:
             return RedirectResponse(login_url(request), status_code=303)
         return JSONResponse(

@@ -9,7 +9,7 @@ from haris.auth.middleware import _login_attempts
 from haris.auth.redirects import safe_next
 
 from .test_web_env import PASSWORD, Browser, Resources, WebEnv, stub_scan_runner
-from .test_web_routes import CASES, UNSAFE, Case, reached
+from .test_web_routes import CASES, UNSAFE, Case, case_json, reached
 
 UNSAFE_CASES = [c for c in CASES if c.method in UNSAFE]
 TOKEN_FIELD = re.compile(r'name="csrf_token" value="([0-9a-f]+)"')
@@ -38,7 +38,7 @@ def _request(
     return client.request(
         case.method,
         case.path.format_map(resources),
-        json=case.json,
+        json=case_json(case, resources),
         data=data,
         headers=headers or {},
     )
@@ -77,26 +77,26 @@ def test_form_field_token_is_accepted(env: WebEnv, case: Case) -> None:
 
 def test_rejected_request_does_not_run_handler(env: WebEnv) -> None:
     client = env.browser(env.alice)
-    before = len(env.state.scans)
-    response = client.post("/api/scan/start", data=START_FORM)
+    before = len(env.state.store.list_sessions())
+    response = client.post("/api/v1/scans", data=START_FORM)
     assert response.status_code == 403
-    assert len(env.state.scans) == before
+    assert len(env.state.store.list_sessions()) == before
 
 
 def test_token_of_another_session_is_rejected(env: WebEnv) -> None:
     alice, bob = env.browser(env.alice), env.browser(env.bob)
-    response = alice.post("/api/scan/start", data=START_FORM, headers=bob.csrf_headers)
+    response = alice.post("/api/v1/scans", data=START_FORM, headers=bob.csrf_headers)
     assert response.status_code == 403
 
 
 def test_token_is_not_accepted_as_cookie(env: WebEnv) -> None:
     client = env.browser(env.alice)
     client.cookies.set("csrf_token", client.csrf)
-    assert client.post("/api/scan/start", data=START_FORM).status_code == 403
+    assert client.post("/api/v1/scans", data=START_FORM).status_code == 403
 
 
 def test_get_needs_no_token(env: WebEnv) -> None:
-    assert env.browser(env.alice).get("/api/scans").status_code == 200
+    assert env.browser(env.alice).get("/api/v1/scans").status_code == 200
 
 
 def test_anonymous_post_to_public_route_needs_token(env: WebEnv) -> None:
@@ -152,12 +152,12 @@ def test_session_cookie_is_secure_over_https(env: WebEnv) -> None:
 def test_logout_needs_token(env: WebEnv) -> None:
     client = env.browser(env.alice)
     assert client.post("/auth/logout").status_code == 403
-    assert client.get("/api/scans").status_code == 200
+    assert client.get("/api/v1/scans").status_code == 200
     response = client.post("/auth/logout", headers=client.csrf_headers)
     assert response.status_code == 303
     assert response.headers["location"] == "/login"
     client.cookies.clear()
-    assert client.get("/api/scans").status_code == 401
+    assert client.get("/api/v1/scans").status_code == 401
 
 
 def test_pages_embed_the_session_token(env: WebEnv) -> None:
@@ -199,6 +199,7 @@ def _login(env: WebEnv, next_value: str | None) -> str:
 def test_login_redirect_is_same_origin(
     env: WebEnv, next_value: str | None, location: str
 ) -> None:
+    """Scenario Outline: Safe next parameter."""
     assert _login(env, next_value) == location
 
 

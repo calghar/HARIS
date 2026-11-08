@@ -130,6 +130,11 @@ def build_parser() -> argparse.ArgumentParser:
         default=8000,
         help="Web UI port (with --web)",
     )
+    parser.add_argument(
+        "--proxy-headers",
+        action="store_true",
+        help="Trust X-Forwarded-* headers from a reverse proxy (with --web)",
+    )
 
     parser.add_argument(
         "--llm-enrich",
@@ -425,12 +430,17 @@ def _handle_non_scan_actions(args: argparse.Namespace) -> int | None:
         return 0
 
     if args.web:
-        from haris.web.app import app
+        from haris.web.app import create_app
 
         uvicorn = importlib.import_module("uvicorn")
 
         print("Starting HARIS dashboard...")
-        uvicorn.run(app, host=args.host, port=args.port)
+        uvicorn.run(
+            create_app(),
+            host=args.host,
+            port=args.port,
+            proxy_headers=args.proxy_headers,
+        )
         return 0
 
     return None

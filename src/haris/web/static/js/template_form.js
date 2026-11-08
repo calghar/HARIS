@@ -48,7 +48,7 @@
     llmBackendGrp.style.display = llmCheckbox.checked ? "block" : "none";
     if (llmCheckbox.checked && !llmBackendsLoaded) {
       llmBackendsLoaded = true;
-      fetch("/api/llm/backends")
+      fetch("/api/v1/llm/backends")
         .then(r => r.json())
         .then(data => {
           const sel = document.getElementById("llm_backend");
@@ -233,8 +233,8 @@
 
     try {
       const url = data.templateId
-        ? "/api/scan-templates/" + encodeURIComponent(data.templateId)
-        : "/api/scan-templates";
+        ? "/api/v1/scan-templates/" + encodeURIComponent(data.templateId)
+        : "/api/v1/scan-templates";
       const resp = await fetch(url, {
         method: data.templateId ? "PUT" : "POST",
         headers: { "Content-Type": "application/json" },

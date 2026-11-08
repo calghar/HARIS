@@ -4,6 +4,7 @@ from typing import NoReturn
 
 from fastapi import Depends, HTTPException, Request
 
+from .bearer import ApiPrincipal, bearer_principal, token_scopes
 from .cookies import SESSION_COOKIE
 from .models import User, UserRole
 from .redirects import login_url
@@ -48,9 +49,12 @@ def _raise_auth_error(request: Request) -> NoReturn:
 
 def require_user(
     request: Request,
+    principal: ApiPrincipal | None = Depends(bearer_principal),
     auth_service: AuthService = Depends(get_auth_service),
 ) -> User:
-    """Resolve the active user behind the session cookie or raise 401."""
+    """Resolve the active user behind a Bearer token (/api/v1) or session cookie."""
+    if principal is not None:
+        return principal.user
     token = request.cookies.get(SESSION_COOKIE, "")
     if not token:
         _raise_auth_error(request)
@@ -64,8 +68,9 @@ def require_user(
     return user
 
 
-def require_admin(user: User = Depends(require_user)) -> User:
-    """Require authenticated user with admin role. Raises 403 otherwise."""
-    if user.role != UserRole.ADMIN:
+def require_admin(request: Request, user: User = Depends(require_user)) -> User:
+    """Admin role, plus the `admin` scope when a Bearer token is used."""
+    scopes = token_scopes(request)
+    if user.role != UserRole.ADMIN or (scopes is not None and "admin" not in scopes):
         raise HTTPException(status_code=403, detail="Admin access required")
     return user

@@ -18,3 +18,12 @@ def public_dns(monkeypatch: pytest.MonkeyPatch) -> None:
         ]
 
     monkeypatch.setattr(socket, "getaddrinfo", fake)
+
+
+@pytest.fixture(autouse=True)
+def fast_bcrypt(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Minimum bcrypt cost keeps user creation in tests cheap."""
+    import bcrypt
+
+    real = bcrypt.gensalt
+    monkeypatch.setattr(bcrypt, "gensalt", lambda *_a, **_k: real(rounds=4))

@@ -16,16 +16,23 @@ class ConversationRegistry:
     def add(self, conversation: Conversation, owner_user_id: str) -> None:
         self._items[conversation.conversation_id] = (conversation, owner_user_id)
 
-    def get(
-        self, conversation_id: str, scan_id: str, user: User
-    ) -> Conversation | None:
+    def get(self, conversation_id: str, user: User) -> Conversation | None:
         entry = self._items.get(conversation_id)
         if entry is None:
             return None
         conversation, owner = entry
-        if conversation.scan_id != scan_id:
-            return None
         return conversation if user.is_admin or owner == user.user_id else None
+
+    def list_for(self, user: User) -> list[Conversation]:
+        return sorted(
+            (
+                c
+                for c, owner in self._items.values()
+                if user.is_admin or owner == user.user_id
+            ),
+            key=lambda c: c.created_at,
+            reverse=True,
+        )
 
     def exists(self, conversation_id: str) -> bool:
         return conversation_id in self._items
