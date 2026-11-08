@@ -1,0 +1,68 @@
+# Seed set from the DVWA module list at security level low; modules need a logged-in session.
+target: dvwa
+kind: external
+entries:
+  - id: dvwa-sqli
+    method: GET
+    url: /vulnerabilities/sqli
+    parameter: id
+    vuln_class: sqli_error
+    cwe: CWE-89
+    expected: true_positive
+    source: https://github.com/digininja/DVWA
+  - id: dvwa-sqli-blind
+    method: GET
+    url: /vulnerabilities/sqli_blind
+    parameter: id
+    vuln_class: sqli_blind
+    cwe: CWE-89
+    expected: true_positive
+    source: https://github.com/digininja/DVWA
+  - id: dvwa-xss-reflected
+    method: GET
+    url: /vulnerabilities/xss_r
+    parameter: name
+    vuln_class: xss_reflected
+    cwe: CWE-79
+    expected: true_positive
+    source: https://github.com/digininja/DVWA
+  - id: dvwa-xss-stored
+    method: POST
+    url: /vulnerabilities/xss_s
+    parameter: mtxMessage
+    vuln_class: xss_stored
+    cwe: CWE-79
+    expected: true_positive
+    source: https://github.com/digininja/DVWA
+  - id: dvwa-command-injection
+    method: POST
+    url: /vulnerabilities/exec
+    parameter: ip
+    vuln_class: command_injection
+    cwe: CWE-78
+    expected: true_positive
+    source: https://github.com/digininja/DVWA
+  - id: dvwa-file-inclusion
+    method: GET
+    url: /vulnerabilities/fi
+    parameter: page
+    vuln_class: file_inclusion
+    cwe: CWE-98
+    expected: true_positive
+    source: https://github.com/digininja/DVWA
+  - id: dvwa-csrf
+    method: GET
+    url: /vulnerabilities/csrf
+    parameter: password_new
+    vuln_class: csrf
+    cwe: CWE-352
+    expected: true_positive
+    source: https://github.com/digininja/DVWA
+  - id: dvwa-upload
+    method: POST
+    url: /vulnerabilities/upload
+    parameter: uploaded
+    vuln_class: unrestricted_upload
+    cwe: CWE-434
+    expected: true_positive
+    source: https://github.com/digininja/DVWA

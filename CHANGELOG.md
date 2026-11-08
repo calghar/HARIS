@@ -37,6 +37,12 @@
 - Split `ScanStore` into scan, finding, template and website repositories behind an unchanged facade
 - Stored session, remember-me and email-verification tokens as SHA-256 hashes; existing rows were hashed in place so current sessions stay valid
 
+### Added
+
+- Added a benchmark harness in `bench/`: loopback-only Docker Compose targets (Juice Shop, DVWA, WebGoat, an SPA catch-all fixture, a vulnerable AI app with a toy MCP server), YAML ground truth, a runner (`bench/run.py`) and a nightly `bench.yml` workflow
+- Added the `haris.bench` scorer (`python -m haris.bench score <report> <ground_truth.yaml>`) reporting precision, recall, F1, false-positive reduction, request count, cost and wall time with mean and stddev over runs
+- Added `docs/benchmarks.md` describing the benchmark methodology and what it does not claim
+
 ## 0.6.2 — 2026-04-04
 
 ### Fixed

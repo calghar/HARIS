@@ -1,0 +1,42 @@
+# Every port binds to 127.0.0.1. Images are pinned by tag and digest
+# (resolved with `docker buildx imagetools inspect`, 2026-11-08).
+name: haris-bench
+
+services:
+  juice_shop:
+    image: bkimminich/juice-shop:v20.4.0@sha256:9bbaecc41791f00b002bc65931cc5ff355fbdb941fa72b06558c18dace43197b
+    ports:
+      - "127.0.0.1:${BENCH_JUICE_SHOP_PORT:-13000}:3000"
+
+  dvwa:
+    # The upstream image has no release tags (commit-sha tags only); pinned by the digest of `latest`.
+    image: ghcr.io/digininja/dvwa:latest@sha256:8029450682bd70e2e8cd1ffe8e46dd1885ff2a913296091cebfa8ba0a7d36498
+    environment:
+      DB_SERVER: dvwa_db
+    depends_on:
+      - dvwa_db
+    ports:
+      - "127.0.0.1:${BENCH_DVWA_PORT:-14280}:80"
+
+  dvwa_db:
+    image: mariadb:10.11@sha256:d769e37960821dfdcf096954f6e7ac89f747e116c1bba98e48edd265dfc7deae
+    environment:
+      MYSQL_ROOT_PASSWORD: dvwa
+      MYSQL_DATABASE: dvwa
+      MYSQL_USER: dvwa
+      MYSQL_PASSWORD: p@ssw0rd
+
+  webgoat:
+    image: webgoat/webgoat:v2026.5@sha256:95c23e70502d0e0e11a826a73889e2ca93f965171202c17c0c59353ba67be86a
+    ports:
+      - "127.0.0.1:${BENCH_WEBGOAT_PORT:-18080}:8080"
+
+  spa_catchall:
+    build: ./fixtures/spa_catchall
+    ports:
+      - "127.0.0.1:${BENCH_SPA_PORT:-18081}:8080"
+
+  vuln_ai_app:
+    build: ./fixtures/vuln_ai_app
+    ports:
+      - "127.0.0.1:${BENCH_AI_APP_PORT:-18082}:8080"

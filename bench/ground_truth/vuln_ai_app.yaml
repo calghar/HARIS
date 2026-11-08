@@ -1,0 +1,56 @@
+# Exact truth: each entry maps to a deliberate weakness in bench/fixtures/vuln_ai_app/server.py.
+target: vuln_ai_app
+kind: fixture
+entries:
+  - id: ai-prompt-injection
+    method: POST
+    url: /v1/chat/completions
+    parameter: messages
+    vuln_class: ai_prompt_injection
+    cwe: CWE-1427
+    expected: true_positive
+    notes: The documented injection prompt makes the fake model follow the injected instruction.
+  - id: ai-system-prompt-leak
+    method: POST
+    url: /v1/chat/completions
+    parameter: messages
+    vuln_class: ai_system_prompt_leak
+    cwe: CWE-200
+    expected: true_positive
+    notes: The injection prompt returns the system prompt containing the canary token.
+  - id: ai-unauth-inference
+    method: POST
+    url: /v1/chat/completions
+    vuln_class: ai_unauth_inference
+    cwe: CWE-306
+    expected: true_positive
+    notes: No authentication on the inference endpoint.
+  - id: ai-verbose-error
+    method: POST
+    url: /v1/chat/completions
+    vuln_class: ai_verbose_error
+    cwe: CWE-209
+    expected: true_positive
+    notes: Malformed JSON returns HTTP 500 with a Python traceback.
+  - id: ai-output-xss
+    method: GET
+    url: /chat
+    parameter: q
+    vuln_class: ai_output_xss
+    cwe: CWE-79
+    expected: true_positive
+    notes: The question is reflected unescaped in an HTML page.
+  - id: mcp-unauth-tools-list
+    method: POST
+    url: /mcp
+    vuln_class: mcp_unauth_tools_list
+    cwe: CWE-306
+    expected: true_positive
+    notes: tools/list answers without authentication.
+  - id: mcp-tool-description-injection
+    method: POST
+    url: /mcp
+    vuln_class: mcp_tool_description_injection
+    cwe: CWE-1427
+    expected: true_positive
+    notes: The lookup_order tool description carries hidden instructions.

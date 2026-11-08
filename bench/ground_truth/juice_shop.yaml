@@ -1,0 +1,38 @@
+# Seed set from the OWASP Juice Shop companion guide; not a complete list of its challenges.
+target: juice_shop
+kind: external
+entries:
+  - id: juice-sqli-login
+    method: POST
+    url: /rest/user/login
+    parameter: email
+    vuln_class: sqli_error
+    cwe: CWE-89
+    expected: true_positive
+    source: https://pwning.owasp-juice.shop/companion-guide/latest/part2/injection.html
+    notes: Login Admin challenge.
+  - id: juice-sqli-search
+    method: GET
+    url: /rest/products/search
+    parameter: q
+    vuln_class: sqli_error
+    cwe: CWE-89
+    expected: true_positive
+    source: https://pwning.owasp-juice.shop/companion-guide/latest/part2/injection.html
+    notes: Database Schema and User Credentials challenges.
+  - id: juice-ftp-listing
+    method: GET
+    url: /ftp
+    vuln_class: directory_listing
+    cwe: CWE-548
+    expected: true_positive
+    source: https://pwning.owasp-juice.shop/companion-guide/latest/part2/sensitive-data-exposure.html
+    notes: Confidential Document challenge.
+  - id: juice-metrics
+    method: GET
+    url: /metrics
+    vuln_class: info_disclosure
+    cwe: CWE-200
+    expected: true_positive
+    source: https://pwning.owasp-juice.shop/companion-guide/latest/part2/sensitive-data-exposure.html
+    notes: Exposed Metrics challenge.
