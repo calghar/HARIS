@@ -37,11 +37,11 @@
   <div>
     <div class="section-title">Recent Scans</div>
     <div class="filter-bar card" style="padding:.6rem 1rem; margin-bottom:.5rem; display:flex; gap:.5rem; flex-wrap:wrap; align-items:center">
-      <select id="dash-hostname" style="flex:1; min-width:140px" onchange="dashFilter()">
+      <select id="dash-hostname" style="flex:1; min-width:140px">
         <option value="">All websites</option>
         {% for h in hostnames %}<option value="{{ h }}">{{ h }}</option>{% endfor %}
       </select>
-      <select id="dash-severity" style="width:120px" onchange="dashFilter()">
+      <select id="dash-severity" style="width:120px">
         <option value="">All severities</option>
         <option value="critical">Critical</option>
         <option value="high">High</option>
@@ -109,14 +109,5 @@
 {% endblock %}
 
 {% block scripts %}
-<script nonce="{{ request.state.csp_nonce }}">
-function dashFilter() {
-  var h = document.getElementById('dash-hostname').value;
-  var s = document.getElementById('dash-severity').value;
-  var url = '/api/scans?format=html&per_page=5';
-  if (h) url += '&hostname=' + encodeURIComponent(h);
-  if (s) url += '&severity=' + encodeURIComponent(s);
-  htmx.ajax('GET', url, '#dash-scan-table');
-}
-</script>
+<script src="/static/js/dashboard.js"></script>
 {% endblock %}

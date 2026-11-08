@@ -10,6 +10,12 @@
       <p class="text-muted text-sm">HARIS Security Audit Framework</p>
     </div>
 
+    {% if first_run %}
+    <div class="card" style="padding:1rem; margin-bottom:1rem; font-size:.875rem;">
+      No users exist yet. <a href="/auth/setup" style="color:var(--accent);">Create the first administrator</a>.
+    </div>
+    {% endif %}
+
     {% if error %}
     <div style="background:rgba(244,63,94,.1); border:1px solid rgba(244,63,94,.3); border-radius:var(--radius); padding:.75rem 1rem; margin-bottom:1rem; font-size:.875rem; color:var(--critical);">
       {{ error }}
@@ -23,7 +29,7 @@
     {% endif %}
 
     <div class="card" style="padding:2rem;">
-      <form method="post" action="/auth/login">
+      <form method="post" action="/login">
         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
         <input type="hidden" name="next" value="{{ next or '/' }}">
 
@@ -91,10 +97,5 @@
 {% endblock %}
 
 {% block scripts %}
-<script>
-  document.getElementById('resend-toggle').addEventListener('click', function() {
-    var f = document.getElementById('resend-form');
-    f.style.display = f.style.display === 'none' ? 'block' : 'none';
-  });
-</script>
+<script src="/static/js/login.js"></script>
 {% endblock %}

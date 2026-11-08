@@ -29,9 +29,10 @@ RUN ARCH=$(dpkg --print-architecture) \
     && rm /tmp/nuclei.zip \
     && nuclei -version
 
-# Templates are persisted at runtime via the nuclei-data Docker volume.
-RUN nuclei -update-templates \
-    || echo "nuclei template pre-fetch failed — will download on first run"
+# Unprivileged runtime user; nikto and the data directories must be writable by it.
+RUN useradd --uid 10001 --create-home --shell /usr/sbin/nologin haris \
+    && chown -R haris:haris /opt/nikto
+ENV HOME=/home/haris
 
 # Scanner CLIs in isolated venvs: their pins (cryptography<47, tornado<6.6) block patched app deps.
 RUN set -eu; for tool in wapiti3:wapiti sslyze:sslyze; do \
@@ -46,8 +47,16 @@ WORKDIR /app
 # Copy application code and install (non-editable)
 COPY pyproject.toml README.md ./
 COPY src ./src
-RUN pip install --no-cache-dir ".[all]" && mkdir -p /app/reports
+RUN pip install --no-cache-dir ".[all]" \
+    && mkdir -p /app/reports /app/data \
+    && chown -R haris:haris /app/reports /app/data
+
+USER haris
+
+# Templates are persisted at runtime via the nuclei-data Docker volume.
+RUN nuclei -update-templates \
+    || echo "nuclei template pre-fetch failed — will download on first run"
 
 EXPOSE 8000
 
-CMD ["uvicorn", "haris.web.app:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uvicorn", "--factory", "haris.web.app:create_app", "--host", "0.0.0.0", "--port", "8000", "--proxy-headers"]

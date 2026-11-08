@@ -19,7 +19,7 @@
       </svg>
       Users
     </a>
-    <button onclick="window.location.reload()" class="btn btn-secondary">
+    <button data-action="reload" class="btn btn-secondary">
       <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" style="width:14px;height:14px;">
         <path d="M13.5 8A5.5 5.5 0 112.5 5M2.5 2v3h3"/>
       </svg>
@@ -100,4 +100,8 @@
     </tbody>
   </table>
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/js/reload.js"></script>
 {% endblock %}

@@ -17,7 +17,7 @@ services:
       - ./config:/app/config:ro
       - ./templates:/app/templates
       - nikto-data:/opt/nikto
-      - nuclei-data:/root/nuclei-templates
+      - nuclei-data:/home/haris/nuclei-templates
     env_file:
       - .env
     restart: unless-stopped
@@ -35,7 +35,7 @@ services:
       - ./reports:/app/reports
       - ./data:/app/data
       - ./config:/app/config:ro
-      - nuclei-data:/root/nuclei-templates
+      - nuclei-data:/home/haris/nuclei-templates
     env_file:
       - .env
     profiles:

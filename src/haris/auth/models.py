@@ -44,6 +44,10 @@ class User(BaseModel):
     updated_at: str = ""
     last_login_at: str = ""
 
+    @property
+    def is_admin(self) -> bool:
+        return self.role == UserRole.ADMIN
+
 
 class UserPublic(BaseModel):
     """Safe user representation — never includes password_hash."""

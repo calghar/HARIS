@@ -89,11 +89,11 @@
       <!-- Action footer -->
       <div style="border-top:1px solid var(--border); padding:.65rem 1rem; display:flex; align-items:center; gap:.4rem; background:var(--bg);">
         <a href="/templates/{{ tpl.template_id }}/edit" class="btn btn-sm btn-secondary">Edit</a>
-        <button class="btn btn-sm btn-secondary" onclick="cloneTemplate('{{ tpl.template_id }}', {{ tpl.name | tojson }})">Clone</button>
+        <button class="btn btn-sm btn-secondary" data-action="clone-template" data-template-id="{{ tpl.template_id }}" data-template-name="{{ tpl.name }}">Clone</button>
         {% if not tpl.is_default %}
-        <button class="btn btn-sm btn-secondary" onclick="setDefaultTemplate('{{ tpl.template_id }}')">Set Default</button>
+        <button class="btn btn-sm btn-secondary" data-action="set-default-template" data-template-id="{{ tpl.template_id }}">Set Default</button>
         {% endif %}
-        <button class="btn btn-sm btn-danger" style="margin-left:auto;" onclick="deleteTemplate('{{ tpl.template_id }}', {{ tpl.name | tojson }})">Delete</button>
+        <button class="btn btn-sm btn-danger" style="margin-left:auto;" data-action="delete-template" data-template-id="{{ tpl.template_id }}" data-template-name="{{ tpl.name }}">Delete</button>
       </div>
     </div>
     {% endfor %}
@@ -112,9 +112,9 @@
 <div id="tab-scanner-templates" class="tab-content">
   <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:1rem;">
     <p class="text-muted text-sm">Scanner template sources and their local state</p>
-    <button class="btn btn-primary btn-sm" id="btn-update-all" onclick="updateAllSources()">
+    <button class="btn btn-primary btn-sm" id="btn-update-all" data-action="update-all-sources">
       <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" width="13" height="13"><path d="M13.5 8A5.5 5.5 0 112.5 5.5"/><path d="M2.5 2.5v3h3"/></svg>
-      Update All
+      <span class="btn-label">Update All</span>
     </button>
   </div>
 
@@ -165,7 +165,7 @@
             </span>
           </td>
           <td style="text-align:right;">
-            <button class="btn btn-sm btn-secondary" onclick="updateSource({{ loop.index }}, {{ src.scanner | tojson }}, {{ src.source_name | tojson }})">
+            <button class="btn btn-sm btn-secondary" data-action="update-source" data-index="{{ loop.index }}" data-scanner="{{ src.scanner }}" data-source="{{ src.source_name }}">
               Update
             </button>
           </td>
@@ -186,132 +186,5 @@
 {% endblock %}
 
 {% block scripts %}
-<script nonce="{{ request.state.csp_nonce }}">
-// ===== Scan Configuration actions =====
-
-function deleteTemplate(id, name) {
-  if (!confirm('Delete configuration "' + name + '"? This cannot be undone.')) return;
-  fetch('/api/scan-templates/' + id, { method: 'DELETE' })
-    .then(function(res) {
-      if (!res.ok) return res.json().then(function(d) { throw new Error(d.detail || 'Delete failed'); });
-      var card = document.getElementById('tpl-' + id);
-      if (card) {
-        card.style.transition = 'opacity .25s, transform .25s';
-        card.style.opacity = '0';
-        card.style.transform = 'scale(.96)';
-        setTimeout(function() { card.remove(); }, 260);
-      }
-    })
-    .catch(function(err) { alert('Error: ' + err.message); });
-}
-
-function setDefaultTemplate(id) {
-  fetch('/api/scan-templates/' + id + '/set-default', { method: 'POST' })
-    .then(function(res) {
-      if (!res.ok) return res.json().then(function(d) { throw new Error(d.detail || 'Request failed'); });
-      location.reload();
-    })
-    .catch(function(err) { alert('Error: ' + err.message); });
-}
-
-function cloneTemplate(id, name) {
-  fetch('/api/scan-templates/' + id)
-    .then(function(res) {
-      if (!res.ok) return res.json().then(function(d) { throw new Error(d.detail || 'Fetch failed'); });
-      return res.json();
-    })
-    .then(function(data) {
-      data.name = 'Copy of ' + name;
-      delete data.template_id;
-      delete data.is_default;
-      delete data.created_at;
-      delete data.updated_at;
-      return fetch('/api/scan-templates', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data)
-      });
-    })
-    .then(function(res) {
-      if (!res.ok) return res.json().then(function(d) { throw new Error(d.detail || 'Clone failed'); });
-      location.reload();
-    })
-    .catch(function(err) { alert('Error: ' + err.message); });
-}
-
-// ===== Scanner Template source actions =====
-
-function setSourceStatus(index, html) {
-  var el = document.getElementById('src-status-' + index);
-  if (el) el.innerHTML = html;
-}
-
-function updateSource(index, scanner, sourceName) {
-  setSourceStatus(index, '<span class="spinner" style="width:16px;height:16px;border-width:2px;vertical-align:middle;"></span>');
-  fetch('/api/templates/update', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ scanner: scanner, source_name: sourceName })
-  })
-    .then(function(res) {
-      return res.json().then(function(data) { return { ok: res.ok, data: data }; });
-    })
-    .then(function(result) {
-      if (result.ok) {
-        setSourceStatus(index, '<span style="color:var(--low);font-size:.8rem;font-weight:500;">Updated — reloading...</span>');
-        setTimeout(function() { location.reload(); }, 800);
-      } else {
-        var err = Array.isArray(result.data) ? 'Update failed' : (result.data.detail || 'Unknown error');
-        setSourceStatus(index, '<span style="color:var(--critical);font-size:.8rem;">Failed: ' + err + '</span>');
-      }
-    })
-    .catch(function(err) {
-      setSourceStatus(index, '<span style="color:var(--critical);font-size:.8rem;">Error: ' + err.message + '</span>');
-    });
-}
-
-function updateAllSources() {
-  var btn = document.getElementById('btn-update-all');
-  btn.disabled = true;
-  btn.innerHTML = '<span class="spinner" style="width:14px;height:14px;border-width:2px;vertical-align:middle;"></span> Updating...';
-
-  // Set all rows to pending
-  document.querySelectorAll('.src-status').forEach(function(el, i) {
-    el.innerHTML = '<span style="color:var(--fg-muted);font-size:.8rem;">Queued...</span>';
-  });
-
-  fetch('/api/templates/update', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({})
-  })
-    .then(function(res) {
-      return res.json().then(function(data) { return { ok: res.ok, data: data }; });
-    })
-    .then(function(result) {
-      btn.disabled = false;
-      btn.innerHTML = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" width="13" height="13"><path d="M13.5 8A5.5 5.5 0 112.5 5.5"/><path d="M2.5 2.5v3h3"/></svg> Update All';
-
-      if (result.ok) {
-        document.querySelectorAll('.src-status').forEach(function(el) {
-          el.innerHTML = '<span style="color:var(--low);font-size:.8rem;font-weight:500;">Updated — reloading...</span>';
-        });
-        setTimeout(function() { location.reload(); }, 800);
-      } else {
-        document.querySelectorAll('.src-status').forEach(function(el) {
-          el.innerHTML = '<span style="color:var(--critical);font-size:.8rem;">Failed</span>';
-        });
-        alert('Update failed: ' + (result.data.detail || 'Unknown error'));
-      }
-    })
-    .catch(function(err) {
-      btn.disabled = false;
-      btn.innerHTML = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" width="13" height="13"><path d="M13.5 8A5.5 5.5 0 112.5 5.5"/><path d="M2.5 2.5v3h3"/></svg> Update All';
-      document.querySelectorAll('.src-status').forEach(function(el) {
-        el.innerHTML = '<span style="color:var(--critical);font-size:.8rem;">Error</span>';
-      });
-      alert('Error: ' + err.message);
-    });
-}
-</script>
+<script src="/static/js/templates_page.js"></script>
 {% endblock %}
