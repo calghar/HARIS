@@ -1,4 +1,5 @@
 import json
+from pathlib import Path
 
 import pytest
 
@@ -81,12 +82,12 @@ class TestDefaults:
         scanner = NucleiScanner()
         assert scanner.options["rate_limit"] == 100
 
-    def test_nmhe_in_command(self, target: Target) -> None:
-        """Host error skipping is disabled via -nmhe."""
+    def test_mhe_in_command(self, target: Target) -> None:
+        """Host errors are capped with -mhe; -nmhe disables nuclei's protection."""
         scanner = NucleiScanner()
         cmd = scanner._build_command(target)
-        assert "-nmhe" in cmd
-        assert "-mhe" not in cmd
+        assert cmd[cmd.index("-mhe") + 1] == "500"
+        assert "-nmhe" not in cmd
 
     def test_default_timeout_per_request_30(self) -> None:
         scanner = NucleiScanner()
@@ -232,21 +233,16 @@ class TestBuildCommandKeywordArgs:
         w_flags = [cmd[i + 1] for i, v in enumerate(cmd) if v == "-w"]
         assert "workflows/wordpress-workflow.yaml" in w_flags
 
-    def test_url_list_param_single_url(self, target: Target) -> None:
+    def test_no_url_file_uses_u(self, target: Target) -> None:
         scanner = NucleiScanner()
-        cmd = scanner._build_command(target, url_list=[target.base_url])
+        cmd = scanner._build_command(target)
         assert "-u" in cmd
         assert "-list" not in cmd
 
-    def test_url_list_param_multiple_urls(self, target: Target) -> None:
+    def test_url_file_uses_list(self, target: Target) -> None:
         scanner = NucleiScanner()
-        urls = [
-            "https://example.com",
-            "https://example.com/page1",
-            "https://example.com/page2",
-        ]
-        cmd = scanner._build_command(target, url_list=urls)
-        assert "-list" in cmd
+        cmd = scanner._build_command(target, url_file="/tmp/urls.txt")
+        assert cmd[cmd.index("-list") + 1] == "/tmp/urls.txt"
         assert "-u" not in cmd
 
     def test_multiple_kwargs_combined(self, target: Target) -> None:
@@ -463,13 +459,17 @@ class TestResolveTargetedSelection:
         assert tags == []
         assert workflows == []
 
-    def test_explicit_tags_returned_as_is(self, target: Target) -> None:
+    def test_explicit_tags_not_repeated_for_targeted_phase(
+        self, target: Target
+    ) -> None:
+        """Explicit tags already run in the broad phase; 2b must not repeat them."""
         scanner = NucleiScanner(options={"tags": ["cve", "rce"]})
         ctx = ScanContext()
         template_dirs, tags, workflows = scanner._resolve_targeted_selection(
             ctx, has_explicit=True
         )
-        assert tags == ["cve", "rce"]
+        assert tags == []
+        assert workflows == []
 
     def test_default_template_dirs_when_no_tech(self, target: Target) -> None:
         scanner = NucleiScanner()
@@ -491,21 +491,19 @@ class TestResolveTargetedSelection:
         assert "wordpress" in tags
         assert "wp-plugin" in tags or "wp-theme" in tags
 
-    def test_wordpress_tech_adds_workflow(self, target: Target) -> None:
-        from unittest.mock import MagicMock, patch
+    def test_wordpress_tech_adds_workflow(self, target: Target, tmp_path: Path) -> None:
+        from unittest.mock import patch
 
         scanner = NucleiScanner()
         ctx = ScanContext()
         ctx.add_technologies(["wordpress"])
-        # Mock the template root so the workflow file "exists"
-        with patch("haris.scanners.nuclei_scanner._NUCLEI_TEMPLATE_ROOT") as mock_root:
-            mock_path = MagicMock()
-            mock_path.exists.return_value = True
-            mock_root.__truediv__.return_value = mock_path
+        (tmp_path / "workflows").mkdir()
+        (tmp_path / "workflows" / "wordpress-workflow.yaml").write_text("id: x")
+        with patch.object(scanner, "_template_root", return_value=tmp_path):
             template_dirs, tags, workflows = scanner._resolve_targeted_selection(
                 ctx, has_explicit=False
             )
-            assert "workflows/wordpress-workflow.yaml" in workflows
+        assert "workflows/wordpress-workflow.yaml" in workflows
 
     def test_multiple_techs_combine_tags(self, target: Target) -> None:
         scanner = NucleiScanner()
@@ -559,23 +557,23 @@ class TestSkipTechDetection:
 
 
 class TestCheckTemplatesAvailable:
-    def test_returns_true_when_dir_exists(self) -> None:
+    def test_returns_true_when_dir_exists(self, tmp_path: Path) -> None:
         from unittest.mock import patch
 
         scanner = NucleiScanner()
-        with patch("haris.scanners.nuclei_scanner._NUCLEI_TEMPLATE_ROOT") as mock_root:
-            mock_root.is_dir.return_value = True
+        with patch.object(scanner, "_template_root", return_value=tmp_path):
             assert scanner._check_templates_available() is True
 
-    def test_returns_false_and_warns_when_dir_missing(self) -> None:
+    def test_returns_false_and_warns_when_dir_missing(self, tmp_path: Path) -> None:
         from unittest.mock import patch
 
         scanner = NucleiScanner()
-        with patch("haris.scanners.nuclei_scanner._NUCLEI_TEMPLATE_ROOT") as mock_root:
-            mock_root.is_dir.return_value = False
-            with patch("haris.scanners.nuclei_scanner.logger") as mock_logger:
-                assert scanner._check_templates_available() is False
-                assert mock_logger.warning.called
+        with (
+            patch.object(scanner, "_template_root", return_value=tmp_path / "nope"),
+            patch("haris.scanners.nuclei_scanner.logger") as mock_logger,
+        ):
+            assert scanner._check_templates_available() is False
+            assert mock_logger.warning.called
 
 
 class TestRunPhase:

@@ -1,25 +1,31 @@
 import logging
+import tempfile
 import xml.etree.ElementTree as ET  # noqa: N817
+from pathlib import Path
 from typing import Any
 
-from ..core.decorators import register_scanner
-from ..core.scanner import BaseScanner
+from ..core.decorators import handle_scanner_errors, register_scanner
 from ..data.scanner_config import (
     get_nmap_default_extra_args,
     get_nmap_default_ports,
     get_nmap_risky_services,
 )
 from ..models import Confidence, Finding, ScannerResult, Severity, Target
+from .argv_policy import ExtraArgsError
+from .base import ExternalToolScanner
 
 logger = logging.getLogger(__name__)
 
+NSE_SUFFIX = ".nse"
+
 
 @register_scanner
-class NmapScanner(BaseScanner):
+class NmapScanner(ExternalToolScanner):
     """Adapter for Nmap network scanner (recon / port scan).
 
     Requires ``nmap`` to be installed and on PATH.
     By default runs a service-version scan on common web ports.
+    ``nse_scripts`` lists local ``.nse`` files (from the template manager).
     """
 
     name = "nmap"
@@ -31,43 +37,33 @@ class NmapScanner(BaseScanner):
         self.options.setdefault("ports", get_nmap_default_ports())
         self.options.setdefault("timeout", 300)
         self.options.setdefault("extra_args", get_nmap_default_extra_args())
+        self.options.setdefault("nse_scripts", [])
 
+    @handle_scanner_errors
     def scan(self, target: Target, context: Any = None) -> ScannerResult:  # noqa: ARG002
         if not self._check_tool_available("nmap"):
             return ScannerResult(
                 scanner_name=self.name,
                 errors=["nmap is not installed or not on PATH"],
             )
-
-        import tempfile
-        from pathlib import Path
+        self._begin(target)
 
         with tempfile.TemporaryDirectory() as tmpdir:
             output_file = Path(tmpdir) / "nmap_results.xml"
-
             cmd = self._build_command(target, str(output_file))
-            returncode, _, stderr = self._run_command(
-                cmd, timeout=self.options["timeout"]
+            timeout = self.options["timeout"]
+            run = self._run_to_file(cmd, output_file, timeout)
+
+        result = ScannerResult(scanner_name=self.name, raw_output=run.raw)
+        if run.timed_out:
+            result.errors.append(self._timeout_error(timeout))
+        elif run.returncode != 0 and not run.raw:
+            result.errors.append(
+                f"nmap exited with code {run.returncode}: {run.stderr[:500]}"
             )
-
-            raw = ""
-            if output_file.exists():
-                raw = output_file.read_text()
-
-            result = ScannerResult(
-                scanner_name=self.name,
-                raw_output=raw,
-            )
-
-            if returncode != 0 and not raw:
-                result.errors.append(
-                    f"nmap exited with code {returncode}: {stderr[:500]}"
-                )
-
-            if raw:
-                result.findings = self.parse_results(raw)
-
-            return result
+        if run.raw:
+            result.findings = self.parse_results(run.raw)
+        return result
 
     def parse_results(self, raw_output: str) -> list[Finding]:
         """Parse Nmap XML output into Finding objects."""
@@ -248,6 +244,18 @@ class NmapScanner(BaseScanner):
             "-p",
             self.options["ports"],
         ]
-        cmd.extend(self.options.get("extra_args", []))
-        cmd.append(target.hostname)
+        cmd.extend(self._extra_args())
+        scripts = self._nse_scripts()
+        if scripts:
+            cmd.extend(["--script", ",".join(scripts)])
+        cmd.extend(["--", target.hostname])
         return cmd
+
+    def _nse_scripts(self) -> list[str]:
+        scripts = [str(s) for s in self.options.get("nse_scripts", [])]
+        for script in scripts:
+            if "," in script or not (
+                script.endswith(NSE_SUFFIX) and Path(script).is_file()
+            ):
+                raise ExtraArgsError(f"nse_scripts entry {script!r} is not a .nse file")
+        return scripts

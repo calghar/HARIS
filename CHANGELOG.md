@@ -28,6 +28,20 @@
 - **Nuclei scanner config validation** — added Pydantic schema validation (`_NucleiConfig`) for `config/scanners/nuclei.yaml` with warn-only error handling to catch type mismatches early
 - **Nuclei scanner timeout defaults** — `timeout_per_request` now properly defaulted to 30 seconds in both `default_config.yaml` and `NucleiScanner.__init__()` instead of only as inline fallback
 - Added clarifying comments to `config/scanners/nuclei.yaml` documenting that workflow paths are relative to nuclei's built-in template root
+- Fixed Nikto runs that never parsed a report because Nikto appends `.json` to `-output`; the scanner now reads the file Nikto writes
+- Fixed Nikto passing the non-existent `-useragent-extra`; auth headers go through `-Add-header`, and `-nocheck` stops Nikto's update check
+- Fixed Nikto scanning `http://` for HTTPS targets; the target scheme is kept in the command and in finding URLs
+- Fixed Nikto keywords matching inside words (`options` in X-Frame-Options, `eol` in geolocation); keywords now match whole words
+- Fixed Wapiti 3.2.x findings losing tags and OWASP mapping; `wapiti.yaml` carries the real category names and unmapped categories fall back to `security_misconfiguration`
+- Fixed Wapiti duplicating header, cookie, redirect and TLS findings; those modules are excluded through `excluded_modules`
+- Fixed SSLyze crashing on `null` scan results; failed server scans are reported as scanner errors
+- Fixed Nuclei reading templates from a hard-coded `/root/nuclei-templates`; the root comes from nuclei's own config
+- Fixed Nuclei phase 2b re-running explicit tags and the phase 2a directories; the targeted phase excludes them and results are de-duplicated across phases
+- Fixed Nuclei leaking the `-list` temp file; it is deleted in a `finally`
+- Fixed the Nuclei severity filter hiding Phase 1 technology results; Phase 1 reports technologies, never findings
+- Fixed a Nuclei timeout discarding results from earlier phases; the timed-out phase keeps its partial output and an error is recorded
+- Fixed Nuclei, Nikto, Wapiti, Nmap and SSLyze timeouts leaving grandchild processes running; the whole process group is killed and partial stdout is kept
+- Fixed `Authorization`, `Cookie` and API-key values appearing in scanner logs, evidence, `request_example` and `raw_data`; they are redacted
 
 ### Changed
 
@@ -36,6 +50,11 @@
 - Replaced the hand-rolled SQLite schema versioning with `yoyo-migrations`; a 0.6 database is backed up to `<db>.pre-0.7.bak` and adopted as the baseline, and `ScanStore` opens the database through one connection helper
 - Split `ScanStore` into scan, finding, template and website repositories behind an unchanged facade
 - Stored session, remember-me and email-verification tokens as SHA-256 hashes; existing rows were hashed in place so current sessions stay valid
+- Validated `scanner_options.extra_args` against a per-scanner allow-list in `config/scanners/*.yaml`; other flags are rejected with an error
+- Placed `--` before the host argument for Nmap and SSLyze
+- Passed Nmap NSE scripts through the new `nse_scripts` option instead of `extra_args`
+- Switched Nuclei to `-or`, `-es info` (phases 2a and 2b), `-ept code,file,headless`, `-mhe` and `-eid http-missing-security-headers`; added the opt-in `automatic_scan` (`-as`) and `update_templates` (`-ut`) options
+- Added golden fixtures from real nuclei, nikto, nmap, wapiti and sslyze output under `tests/fixtures/scanners/`
 
 ## 0.6.2 — 2026-04-04
 

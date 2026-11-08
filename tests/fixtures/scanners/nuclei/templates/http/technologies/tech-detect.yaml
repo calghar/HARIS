@@ -1,0 +1,24 @@
+id: tech-detect
+
+info:
+  name: Fixture technology detection
+  author: haris
+  severity: info
+  tags: tech,detect
+
+http:
+  - method: GET
+    path:
+      - "{{BaseURL}}/"
+    matchers:
+      - type: word
+        part: header
+        words:
+          - "Apache"
+        name: apache
+      - type: word
+        part: header
+        words:
+          - "PHP/"
+        name: php
+    matchers-condition: or

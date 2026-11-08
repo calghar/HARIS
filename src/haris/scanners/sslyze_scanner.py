@@ -4,19 +4,30 @@ import tempfile
 from pathlib import Path
 from typing import Any
 
-from ..core.decorators import register_scanner
-from ..core.scanner import BaseScanner
+from ..core.decorators import handle_scanner_errors, register_scanner
 from ..data.scanner_config import (
     get_sslyze_deprecated_protocols,
     get_sslyze_vulnerability_checks,
 )
 from ..models import Confidence, Finding, ScannerResult, Severity, Target
+from .base import ExternalToolScanner
 
 logger = logging.getLogger(__name__)
 
+SCAN_COMPLETED = "COMPLETED"
+
+
+def _dict(value: Any) -> dict[str, Any]:
+    """Return *value* if a dict, else {} (sslyze emits null on failed commands)."""
+    return value if isinstance(value, dict) else {}
+
+
+def _command_result(scan_result: dict[str, Any], key: str) -> dict[str, Any]:
+    return _dict(_dict(scan_result.get(key)).get("result"))
+
 
 @register_scanner
-class SSLyzeScanner(BaseScanner):
+class SSLyzeScanner(ExternalToolScanner):
     """Adapter for SSLyze TLS/SSL configuration scanner."""
 
     name = "sslyze"
@@ -26,62 +37,74 @@ class SSLyzeScanner(BaseScanner):
     def __init__(self, options: dict[str, Any] | None = None) -> None:
         super().__init__(options)
         self.options.setdefault("timeout", 120)
+        self.options.setdefault("extra_args", [])
 
+    @handle_scanner_errors
     def scan(self, target: Target, context: Any = None) -> ScannerResult:  # noqa: ARG002
         if not self._check_tool_available("sslyze"):
             return ScannerResult(
                 scanner_name=self.name,
                 errors=["sslyze is not installed or not on PATH"],
             )
+        self._begin(target)
 
         with tempfile.TemporaryDirectory() as tmpdir:
             output_file = Path(tmpdir) / "sslyze_results.json"
+            cmd = self._build_command(target, str(output_file))
+            timeout = self.options["timeout"]
+            run = self._run_to_file(cmd, output_file, timeout)
 
-            hostname_port = f"{target.hostname}:{target.port}"
-            cmd = [
-                "sslyze",
-                hostname_port,
-                "--json_out",
-                str(output_file),
-                "--quiet",
-            ]
-
-            returncode, _, stderr = self._run_command(
-                cmd, timeout=self.options["timeout"]
+        result = ScannerResult(scanner_name=self.name, raw_output=self._redact(run.raw))
+        if run.timed_out:
+            result.errors.append(self._timeout_error(timeout))
+        elif run.returncode != 0 and not run.raw:
+            result.errors.append(
+                f"sslyze exited with code {run.returncode}: "
+                f"{self._redact(run.stderr)[:500]}"
             )
+        if run.raw:
+            result.findings = self.parse_results(run.raw)
+            result.errors.extend(self._scan_errors(run.raw))
+        return result
 
-            raw = ""
-            if output_file.exists():
-                raw = output_file.read_text()
+    def _build_command(self, target: Target, output_path: str) -> list[str]:
+        cmd = ["sslyze", "--json_out", output_path, "--quiet"]
+        cmd.extend(self._extra_args())
+        cmd.extend(["--", f"{target.hostname}:{target.port}"])
+        return cmd
 
-            result = ScannerResult(
-                scanner_name=self.name,
-                raw_output=raw,
-            )
-
-            if returncode != 0 and not raw:
-                result.errors.append(
-                    f"sslyze exited with code {returncode}: {stderr[:500]}"
+    @staticmethod
+    def _scan_errors(raw_output: str) -> list[str]:
+        """Report servers sslyze could not scan (e.g. no connectivity)."""
+        try:
+            data = _dict(json.loads(raw_output))
+        except json.JSONDecodeError:
+            return []
+        errors = []
+        for server_result in data.get("server_scan_results") or []:
+            status = _dict(server_result).get("scan_status")
+            if status != SCAN_COMPLETED:
+                location = _dict(_dict(server_result).get("server_location"))
+                errors.append(
+                    f"sslyze scan of {location.get('hostname', '?')}:"
+                    f"{location.get('port', '?')} ended with status {status}"
                 )
-
-            if raw:
-                result.findings = self.parse_results(raw)
-
-            return result
+        return errors
 
     def parse_results(self, raw_output: str) -> list[Finding]:
         """Parse SSLyze JSON output into Finding objects."""
         findings: list[Finding] = []
 
         try:
-            data = json.loads(raw_output)
+            data = _dict(json.loads(raw_output))
         except json.JSONDecodeError as exc:
             logger.error("Failed to parse SSLyze JSON: %s", exc)
             return findings
 
-        for server_result in data.get("server_scan_results", []):
-            scan_result = server_result.get("scan_result", {})
-            hostname = server_result.get("server_location", {}).get("hostname", "")
+        for server_result in data.get("server_scan_results") or []:
+            server_result = _dict(server_result)
+            scan_result = _dict(server_result.get("scan_result"))
+            hostname = _dict(server_result.get("server_location")).get("hostname", "")
 
             findings.extend(self._check_protocols(scan_result, hostname))
             findings.extend(self._check_certificate(scan_result, hostname))
@@ -97,14 +120,12 @@ class SSLyzeScanner(BaseScanner):
         for key, proto_info in deprecated_protos.items():
             proto_name = proto_info["proto_name"]
             severity = Severity[proto_info["severity"]]
-            proto_result = scan_result.get(key, {})
-            if not proto_result:
-                continue
-            result_obj = proto_result.get("result", {})
-            accepted = result_obj.get("accepted_cipher_suites", [])
+            accepted = (
+                _command_result(scan_result, key).get("accepted_cipher_suites") or []
+            )
             if accepted:
                 cipher_names = [
-                    c.get("cipher_suite", {}).get("name", "unknown")
+                    _dict(_dict(c).get("cipher_suite")).get("name", "unknown")
                     for c in accepted[:5]
                 ]
                 findings.append(
@@ -135,19 +156,14 @@ class SSLyzeScanner(BaseScanner):
     def _check_certificate(self, scan_result: dict, hostname: str) -> list[Finding]:
         """Check certificate validity and chain issues."""
         findings: list[Finding] = []
-        cert_info = scan_result.get("certificate_info", {})
-        if not cert_info:
-            return findings
+        result_obj = _command_result(scan_result, "certificate_info")
+        deployments = result_obj.get("certificate_deployments") or []
 
-        result_obj = cert_info.get("result", {})
-        deployments = result_obj.get("certificate_deployments", [])
-
-        for deployment in deployments:
+        for deployment in map(_dict, deployments):
             # Check trust
-            path_results = deployment.get("path_validation_results", [])
-            for pvr in path_results:
+            for pvr in map(_dict, deployment.get("path_validation_results") or []):
                 if pvr.get("was_validation_successful") is False:
-                    trust_store = pvr.get("trust_store", {}).get("name", "")
+                    trust_store = _dict(pvr.get("trust_store")).get("name", "")
                     findings.append(
                         Finding(
                             title="Certificate not trusted",
@@ -195,11 +211,9 @@ class SSLyzeScanner(BaseScanner):
         vuln_checks = get_sslyze_vulnerability_checks()
 
         for check_name, check_info in vuln_checks.items():
-            check_data = scan_result.get(check_info["key"], {})
-            if not check_data:
+            result_obj = _command_result(scan_result, check_info["key"])
+            if not result_obj:
                 continue
-
-            result_obj = check_data.get("result", {})
 
             vulnerable_values = check_info.get("vulnerable_values")
             if vulnerable_values is not None:

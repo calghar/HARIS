@@ -323,3 +323,39 @@ remediation_map:
   _default: >-
     Review the identified issue against the relevant security standard
     and apply vendor-recommended hardening guidance.
+
+# Protocol types never run (-ept): code executes local code, file/headless are not web checks.
+exclude_template_types:
+  - code
+  - file
+  - headless
+
+# Templates dropped (-eid) because built-in header checks already cover them.
+# [UNVERIFIED] ids against the official nuclei-templates repo (not installed here).
+exclude_template_ids:
+  - http-missing-security-headers
+
+# Flags accepted from scanner_options.extra_args: flag -> number of values.
+extra_args_allowlist:
+  "-fr": 0
+  "-fhr": 0
+  "-dr": 0
+  "-nmhe": 0
+  "-ni": 0
+  "-fh2": 0
+  "-rl": 1
+  "-c": 1
+  "-bs": 1
+  "-timeout": 1
+  "-retries": 1
+  "-mhe": 1
+  "-mr": 1
+  "-s": 1
+  "-severity": 1
+  "-es": 1
+  "-exclude-severity": 1
+  "-tags": 1
+  "-etags": 1
+  "-exclude-tags": 1
+  "-eid": 1
+  "-fa": 1

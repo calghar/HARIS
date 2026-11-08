@@ -4,12 +4,21 @@ import tempfile
 from pathlib import Path
 from typing import Any
 
-from ..core.decorators import register_scanner
-from ..core.scanner import BaseScanner
-from ..data.scanner_config import get_wapiti_category_tags, get_wapiti_severity_map
+from ..core.decorators import handle_scanner_errors, register_scanner
+from ..data.scanner_config import (
+    get_wapiti_category_tags,
+    get_wapiti_excluded_modules,
+    get_wapiti_severity_map,
+)
 from ..models import Confidence, Finding, ScannerResult, Severity, Target
+from .base import ExternalToolScanner
 
 logger = logging.getLogger(__name__)
+
+DEFAULT_MODULES = "common"
+FALLBACK_TAGS = ["security_misconfiguration"]
+# Wapiti's usage banner and box-drawing logo are noise in stderr.
+_BANNER_PREFIXES = ("usage:", "[", "██", "╔", "╗", "║", "╚", "╝", "╠", "╣")
 
 
 def _build_severity_map() -> dict[int, Severity]:
@@ -36,11 +45,11 @@ def _get_category_tags() -> dict[str, list[str]]:
 
 
 @register_scanner
-class WapitiScanner(BaseScanner):
-    """Adapter for the Wapiti web vulnerability scanner.
+class WapitiScanner(ExternalToolScanner):
+    """Adapter for the Wapiti web vulnerability scanner (3.2.x).
 
-    Requires `wapiti3` to be installed and on PATH.
-    Install: ``pip install wapiti3``
+    Requires `wapiti3` on PATH (``pip install wapiti3``). Modules covered by the
+    built-in header, cookie, redirect and TLS checks are always dropped.
     """
 
     name = "wapiti"
@@ -53,66 +62,67 @@ class WapitiScanner(BaseScanner):
         self.options.setdefault("max_scan_time", 600)
         self.options.setdefault("scope", "folder")
         self.options.setdefault("modules", "all")
-        # Rate limit: max concurrent connections
         self.options.setdefault("max_links", 500)
+        self.options.setdefault("extra_args", [])
 
+    @handle_scanner_errors
     def scan(self, target: Target, context: Any = None) -> ScannerResult:  # noqa: ARG002
         if not self._check_tool_available("wapiti"):
             return ScannerResult(
                 scanner_name=self.name,
                 errors=["wapiti3 is not installed or not on PATH"],
             )
+        self._begin(target)
 
         with tempfile.TemporaryDirectory() as tmpdir:
             output_file = Path(tmpdir) / "wapiti_report.json"
-
             cmd = self._build_command(target, str(output_file))
-            returncode, _, stderr = self._run_command(
-                cmd, timeout=self.options["max_scan_time"] + 60
-            )
+            timeout = self.options["max_scan_time"] + 60
+            run = self._run_to_file(cmd, output_file, timeout)
 
-            raw = ""
-            if output_file.exists():
-                raw = output_file.read_text()
+        result = ScannerResult(scanner_name=self.name, raw_output=self._redact(run.raw))
+        if run.timed_out:
+            result.errors.append(self._timeout_error(timeout))
+        elif run.returncode != 0:
+            err_lines = [
+                line
+                for line in self._redact(run.stderr).splitlines()
+                if line.strip()
+                and not line.strip().startswith(_BANNER_PREFIXES)
+                and "wapiti [-h]" not in line
+            ]
+            err_msg = "\n".join(err_lines[:10]) or f"exit code {run.returncode}"
+            result.errors.append(f"wapiti exited with code {run.returncode}: {err_msg}")
 
-            result = ScannerResult(
-                scanner_name=self.name,
-                raw_output=raw,
-            )
+        if run.raw:
+            result.findings = self.parse_results(run.raw)
+        return result
 
-            if returncode != 0:
-                # Filter out the usage banner from error output
-                err_lines = [
-                    line
-                    for line in stderr.splitlines()
-                    if line.strip()
-                    and not line.strip().startswith(
-                        (
-                            "usage:",
-                            "[",
-                            "██",
-                            "╔",
-                            "╗",
-                            "║",
-                            "╚",
-                            "╝",
-                            "╠",
-                            "╣",
-                        )
-                    )
-                    and "wapiti [-h]" not in line
-                ]
-                err_msg = (
-                    "\n".join(err_lines[:10])
-                    if err_lines
-                    else f"exit code {returncode}"
-                )
-                result.errors.append(f"wapiti exited with code {returncode}: {err_msg}")
-
-            if raw:
-                result.findings = self.parse_results(raw)
-
-            return result
+    def _finding_from_vuln(self, category: str, vuln: dict[str, Any]) -> Finding:
+        wstg = vuln.get("wstg", "")
+        if isinstance(wstg, list):
+            wstg = ", ".join(str(w) for w in wstg)
+        info = str(vuln.get("info", "N/A"))
+        return Finding(
+            title=f"{category}: {info[:80]}",
+            description=info,
+            severity=_get_severity_map().get(vuln.get("level", 0), Severity.INFO),
+            confidence=Confidence.FIRM,
+            url=vuln.get("path", ""),
+            parameter=vuln.get("parameter") or "",
+            method=vuln.get("method", "GET"),
+            evidence=info,
+            request_example=self._redact(vuln.get("curl_command", "")),
+            remediation=wstg,
+            references=[
+                ref
+                for ref in (vuln.get("references") or {}).values()
+                if isinstance(ref, str)
+            ],
+            scanner=self.name,
+            tags=list(_get_category_tags().get(category, FALLBACK_TAGS)),
+            raw_data=self._redact_data(vuln),
+        )
 
     def parse_results(self, raw_output: str) -> list[Finding]:
         """Parse Wapiti JSON report into Finding objects."""
@@ -124,68 +134,43 @@ class WapitiScanner(BaseScanner):
             logger.error("Failed to parse Wapiti JSON output: %s", exc)
             return findings
 
-        vulnerabilities = data.get("vulnerabilities", {})
-        for category_name, vulns in vulnerabilities.items():
-            if not isinstance(vulns, list):
-                continue
+        for category, vulns in (data.get("vulnerabilities") or {}).items():
+            if isinstance(vulns, list):
+                findings.extend(self._finding_from_vuln(category, v) for v in vulns)
 
-            tags = _get_category_tags().get(category_name, [])
-
-            for vuln in vulns:
-                severity = _get_severity_map().get(
-                    vuln.get("level", 0),
-                    Severity.INFO,
-                )
-
-                wstg = vuln.get("wstg", "")
-                if isinstance(wstg, list):
-                    wstg = ", ".join(str(w) for w in wstg)
-
-                finding = Finding(
-                    title=f"{category_name}: {vuln.get('info', 'N/A')[:80]}",
-                    description=vuln.get("info", ""),
-                    severity=severity,
-                    confidence=Confidence.FIRM,
-                    url=vuln.get("path", ""),
-                    parameter=vuln.get("parameter") or "",
-                    method=vuln.get("method", "GET"),
-                    evidence=vuln.get("info", ""),
-                    request_example=vuln.get("curl_command", ""),
-                    remediation=wstg,
-                    references=[
-                        ref
-                        for ref in vuln.get("references", {}).values()
-                        if isinstance(ref, str)
-                    ],
-                    scanner=self.name,
-                    tags=tags,
-                    raw_data=vuln,
-                )
-                findings.append(finding)
-
-        # Also capture "anomalies" (e.g. 500 errors triggered)
-        anomalies = data.get("anomalies", {})
-        for category_name, items in anomalies.items():
+        # Anomalies (e.g. 500 errors triggered) are low-confidence findings.
+        for category, items in (data.get("anomalies") or {}).items():
             if not isinstance(items, list):
                 continue
             for item in items:
-                finding = Finding(
-                    title=f"Anomaly ({category_name}): {item.get('info', '')[:80]}",
-                    description=item.get("info", ""),
-                    severity=Severity.LOW,
-                    confidence=Confidence.TENTATIVE,
-                    url=item.get("path", ""),
-                    method=item.get("method", "GET"),
-                    scanner=self.name,
-                    tags=["security_misconfiguration"],
-                    raw_data=item,
+                findings.append(
+                    Finding(
+                        title=f"Anomaly ({category}): {item.get('info', '')[:80]}",
+                        description=item.get("info", ""),
+                        severity=Severity.LOW,
+                        confidence=Confidence.TENTATIVE,
+                        url=item.get("path", ""),
+                        method=item.get("method", "GET"),
+                        scanner=self.name,
+                        tags=list(_get_category_tags().get(category, FALLBACK_TAGS)),
+                        raw_data=self._redact_data(item),
+                    )
                 )
-                findings.append(finding)
 
         return findings
 
+    def _module_spec(self) -> str:
+        modules = self.options.get("modules", DEFAULT_MODULES)
+        if isinstance(modules, list):
+            modules = ",".join(modules)
+        # "all" predates Wapiti's own preset of that name; keep the default set.
+        if modules in ("", "all"):
+            modules = DEFAULT_MODULES
+        dropped = [f"-{name}" for name in get_wapiti_excluded_modules()]
+        return ",".join([modules, *dropped])
+
     def _build_command(self, target: Target, output_path: str) -> list[str]:
-        """Construct the wapiti CLI command."""
+        """Construct the wapiti argv."""
         cmd = [
             "wapiti",
             "--url",
@@ -203,23 +188,16 @@ class WapitiScanner(BaseScanner):
             "--max-links-per-page",
             str(self.options["max_links"]),
             "--flush-session",
+            "--no-bugreport",
+            "--module",
+            self._module_spec(),
         ]
 
-        # Module selection
-        modules = self.options.get("modules", "all")
-        if modules != "all":
-            cmd.extend(["--module", modules])
-
-        # Excluded paths from target scope
         for path in target.scope.excluded_paths:
             cmd.extend(["--exclude", path])
 
-        # Auth headers
-        auth_headers = target.auth.as_headers()
-        for name, value in auth_headers.items():
+        for name, value in target.auth.as_headers().items():
             cmd.extend(["--header", f"{name}: {value}"])
 
-        # Colour off for parseable output
-        cmd.append("--no-bugreport")
-
+        cmd.extend(self._extra_args())
         return cmd

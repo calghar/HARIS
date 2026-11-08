@@ -37,6 +37,8 @@ class _NucleiConfig(BaseModel):
     tech_tag_map: dict[str, list[str]] = Field(default_factory=dict)
     tech_workflow_map: dict[str, str] = Field(default_factory=dict)
     remediation_map: dict[str, str] = Field(default_factory=dict)
+    exclude_template_types: list[str] = Field(default_factory=list)
+    exclude_template_ids: list[str] = Field(default_factory=list)
 
 
 def _load_scanner_config(scanner_name: str) -> dict[str, Any]:
@@ -78,6 +80,12 @@ def _validate_nuclei_config(data: dict[str, Any]) -> dict[str, Any]:
 # ---------------------------------------------------------------------------
 # Nikto helpers
 # ---------------------------------------------------------------------------
+
+
+def get_extra_args_allowlist(scanner_name: str) -> dict[str, int]:
+    """Get the ``extra_args`` flags a scanner accepts (flag -> value count)."""
+    raw = _load_scanner_config(scanner_name).get("extra_args_allowlist", {})
+    return {str(flag): int(arity) for flag, arity in raw.items()}
 
 
 def get_nikto_severity_map() -> dict[str, str]:
@@ -163,6 +171,11 @@ def get_wapiti_severity_map() -> dict[int, str]:
     return {int(k): v for k, v in raw.items()}
 
 
+def get_wapiti_excluded_modules() -> list[str]:
+    """Get Wapiti modules dropped because built-in checks cover them."""
+    return cast(list[str], _load_scanner_config("wapiti").get("excluded_modules", []))
+
+
 def get_wapiti_category_tags() -> dict[str, list[str]]:
     """Get Wapiti category → OWASP tag list mapping."""
     return cast(
@@ -224,6 +237,20 @@ def get_nuclei_tech_workflow_map() -> dict[str, str]:
     """Get detected technology → Nuclei workflow file mapping."""
     return cast(
         dict[str, str], _load_scanner_config("nuclei").get("tech_workflow_map", {})
+    )
+
+
+def get_nuclei_exclude_template_types() -> list[str]:
+    """Get Nuclei protocol types excluded from every run (``-ept``)."""
+    return cast(
+        list[str], _load_scanner_config("nuclei").get("exclude_template_types", [])
+    )
+
+
+def get_nuclei_exclude_template_ids() -> list[str]:
+    """Get Nuclei template ids excluded because built-in checks cover them."""
+    return cast(
+        list[str], _load_scanner_config("nuclei").get("exclude_template_ids", [])
     )
 
 

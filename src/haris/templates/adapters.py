@@ -262,7 +262,7 @@ class NmapTemplateAdapter(BaseScannerTemplateAdapter):
         template_dir: Path,
         sources: list[TemplateSource],
     ) -> dict[str, Any]:
-        """Return ``--script`` paths for custom NSE scripts."""
+        """Return the custom NSE script paths for the scanner's ``nse_scripts``."""
         scripts: list[str] = []
         custom = template_dir / self.scanner_name / "custom"
         if custom.is_dir():
@@ -271,12 +271,7 @@ class NmapTemplateAdapter(BaseScannerTemplateAdapter):
 
         if not scripts:
             return {}
-        return {
-            "extra_args": [
-                "--script",
-                ",".join(scripts),
-            ]
-        }
+        return {"nse_scripts": scripts}
 
 
 class WapitiTemplateAdapter(BaseScannerTemplateAdapter):

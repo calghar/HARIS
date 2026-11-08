@@ -37,3 +37,28 @@ vulnerability_checks:
     vulnerable_values:
       - VULNERABLE_WEAK_ORACLE
       - VULNERABLE_STRONG_ORACLE
+
+# Flags accepted from scanner_options.extra_args: flag -> number of values.
+extra_args_allowlist:
+  "--sslv2": 0
+  "--sslv3": 0
+  "--tlsv1": 0
+  "--tlsv1_1": 0
+  "--tlsv1_2": 0
+  "--tlsv1_3": 0
+  "--certinfo": 0
+  "--compression": 0
+  "--fallback": 0
+  "--heartbleed": 0
+  "--openssl_ccs": 0
+  "--reneg": 0
+  "--resum": 0
+  "--robot": 0
+  "--early_data": 0
+  "--elliptic_curves": 0
+  "--http_headers": 0
+  "--ems": 0
+  "--slow_connection": 0
+  "--sni": 1
+  "--mozilla_config": 1
+  "--resum_attempts": 1
