@@ -32,6 +32,7 @@ from haris.scan_files import (
     resolve_ignore_file,
     write_partial_session,
 )
+from haris.verify import DEFAULT_VERIFY_MODE, VerifyMode
 
 LEGAL_BANNER = """
 ============================================================
@@ -170,6 +171,13 @@ def build_parser() -> argparse.ArgumentParser:
         type=_positive_int,
         default=DEFAULT_PARALLEL,
         help="Scanners to run concurrently (default: %(default)s)",
+    )
+
+    parser.add_argument(
+        "--verify",
+        choices=[m.value for m in VerifyMode],
+        default=DEFAULT_VERIFY_MODE.value,
+        help="Verification: off, replay (default) or llm (replay plus LLM verdict)",
     )
 
     subparsers = parser.add_subparsers(dest="subcommand")
@@ -559,6 +567,7 @@ def main(argv: list[str] | None = None) -> int:
             llm_enrich=args.llm_enrich,
             llm_backend_name=args.llm_backend,
             parallel=args.parallel,
+            verify=VerifyMode(args.verify),
             network_policy=NetworkPolicy(allow_private=args.allow_private),
             ignore=ignore,
             checkpoint=_checkpoint(config.output_dir),

@@ -18,6 +18,7 @@ from ..models import (
 from ..models.scan_context import ScanContext
 from ..net import NetworkError, NetworkPolicy, ScopedClient
 from ..net.ssrf import Resolver, system_resolver
+from ..verify.settings import VerifyMode
 from .confidence import prior_for
 from .context_extract import extract_context
 from .correlator import FindingCorrelator, pick_best
@@ -63,6 +64,7 @@ class ScanEngine:
         ignore: IgnoreFile | None = None,
         today: date | None = None,
         checkpoint: Callable[[ScanSession], None] | None = None,
+        verify: VerifyMode = VerifyMode.OFF,
     ) -> None:
         self.scanners: list[BaseScanner] = scanners or []
         self.session_id = session_id or datetime.now(UTC).strftime("%Y%m%d-%H%M%S")
@@ -78,6 +80,7 @@ class ScanEngine:
         self._ignore = ignore
         self._today = today
         self._checkpoint = checkpoint
+        self._verify_mode = verify
         self._cancelled = threading.Event()
 
     def add_scanner(self, scanner: BaseScanner) -> None:
@@ -114,6 +117,14 @@ class ScanEngine:
         ) as client:
             self.http = client
             self._run_stages(session, target, config, client)
+            session.scan_state = self._final_state(session)
+            self._enrich_findings(session)
+            self._correlate_findings(session)
+            self._apply_ignores(session)
+            if not self._cancelled.is_set():
+                from ..verify import run_verification  # lazy: verify imports core
+
+                run_verification(session, client, self._verify_mode, self._llm_backend)
             if client.budget_exceeded:
                 session.errors.append(
                     "[net] request cap max_requests="
@@ -121,10 +132,6 @@ class ScanEngine:
                 )
 
         session.finished_at = datetime.now(UTC).isoformat()
-        session.scan_state = self._final_state(session)
-        self._enrich_findings(session)
-        self._correlate_findings(session)
-        self._apply_ignores(session)
         self._assess_risk(session)
         self._plan_remediation(session)
 

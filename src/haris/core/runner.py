@@ -8,6 +8,7 @@ from ..config.loader import load_config
 from ..ignore import IgnoreFile
 from ..models import Config, ScanSession, Target
 from ..net import NetworkPolicy
+from ..verify.settings import VerifyMode
 from .decorators import all_registered
 from .engine import DEFAULT_PARALLEL, ScanEngine
 from .profiles import get_profile
@@ -34,6 +35,7 @@ class ScanRunner:
         scanner_options: dict[str, dict[str, Any]] | None = None,
         *,
         parallel: int = DEFAULT_PARALLEL,
+        verify: VerifyMode = VerifyMode.OFF,
         network_policy: NetworkPolicy | None = None,
         ignore: IgnoreFile | None = None,
         today: date | None = None,
@@ -49,6 +51,7 @@ class ScanRunner:
         self._scanner_options = scanner_options or {}
         self._engine_options: dict[str, Any] = {
             "parallel": parallel,
+            "verify": verify,
             "network_policy": network_policy,
             "ignore": ignore,
             "today": today,

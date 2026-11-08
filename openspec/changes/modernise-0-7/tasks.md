@@ -13,6 +13,9 @@
 - [ ] 2.4 Web, auth, API (`web/`, `auth/`): routers, access control, SSRF guard, job queue, API tokens, `/api/v1`, CSP; TestClient tests for every route
 - [x] 2.5 LLM layer (`llm/`): structured output, redaction, fencing, budgets, config-driven models
 - [ ] 2.6 Verification stage (`verify/`, `agent/`): replay verifier, LLM verdict, sandboxed agent behind two flags
+  - [x] Part 1: replay verifier, oracles `reflection`, `error_signature`, `timing`, `header_presence`, `canary`, LLM verdict, `--verify`
+  - [ ] Deferred: oracles `content_validator` and `soft404` (need `haris.checks.baseline` and `haris.checks.validators`); `sensitive_file` findings stay `unverified` until they are registered in `haris/verify/oracles.py`
+  - [ ] Deferred: sandboxed agent (`haris/agent/`), `agent` stage and `stage_log`
 - [ ] 2.7 AI-security module (`ai_security/`, `scanners/garak_scanner.py`, `scanners/promptfoo_scanner.py`)
 - [ ] 2.8 Reporting (`reporting/`): SARIF, CSV, JUnit, JSON schema, escaped HTML, CI integrations
 - [x] 2.9 Benchmark harness (`bench/`): targets, ground truth, scorer, nightly workflow

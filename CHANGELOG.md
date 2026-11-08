@@ -14,6 +14,9 @@
 - Scan state (`completed`, `incomplete`, `failed`, `cancelled`) and partial results saved to `session.partial.json` and the database after each scanner
 - `haris.net.ScopedClient`: scope, SSRF (pinned resolution, private ranges blocked unless `--allow-private`), rate limit, request cap, per-hop redirect checks, retries and a redacted request log; exposed as `ScanContext.http`
 - SSRF pre-flight before any scanner starts, and a per-tool request rate (`ScanContext.tool_rate_rps`)
+- Added a verification stage (`haris.verify`) that replays each finding's request through `ScopedClient` with a control, applies per-class oracles (`reflection`, `error_signature`, `timing`, `header_presence`, `canary`) and moves the tier only to `replay_verified` or `refuted`
+- Added `--verify {off,replay,llm}` (default `replay`); `llm` adds a case-level LLM verdict whose quoted spans are checked against the evidence and which changes the score, never the tier
+- Added `verify.yaml` for the request cap, timing delay, error signatures, valid header values and LLM abstain threshold
 
 ### Changed (packaging)
 
