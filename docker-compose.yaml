@@ -18,6 +18,7 @@ services:
       - ./assets:/app/assets:ro
       - ./templates:/app/templates
       - nikto-data:/opt/nikto
+      - nuclei-data:/root/nuclei-templates
     env_file:
       - .env
     restart: unless-stopped
@@ -35,6 +36,7 @@ services:
       - ./reports:/app/reports
       - ./data:/app/data
       - ./config:/app/config:ro
+      - nuclei-data:/root/nuclei-templates
     env_file:
       - .env
     profiles:
@@ -42,3 +44,4 @@ services:
 
 volumes:
   nikto-data:
+  nuclei-data:

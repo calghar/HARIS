@@ -1,6 +1,22 @@
 # Changelog
 <!--markdownlint-disable MD024-->
 
+## 0.6.3 — Unreleased
+
+### Fixed
+
+- **Nuclei scanner Docker template persistence** — nuclei templates now persisted via `nuclei-data` volume across container rebuilds, avoiding 2GB+ re-download on every rebuild
+- **Nuclei scanner Dockerfile reliability** — split nuclei install into two RUN layers: binary installation (fails hard on error) and template pre-fetch (allowed to fail). Unsupported architectures now fail build instead of silently continuing with broken scanner
+- **Nuclei scanner template path validation** — added `_check_templates_available()` method with warning when template directory is missing; added workflow existence guard in `_resolve_targeted_selection()` to skip missing workflow files instead of passing invalid paths to nuclei
+- **Nuclei scanner config validation** — added Pydantic schema validation (`_NucleiConfig`) for `config/scanners/nuclei.yaml` with warn-only error handling to catch type mismatches early
+- **Nuclei scanner timeout defaults** — `timeout_per_request` now properly defaulted to 30 seconds in both `default_config.yaml` and `NucleiScanner.__init__()` instead of only as inline fallback
+- Added clarifying comments to `config/scanners/nuclei.yaml` documenting that workflow paths are relative to nuclei's built-in template root
+
+### Changed
+
+- Improved test coverage for `NucleiScanner`: added 19 new tests covering `_run_phase()`, `_result_to_finding()`, `_write_url_list()`, `_generic_remediation()`, auth header forwarding, and full scan flow
+- Added 5 new tests for nuclei config schema validation in `tests/test_scanner_config.py`
+
 ## 0.6.2 — 2026-04-04
 
 ### Fixed

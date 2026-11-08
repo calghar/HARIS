@@ -86,6 +86,7 @@ The engine builds context incrementally after each scanner completes. Downstream
 8. Auto-maps OWASP categories
 
 Intelligence extraction sources:
+
 - **Nmap**: open ports, service banners, detected software
 - **Nikto**: server technology keywords from finding titles
 - **header_checks**: `Server`, `X-Powered-By`, and other response headers

@@ -186,7 +186,7 @@
 {% endblock %}
 
 {% block scripts %}
-<script>
+<script nonce="{{ request.state.csp_nonce }}">
 // ===== Scan Configuration actions =====
 
 function deleteTemplate(id, name) {

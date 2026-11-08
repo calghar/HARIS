@@ -82,7 +82,7 @@
   </table>
 </div>
 
-<script>
+<script nonce="{{ request.state.csp_nonce }}">
 function clearFilters() {
   document.getElementById('filter-hostname').value = '';
   document.getElementById('filter-severity').value = '';

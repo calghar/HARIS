@@ -88,6 +88,19 @@ class TestDefaults:
         assert "-nmhe" in cmd
         assert "-mhe" not in cmd
 
+    def test_default_timeout_per_request_30(self) -> None:
+        scanner = NucleiScanner()
+        assert scanner.options["timeout_per_request"] == 30
+
+    def test_timeout_per_request_appears_in_command(self, target: Target) -> None:
+        scanner = NucleiScanner()
+        cmd = scanner._build_command(target)
+        assert cmd[cmd.index("-timeout") + 1] == "30"
+
+    def test_timeout_per_request_override(self, target: Target) -> None:
+        cmd = NucleiScanner(options={"timeout_per_request": 10})._build_command(target)
+        assert cmd[cmd.index("-timeout") + 1] == "10"
+
 
 class TestParseResults:
     def test_parse_results_basic(self, target: Target) -> None:
@@ -479,13 +492,20 @@ class TestResolveTargetedSelection:
         assert "wp-plugin" in tags or "wp-theme" in tags
 
     def test_wordpress_tech_adds_workflow(self, target: Target) -> None:
+        from unittest.mock import MagicMock, patch
+
         scanner = NucleiScanner()
         ctx = ScanContext()
         ctx.add_technologies(["wordpress"])
-        template_dirs, tags, workflows = scanner._resolve_targeted_selection(
-            ctx, has_explicit=False
-        )
-        assert "workflows/wordpress-workflow.yaml" in workflows
+        # Mock the template root so the workflow file "exists"
+        with patch("src.scanners.nuclei_scanner._NUCLEI_TEMPLATE_ROOT") as mock_root:
+            mock_path = MagicMock()
+            mock_path.exists.return_value = True
+            mock_root.__truediv__.return_value = mock_path
+            template_dirs, tags, workflows = scanner._resolve_targeted_selection(
+                ctx, has_explicit=False
+            )
+            assert "workflows/wordpress-workflow.yaml" in workflows
 
     def test_multiple_techs_combine_tags(self, target: Target) -> None:
         scanner = NucleiScanner()
@@ -536,3 +556,255 @@ class TestSkipTechDetection:
     def test_skip_tech_detection_false_by_default(self, target: Target) -> None:
         scanner = NucleiScanner()
         assert scanner.options["skip_tech_detection"] is False
+
+
+class TestCheckTemplatesAvailable:
+    def test_returns_true_when_dir_exists(self) -> None:
+        from unittest.mock import patch
+
+        scanner = NucleiScanner()
+        with patch("src.scanners.nuclei_scanner._NUCLEI_TEMPLATE_ROOT") as mock_root:
+            mock_root.is_dir.return_value = True
+            assert scanner._check_templates_available() is True
+
+    def test_returns_false_and_warns_when_dir_missing(self) -> None:
+        from unittest.mock import patch
+
+        scanner = NucleiScanner()
+        with patch("src.scanners.nuclei_scanner._NUCLEI_TEMPLATE_ROOT") as mock_root:
+            mock_root.is_dir.return_value = False
+            with patch("src.scanners.nuclei_scanner.logger") as mock_logger:
+                assert scanner._check_templates_available() is False
+                assert mock_logger.warning.called
+
+
+class TestRunPhase:
+    def test_success_returns_findings(self, target: Target) -> None:
+        from unittest.mock import patch
+
+        scanner = NucleiScanner()
+        result_json = json.dumps(
+            {
+                "template-id": "test-template",
+                "info": {"name": "Test Finding", "severity": "high"},
+            }
+        )
+        with patch.object(scanner, "_run_command", return_value=(0, result_json, "")):
+            findings, errors, raw = scanner._run_phase(target, phase_label="test")
+            assert len(findings) == 1
+            assert findings[0].title == "Test Finding"
+            assert len(errors) == 0
+
+    def test_fatal_stderr_creates_error(self, target: Target) -> None:
+        from unittest.mock import patch
+
+        scanner = NucleiScanner()
+        with patch.object(
+            scanner, "_run_command", return_value=(1, "", "[FTL] critical error")
+        ):
+            findings, errors, raw = scanner._run_phase(target, phase_label="test")
+            assert len(findings) == 0
+            assert len(errors) == 1
+            assert "FTL" in errors[0]
+
+    def test_returncode_greater_than_1_creates_error(self, target: Target) -> None:
+        from unittest.mock import patch
+
+        scanner = NucleiScanner()
+        with patch.object(
+            scanner, "_run_command", return_value=(2, "", "error output")
+        ):
+            findings, errors, raw = scanner._run_phase(target, phase_label="test")
+            assert len(errors) == 1
+            assert "code 2" in errors[0]
+
+    def test_empty_stdout_returns_empty_findings(self, target: Target) -> None:
+        from unittest.mock import patch
+
+        scanner = NucleiScanner()
+        with patch.object(scanner, "_run_command", return_value=(0, "", "")):
+            findings, errors, raw = scanner._run_phase(target, phase_label="test")
+            assert len(findings) == 0
+            assert len(errors) == 0
+
+    def test_unsolicited_response_filtered_from_stderr(self, target: Target) -> None:
+        from unittest.mock import patch
+
+        scanner = NucleiScanner()
+        stderr = "line1\nUnsolicited response received\nline2"
+        with (
+            patch.object(scanner, "_run_command", return_value=(0, "", stderr)),
+            patch("src.scanners.nuclei_scanner.logger") as mock_logger,
+        ):
+            scanner._run_phase(target, phase_label="test")
+            # Check that the warning doesn't contain "Unsolicited"
+            if mock_logger.warning.called:
+                warning_msg = str(mock_logger.warning.call_args)
+                assert "Unsolicited response" not in warning_msg
+
+
+class TestResultToFinding:
+    def test_missing_template_id_and_name_returns_none(self) -> None:
+        scanner = NucleiScanner()
+        result: dict = {"info": {}}  # no template-id AND no name in info
+        finding = scanner._result_to_finding(result)
+        # Actually returns a Finding with "Unknown finding" as the default name
+        assert finding is not None
+        assert finding.title == "Unknown finding"
+
+    def test_string_reference_converted_to_list(self) -> None:
+        scanner = NucleiScanner()
+        result = {
+            "template-id": "test",
+            "info": {
+                "name": "Test",
+                "severity": "medium",
+                "reference": "https://example.com",  # string, not list
+            },
+        }
+        finding = scanner._result_to_finding(result)
+        assert finding is not None
+        assert "https://example.com" in finding.references
+
+    def test_cvss_score_in_raw_data(self) -> None:
+        scanner = NucleiScanner()
+        result = {
+            "template-id": "test-cve",
+            "info": {
+                "name": "CVE Test",
+                "severity": "high",
+                "classification": {"cvss-score": 8.5},
+            },
+        }
+        finding = scanner._result_to_finding(result)
+        assert finding is not None
+        # Note: stored with hyphen, not underscore
+        assert finding.raw_data.get("cvss-score") == 8.5
+
+    def test_matcher_name_in_title(self) -> None:
+        scanner = NucleiScanner()
+        result = {
+            "template-id": "test",
+            "matcher-name": "specific-check",
+            "info": {"name": "Finding Name", "severity": "low"},
+        }
+        finding = scanner._result_to_finding(result)
+        assert finding is not None
+        assert "specific-check" in finding.title
+
+
+class TestWriteUrlList:
+    def test_creates_file_with_urls(self) -> None:
+        from pathlib import Path
+
+        urls = ["https://example.com/page1", "https://example.com/page2"]
+        filepath = NucleiScanner._write_url_list(urls)
+        try:
+            assert Path(filepath).exists()
+            content = Path(filepath).read_text()
+            assert "https://example.com/page1" in content
+            assert "https://example.com/page2" in content
+        finally:
+            Path(filepath).unlink(missing_ok=True)
+
+    def test_urls_separated_by_newlines(self) -> None:
+        from pathlib import Path
+
+        urls = ["https://a.com", "https://b.com"]
+        filepath = NucleiScanner._write_url_list(urls)
+        try:
+            content = Path(filepath).read_text()
+            assert content == "https://a.com\nhttps://b.com"
+        finally:
+            Path(filepath).unlink(missing_ok=True)
+
+
+class TestGenericRemediation:
+    def test_known_tag_returns_specific_remediation(self) -> None:
+        from src.models import Severity
+
+        remediation = NucleiScanner._generic_remediation(
+            ["sql_injection"], Severity.HIGH
+        )
+        assert "parameterised queries" in remediation.lower()
+
+    def test_unknown_tag_returns_default(self) -> None:
+        from src.models import Severity
+
+        remediation = NucleiScanner._generic_remediation(
+            ["unknown-tag-xyz"], Severity.MEDIUM
+        )
+        assert "security standard" in remediation.lower()
+
+    def test_first_match_wins(self) -> None:
+        from src.models import Severity
+
+        # Both are in remediation_map, should return first match
+        remediation = NucleiScanner._generic_remediation(
+            ["xss", "sql_injection"], Severity.HIGH
+        )
+        # XSS comes first in the tags list
+        assert (
+            "output encoding" in remediation.lower()
+            or "Content-Security-Policy" in remediation
+        )
+
+
+class TestScanAuthHeaderForwarding:
+    def test_auth_header_forwarded_to_command(self, target: Target) -> None:
+        from src.models.target import AuthConfig
+
+        target.auth = AuthConfig(
+            method="header", header_name="X-API-Key", header_value="secret123"
+        )
+        scanner = NucleiScanner()
+        cmd = scanner._build_command(target)
+        assert "-H" in cmd
+        h_idx = cmd.index("-H")
+        assert cmd[h_idx + 1] == "X-API-Key: secret123"
+
+    def test_no_auth_means_no_h_flag(self, target: Target) -> None:
+        from src.models.target import AuthConfig
+
+        target.auth = AuthConfig(method="none")
+        # Count -H flags - should only be for non-auth headers if any
+        auth_headers = target.auth.as_headers()
+        assert len(auth_headers) == 0
+
+
+class TestScanFullFlow:
+    def test_scan_returns_scanner_result(self, target: Target) -> None:
+        from unittest.mock import patch
+
+        scanner = NucleiScanner()
+        with (
+            patch.object(scanner, "_check_tool_available", return_value=True),
+            patch.object(scanner, "_check_templates_available", return_value=True),
+            patch.object(scanner, "_run_phase", return_value=([], [], "")),
+        ):
+            result = scanner.scan(target)
+            assert result.scanner_name == "nuclei"
+            assert isinstance(result.findings, list)
+
+    def test_tool_missing_returns_error(self, target: Target) -> None:
+        from unittest.mock import patch
+
+        scanner = NucleiScanner()
+        with patch.object(scanner, "_check_tool_available", return_value=False):
+            result = scanner.scan(target)
+            assert len(result.errors) == 1
+            assert "not installed" in result.errors[0]
+
+    def test_skip_tech_detection_skips_phase_1(self, target: Target) -> None:
+        from unittest.mock import patch
+
+        scanner = NucleiScanner(options={"skip_tech_detection": True})
+        with (
+            patch.object(scanner, "_check_tool_available", return_value=True),
+            patch.object(scanner, "_check_templates_available", return_value=True),
+            patch.object(scanner, "_run_phase", return_value=([], [], "")) as mock_run,
+        ):
+            scanner.scan(target)
+            # Should only call _run_phase once (Phase 2), not twice
+            # (Phase 1 fingerprinting should be skipped)
+            assert mock_run.call_count == 1

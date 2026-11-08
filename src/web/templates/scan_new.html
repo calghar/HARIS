@@ -120,7 +120,7 @@
 {% endblock %}
 
 {% block scripts %}
-<script>
+<script nonce="{{ request.state.csp_nonce }}">
   // Template selector — auto-fill form when a template is chosen
   const templateSelect = document.getElementById('scan_template');
   const templateDesc = document.getElementById('template-desc');
@@ -185,7 +185,7 @@
   });
   // Show auth-header-group on load if prefill specifies a method
   (function() {
-    const prefillAuthMethod = {{ prefill.auth_method | tojson if prefill else '"none"' }};
+    const prefillAuthMethod = {{ (prefill.auth_method | tojson) if prefill else '"none"' | safe }};
     if (prefillAuthMethod === 'header' || prefillAuthMethod === 'cookie') {
       document.getElementById('auth-header-group').style.display = 'block';
     }
@@ -223,6 +223,7 @@
 
   // Form submit
   document.getElementById('scan-form').addEventListener('submit', async function(e) {
+    console.log('Form submit event triggered');
     e.preventDefault();
     const urlInput = document.getElementById('target_url');
     const urlError = document.getElementById('url-error');
@@ -242,15 +243,20 @@
 
     const formData = new FormData(this);
     try {
+      console.log('Posting to /api/scan/start');
       const resp = await fetch('/api/scan/start', { method: 'POST', body: formData });
+      console.log('Response status:', resp.status);
       const data = await resp.json();
       if (resp.ok) {
+        console.log('Success, redirecting to:', data.redirect);
         window.location.href = data.redirect;
       } else {
+        console.error('Error response:', data);
         status.textContent = 'Error: ' + (data.detail || 'Unknown error');
         btn.disabled = false;
       }
     } catch (err) {
+      console.error('Fetch error:', err);
       status.textContent = 'Network error: ' + err.message;
       btn.disabled = false;
     }

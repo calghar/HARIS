@@ -109,7 +109,7 @@
 {% endblock %}
 
 {% block scripts %}
-<script>
+<script nonce="{{ request.state.csp_nonce }}">
 function dashFilter() {
   var h = document.getElementById('dash-hostname').value;
   var s = document.getElementById('dash-severity').value;

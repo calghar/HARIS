@@ -18,7 +18,7 @@ RUN ARCH=$(dpkg --print-architecture) \
          amd64) NUCLEI_ARCH="linux_amd64" ;; \
          arm64) NUCLEI_ARCH="linux_arm64" ;; \
          armhf) NUCLEI_ARCH="linux_arm" ;; \
-         *)     echo "Unsupported arch: $ARCH — skipping nuclei"; exit 0 ;; \
+         *)     echo "Unsupported arch: $ARCH"; exit 1 ;; \
        esac \
     && DOWNLOAD_URL=$(curl -sL https://api.github.com/repos/projectdiscovery/nuclei/releases/latest \
        | jq -r ".assets[] | select(.name | test(\"${NUCLEI_ARCH}\")) | .browser_download_url") \
@@ -27,8 +27,11 @@ RUN ARCH=$(dpkg --print-architecture) \
     && unzip -o /tmp/nuclei.zip -d /usr/local/bin/ \
     && chmod +x /usr/local/bin/nuclei \
     && rm /tmp/nuclei.zip \
-    && nuclei -update-templates \
-    || echo "nuclei install failed — scanner will be unavailable"
+    && nuclei -version
+
+# Templates are persisted at runtime via the nuclei-data Docker volume.
+RUN nuclei -update-templates \
+    || echo "nuclei template pre-fetch failed — will download on first run"
 
 WORKDIR /app
 

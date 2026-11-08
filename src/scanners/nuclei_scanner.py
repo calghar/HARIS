@@ -1,6 +1,7 @@
 import json
 import logging
 import tempfile
+from pathlib import Path
 from typing import Any
 
 from ..core.decorators import handle_scanner_errors, register_scanner
@@ -35,6 +36,9 @@ _CONFIDENCE_MAP_RAW = get_nuclei_confidence_map()
 _NUCLEI_CONFIDENCE_MAP: dict[str, Confidence] = {
     k: getattr(Confidence, v) for k, v in _CONFIDENCE_MAP_RAW.items()
 }
+
+# Nuclei v3 built-in template root (as root in Docker)
+_NUCLEI_TEMPLATE_ROOT = Path("/root/nuclei-templates")
 
 
 def _derive_tags(
@@ -159,6 +163,23 @@ class NucleiScanner(BaseScanner):
         self.options.setdefault("extra_args", [])
         self.options.setdefault("enable_interactsh", False)
         self.options.setdefault("skip_tech_detection", False)
+        self.options.setdefault("timeout_per_request", 30)
+
+    def _check_templates_available(self) -> bool:
+        """Check whether nuclei's built-in template directory exists.
+
+        Best-effort: warns but does not fail hard — templates may be in a
+        non-standard location (NUCLEI_TEMPLATES env var, -ud flag, etc.).
+        """
+        if _NUCLEI_TEMPLATE_ROOT.is_dir():
+            return True
+        logger.warning(
+            "nuclei template directory not found at %s — "
+            "templates may not be available. "
+            "Run `nuclei -update-templates` or check the nuclei-data volume.",
+            _NUCLEI_TEMPLATE_ROOT,
+        )
+        return False
 
     @handle_scanner_errors
     def scan(self, target: Target, context: ScanContext | None = None) -> ScannerResult:
@@ -196,6 +217,9 @@ class NucleiScanner(BaseScanner):
                 scanner_name=self.name,
                 errors=["nuclei is not installed or not on PATH"],
             )
+
+        # Warn if templates are absent — nuclei will emit FTL otherwise.
+        self._check_templates_available()
 
         all_findings: list[Finding] = []
         all_errors: list[str] = []
@@ -531,6 +555,14 @@ class NucleiScanner(BaseScanner):
             # Check for matching workflow
             for key, workflow_path in TECH_WORKFLOW_MAP.items():
                 if key in tech_lower and workflow_path not in workflows:
+                    full_path = _NUCLEI_TEMPLATE_ROOT / workflow_path
+                    if not full_path.exists():
+                        logger.warning(
+                            "nuclei workflow not found: %s (looked in %s) — skipping",
+                            workflow_path,
+                            _NUCLEI_TEMPLATE_ROOT,
+                        )
+                        continue
                     workflows.append(workflow_path)
 
         if extra_tags:

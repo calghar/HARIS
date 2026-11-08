@@ -90,6 +90,7 @@ scanners:
       timeout: 3600
       rate_limit: 100
       concurrency: 10
+      timeout_per_request: 30  # per-request nuclei timeout (seconds)
       # Two-phase scanning: tech fingerprint → targeted templates
       # Set skip_tech_detection: true to disable Phase 1
       skip_tech_detection: false

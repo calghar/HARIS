@@ -27,7 +27,7 @@
   <span class="spinner" style="width:32px;height:32px;border-width:3px;"></span>
   <p class="mt-2">Scan in progress... this page will refresh when complete.</p>
 </div>
-<script>
+<script nonce="{{ request.state.csp_nonce }}">
   // Reload page when scan completes
   document.body.addEventListener('htmx:afterRequest', function(e) {
     try {
@@ -288,7 +288,7 @@
     </div>
   </div>
 </div>
-<script>
+<script nonce="{{ request.state.csp_nonce }}">
 // Chat state
 let conversationId = null;
 let totalTokens = 0;
@@ -559,12 +559,12 @@ function explainFinding(findingId) {
 {% endif %}
 
 <script src="https://cdn.jsdelivr.net/npm/marked@15/marked.min.js"></script>
-<script>
+<script nonce="{{ request.state.csp_nonce }}">
 if (typeof marked !== 'undefined') {
   marked.setOptions({ breaks: true, gfm: true });
 }
 </script>
-<script>
+<script nonce="{{ request.state.csp_nonce }}">
 function deleteScan(scanId) {
   if (!confirm('Delete this scan and all its reports? This cannot be undone.')) return;
   fetch('/api/scan/' + scanId, {method: 'DELETE'})

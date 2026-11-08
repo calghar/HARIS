@@ -264,7 +264,10 @@ tech_tag_map:
     - apache-struts
 
 # Technology → Nuclei workflow YAML mapping
-# Maps detected tech to workflow files (relative to nuclei-templates root)
+# Paths are RELATIVE to the nuclei built-in template root:
+#   ~/nuclei-templates/  (Linux/macOS; as root in Docker: /root/nuclei-templates/)
+# They are passed verbatim to nuclei's -w flag which resolves them against
+# the template root. Do NOT use absolute paths here.
 tech_workflow_map:
   wordpress: workflows/wordpress-workflow.yaml
   drupal: workflows/drupal-workflow.yaml

@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Any, cast
 
 import yaml
+from pydantic import BaseModel, Field, ValidationError
 
 logger = logging.getLogger(__name__)
 
@@ -23,6 +24,21 @@ _SCANNERS_DIR = _REPO_ROOT / "config" / "scanners"
 # ---------------------------------------------------------------------------
 
 _scanner_config_cache: dict[str, dict[str, Any]] = {}
+
+
+class _NucleiConfig(BaseModel):
+    """Lightweight schema for config/scanners/nuclei.yaml. All fields default to
+    empty so validation never raises — callers fall back to their own defaults."""
+
+    severity_map: dict[str, str] = Field(default_factory=dict)
+    confidence_map: dict[str, str] = Field(default_factory=dict)
+    meta_tags: list[str] = Field(default_factory=list)
+    default_template_dirs: list[str] = Field(default_factory=list)
+    tech_fingerprint_dir: str = "http/technologies"
+    tag_map: dict[str, list[str]] = Field(default_factory=dict)
+    tech_tag_map: dict[str, list[str]] = Field(default_factory=dict)
+    tech_workflow_map: dict[str, str] = Field(default_factory=dict)
+    remediation_map: dict[str, str] = Field(default_factory=dict)
 
 
 def _load_scanner_config(scanner_name: str) -> dict[str, Any]:
@@ -42,7 +58,22 @@ def _load_scanner_config(scanner_name: str) -> dict[str, Any]:
         logger.error("Failed to parse scanner config %s: %s", path, exc)
         data = {}
 
+    if scanner_name == "nuclei":
+        data = _validate_nuclei_config(data)
     _scanner_config_cache[scanner_name] = data
+    return data
+
+
+def _validate_nuclei_config(data: dict[str, Any]) -> dict[str, Any]:
+    """Validate nuclei config dict. Warns on failure, returns data unchanged."""
+    try:
+        _NucleiConfig.model_validate(data)
+    except ValidationError as exc:
+        logger.warning(
+            "nuclei.yaml failed schema validation — some config keys may be "
+            "wrong type and will fall back to defaults: %s",
+            exc,
+        )
     return data
 
 
