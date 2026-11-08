@@ -40,7 +40,7 @@ keyword_rules:
       - directory_listing
     severity: MEDIUM
 
-  # Dangerous HTTP methods
+  # Dangerous HTTP methods (matched as whole words, so X-Frame-Options does not hit)
   - keywords:
       - options
       - trace
@@ -97,3 +97,20 @@ keyword_rules:
 
 # OSVDB IDs that are known to be critical (small curated set).
 osvdb_critical: []
+
+# Flags accepted from scanner_options.extra_args: flag -> number of values.
+extra_args_allowlist:
+  "-Pause": 1
+  "-maxtime": 1
+  "-timeout": 1
+  "-vhost": 1
+  "-Cgidirs": 1
+  "-followredirects": 0
+  "-nolookup": 0
+  "-no404": 0
+  "-nocookies": 0
+  "-noslash": 0
+  "-ssl": 0
+  "-nossl": 0
+  "-ipv4": 0
+  "-ipv6": 0

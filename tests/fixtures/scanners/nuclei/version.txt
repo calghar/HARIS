@@ -1,0 +1,4 @@
+[[34mINF[0m] Nuclei Engine Version: v3.7.1
+[[34mINF[0m] Nuclei Config Directory: /home/user/.config/nuclei
+[[34mINF[0m] Nuclei Cache Directory: /home/user/.cache/nuclei
+[[34mINF[0m] PDCP Directory: /home/user/.pdcp

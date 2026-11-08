@@ -44,6 +44,20 @@
 - Fixed the OpenAI backend choosing `max_completion_tokens` by `startswith("o")`; the capability table in `llm_models.yaml` now decides the token parameter and whether `temperature` is sent
 - Fixed Anthropic requests failing on a `temperature` argument the installed SDK does not accept; temperature is sent only where the capability table allows it
 - Fixed silent truncation to 25 or 30 findings in false-positive, attack-chain and triage prompts; every finding is sent in severity-ordered batches or marked `skipped_budget`
+- Fixed Nikto runs that never parsed a report because Nikto appends `.json` to `-output`; the scanner now reads the file Nikto writes
+- Fixed Nikto passing the non-existent `-useragent-extra`; auth headers go through `-Add-header`, and `-nocheck` stops Nikto's update check
+- Fixed Nikto scanning `http://` for HTTPS targets; the target scheme is kept in the command and in finding URLs
+- Fixed Nikto keywords matching inside words (`options` in X-Frame-Options, `eol` in geolocation); keywords now match whole words
+- Fixed Wapiti 3.2.x findings losing tags and OWASP mapping; `wapiti.yaml` carries the real category names and unmapped categories fall back to `security_misconfiguration`
+- Fixed Wapiti duplicating header, cookie, redirect and TLS findings; those modules are excluded through `excluded_modules`
+- Fixed SSLyze crashing on `null` scan results; failed server scans are reported as scanner errors
+- Fixed Nuclei reading templates from a hard-coded `/root/nuclei-templates`; the root comes from nuclei's own config
+- Fixed Nuclei phase 2b re-running explicit tags and the phase 2a directories; the targeted phase excludes them and results are de-duplicated across phases
+- Fixed Nuclei leaking the `-list` temp file; it is deleted in a `finally`
+- Fixed the Nuclei severity filter hiding Phase 1 technology results; Phase 1 reports technologies, never findings
+- Fixed a Nuclei timeout discarding results from earlier phases; the timed-out phase keeps its partial output and an error is recorded
+- Fixed Nuclei, Nikto, Wapiti, Nmap and SSLyze timeouts leaving grandchild processes running; the whole process group is killed and partial stdout is kept
+- Fixed `Authorization`, `Cookie` and API-key values appearing in scanner logs, evidence, `request_example` and `raw_data`; they are redacted
 
 ### Changed
 
@@ -77,6 +91,11 @@
 - Added a benchmark harness in `bench/`: loopback-only Docker Compose targets (Juice Shop, DVWA, WebGoat, an SPA catch-all fixture, a vulnerable AI app with a toy MCP server), YAML ground truth, a runner (`bench/run.py`) and a nightly `bench.yml` workflow
 - Added the `haris.bench` scorer (`python -m haris.bench score <report> <ground_truth.yaml>`) reporting precision, recall, F1, false-positive reduction, request count, cost and wall time with mean and stddev over runs
 - Added `docs/benchmarks.md` describing the benchmark methodology and what it does not claim
+- Validated `scanner_options.extra_args` against a per-scanner allow-list in `config/scanners/*.yaml`; other flags are rejected with an error
+- Placed `--` before the host argument for Nmap and SSLyze
+- Passed Nmap NSE scripts through the new `nse_scripts` option instead of `extra_args`
+- Switched Nuclei to `-or`, `-es info` (phases 2a and 2b), `-ept code,file,headless`, `-mhe` and `-eid http-missing-security-headers`; added the opt-in `automatic_scan` (`-as`) and `update_templates` (`-ut`) options
+- Added golden fixtures from real nuclei, nikto, nmap, wapiti and sslyze output under `tests/fixtures/scanners/`
 
 ## 0.6.2 — 2026-04-04
 
