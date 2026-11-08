@@ -1,0 +1,37 @@
+schema: brownfield
+
+context: |
+  HARIS: black-box web security audit framework. Orchestrates Wapiti, SSLyze, Nmap, Nikto and
+  Nuclei plus built-in Python checks, correlates findings, maps to OWASP Top 10 2025, scores risk,
+  optional LLM enrichment, FastAPI/HTMX dashboard with local and OIDC auth. Status: alpha (0.6.x),
+  8 git tags, no PyPI package, no published image.
+  Stack: Python 3.13 (pyproject requires-python >=3.13), pydantic v2, requests, FastAPI, Starlette,
+  Jinja2, SQLite (hand-rolled schema v6), bcrypt, authlib, anthropic and openai SDKs, uv + uv.lock.
+  Layout: package `src/` (renamed to `src/haris/` by this change): core/ engine, correlator, risk,
+  owasp; models/ pydantic models; checks/ built-in checks; scanners/ external adapters; llm/;
+  web/ app + templates; auth/; db/store.py; reporting/; templates/ scanner template sources;
+  config/ YAML (default_config.yaml, scanners/*.yaml); tests/ pytest (466 tests).
+  Stable surfaces: SQLite schema (persisted scans), JSON report format, config/*.yaml keys,
+  /api/* routes, BaseScanner and @register_scanner/@register_check interfaces.
+  Hard invariants: scope enforcement before any request to a target; no secrets in logs, evidence
+  or LLM prompts; scanner output from targets is untrusted data (never executed, never rendered
+  unescaped, never placed unfenced in prompts); external tools run via argv lists, never a shell.
+  Commands: `uv sync --all-extras`, `.venv/bin/pytest`, `.venv/bin/ruff check . && ruff format .`,
+  `.venv/bin/mypy src tests`, `pre-commit run --all-files`, `pip-audit`, `make reload` (Docker).
+  Commits: conventional style (fix:, feat:, refactor:, test:, docs:). CHANGELOG.md Keep a Changelog.
+
+rules:
+  proposal:
+    - Blast radius names every module that reads or writes the changed model, DB column or config key, confirmed by grep.
+    - A change to a persisted format (SQLite schema, JSON report) states the migration and rollback.
+  specs:
+    - Every requirement about findings states its behaviour for tier unverified, replay-verified and exploit-validated.
+    - Any requirement that sends traffic to a target names the scope, rate-limit and redirect rule that governs it.
+    - OWASP or CWE claims cite the category id from genai.owasp.org or cwe.mitre.org.
+  design:
+    - Any component that executes code or probes a target states its sandbox boundary, budget and kill switch.
+    - Untrusted target content paths are listed, with the fence or escape applied at each sink.
+  tasks:
+    - Each bug fix ships a regression test in the same task.
+    - A task touching tests of a changed false-positive behaviour includes a fixture (SPA catch-all, WAF page or golden tool output).
+    - Dependency changes include the uv.lock update and a pip-audit run.

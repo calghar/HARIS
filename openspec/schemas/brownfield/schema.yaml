@@ -1,0 +1,150 @@
+name: brownfield
+version: 1
+description: >-
+  Change-to-existing-code workflow. Primary threat is regression, not bloat.
+  Forces a measured blast-radius analysis before any proposal, delta-framed
+  requirements, and a regression-aware design and task list. Keeps design.md —
+  changes to code with consumers need an explicit migration/rollback story.
+artifacts:
+  - id: proposal
+    generates: proposal.md
+    description: Impact-analyzed, delta-framed proposal for a change to existing code
+    template: proposal.md
+    instruction: |
+      This is a change to CODE THAT ALREADY WORKS. The main risk is breaking a
+      caller you did not know about. Measure before you propose.
+
+      GATE 1 — blast radius (required, before writing anything). Establish
+      ground truth for who is affected, using the tool that is actually accurate
+      for this language, then confirm it. The routing is measured, not
+      preferential:
+        - Go / Java / C# / Rust (dispatch needs type inference): use the LSP —
+          `findReferences` and `incomingCalls`. AST graph tools (GitNexus,
+          graphify, roam) are confidently wrong here and self-certify as exact;
+          do not trust them for the call graph.
+        - Python / TypeScript / C (callers bind by name): `graphify explain` is
+          fast and accurate; the LSP also works.
+        - ALWAYS confirm the final claim with `grep`/Read before acting on it. A
+          graph tool's confidence field is not evidence.
+        - Launch from the repository root or the LSP under-reports silently
+          (gopls emits BrokenImport and misses calls from a parent directory).
+
+      GATE 2 — grill-me. Run the `grill-me` skill against the change, applying
+      the blast-radius findings as hard constraints. Resolve each decision
+      branch, explore the codebase to answer rather than asking, and give a
+      recommended answer per question. Do not write source in this phase.
+
+      Then write the proposal:
+      - **Why**: the problem, in 1-2 sentences.
+      - **What Changes**: framed as deltas — mark each item **ADDED**,
+        **MODIFIED**, or **REMOVED**, and **BREAKING** where a public/stable
+        surface changes.
+      - **Capabilities**: for MODIFIED, use the exact existing spec folder name
+        from openspec/specs/<capability>/. Research existing specs first.
+      - **Blast radius**: name the affected modules/callers found in GATE 1 and
+        the do-not-touch boundaries the change must respect.
+      - **Impact**: APIs, dependencies, data, on-disk/wire formats, consumers.
+    requires: []
+
+  - id: specs
+    generates: "specs/**/*.md"
+    description: Delta specs preserving backward-compatible behavior
+    template: specs/spec.md
+    instruction: |
+      Write delta specs against the existing spec set.
+
+      Delta headers: `## ADDED Requirements`, `## MODIFIED Requirements`
+      (MUST include the ENTIRE updated requirement block, not a fragment — copy
+      from openspec/specs/<capability>/spec.md, then edit; header text must match
+      whitespace-insensitively), `## REMOVED Requirements` (MUST include
+      **Reason** and **Migration**), `## RENAMED Requirements` (FROM:/TO:).
+
+      Requirements use SHALL/MUST; scenarios use `#### Scenario:` (exactly 4
+      hashtags) with WHEN/THEN. Every requirement keeps at least one scenario.
+
+      Scenarios are not prose — they are compiled into Gherkin by
+      `openspec-bdd generate` and executed. Grammar: `- **GIVEN**` / `- **WHEN**`
+      / `- **THEN**`, plus `- **AND**` / `- **BUT**` to continue the previous
+      keyword. For a parametrized case, follow the scenario with an
+      `#### Examples:` markdown table whose header names the `<placeholder>`s
+      used in the steps — that becomes a Scenario Outline, one test per row, and
+      is the right shape for a matrix of failure cases guarding a boundary.
+      Every cell must be non-empty; name an absent value explicitly, e.g.
+      `(absent)`, or generation fails.
+
+      Backward compatibility is a first-class requirement: if existing behavior
+      is preserved, state it as a scenario so a regression test guards it. If
+      adding a new concern without changing existing behavior, use ADDED, not
+      MODIFIED — partial MODIFIED content loses detail at archive time.
+    requires:
+      - proposal
+
+  - id: design
+    generates: design.md
+    description: Regression-aware technical design with a migration/rollback plan
+    template: design.md
+    instruction: |
+      Explain HOW to make the change without regressing existing behavior.
+
+      Sections:
+      - **Context**: current state and the constraints the change lives under —
+        the stable boundaries (public packages, on-disk/wire formats, generated
+        files) and what must NOT be touched.
+      - **Goals / Non-Goals**: what this achieves and explicitly excludes.
+      - **Decisions**: key choices with rationale and alternatives considered.
+      - **Risks / Trade-offs**: lead with regression risk. For each affected
+        caller from the proposal's blast radius, state how it is kept working.
+        Format: [Risk] → Mitigation.
+      - **Migration Plan**: deployment order, backward-compat/shim strategy,
+        and rollback. Required whenever a boundary or a persisted/wire format
+        changes.
+      - **Open Questions**: unresolved decisions.
+    requires:
+      - proposal
+
+  - id: tasks
+    generates: tasks.md
+    description: Sequential, regression-guarded implementation checklist
+    template: tasks.md
+    instruction: |
+      A `- [ ] X.Y` checklist under `## N.` headings (checkbox format is parsed —
+      untracked otherwise).
+
+      Task 1.1 is always the executable barrier, before any code task: run
+      `uv run --no-project --script ~/.claude/tools/openspec-bdd.py generate
+      --change <name>`, commit the generated `.feature` files, run the detected
+      runner, and record the result. Preserved-behavior scenarios copied into
+      MODIFIED requirements must pass immediately — they are the regression
+      guard, and a red one means the change already broke a caller. Every new
+      ADDED scenario must fail. Implementation is blocked until that split is
+      observed.
+
+      Rules specific to changing live code:
+      - Sequential, not parallel. Land declarative/interface changes first, then
+        the callers, one reviewable unit at a time. Do not jump ahead.
+      - Tag tasks where a legacy component must be refactored before new work
+        can land on it.
+      - Every task that touches an affected caller from the blast radius carries
+        an explicit regression-test task proving the old behavior still holds.
+      - Boundary or generated-file changes list their regeneration/migration step.
+    requires:
+      - specs
+      - design
+
+apply:
+  requires: [tasks]
+  tracks: tasks.md
+  instruction: |
+    Read context, specs, and design. Work tasks strictly in order — interface
+    changes before their callers. After each task that touches the blast radius,
+    run the repo's test/lint gate before moving on. Stop on any blocker; a
+    surprise caller means the blast radius was incomplete — return to it.
+
+    The BDD barrier is not optional: no implementation task starts until the
+    generated scenarios have been run, with every regression scenario green and
+    every new scenario red. Drive the new ones to green by changing code, never
+    by editing a generated `.feature` file — those are regenerated from the
+    specs and any hand edit is lost. A regression scenario that turns red mid-
+    change is a real break: stop and fix it before continuing. If a scenario
+    cannot pass as written, the requirement is wrong — amend it through a delta
+    and regenerate.
