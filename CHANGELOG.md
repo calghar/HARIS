@@ -17,6 +17,10 @@
 - SARIF 2.1.0 (`sarif`), CSV (`csv`) and JUnit XML (`junit`) report formats for `--formats`; SARIF carries partial fingerprints, web request and response, `suppressions` and, with `--baseline`, `baselineState`
 - JSON report adds `scan_state`, `scanner_status` and `correlated` (with `sources`); published JSON Schema at `src/haris/resources/schema/report.schema.json`
 - GitHub Action (`action.yml`) and GitLab CI template (`integrations/gitlab/templates/haris.yml`); see `docs/integrations.md`
+- Added a soft-404 baseline (`checks/baseline.py`) and content validators (`checks/validators.py`): SPA catch-all and WAF block pages no longer produce sensitive-path or debug-endpoint findings, `.env` must look like `KEY=VALUE` and `.git/config` must contain `[core]`
+- Added built-in checks `sri_checks`, `cache_checks`, `method_checks` (OPTIONS and TRACE), `redirect_checks` (open redirect), `graphql_checks` (introspection), `openapi_checks`, `listing_checks` (directory listing) and `dns_checks` (CAA, SPF, DMARC), each with a class in `vuln_classes.yaml` and a prior in `confidence.yaml`
+- Added CSP and HSTS quality findings (`unsafe-inline`, `unsafe-eval`, wildcard sources, missing `object-src` or `base-uri`, short `max-age`, missing `includeSubDomains`)
+- Added a ruff `TID251` rule that bans `requests`, `httpx` and `urllib3` outside `haris/net`; `llm/providers.py`, `bench/` and `tests/` are ignored per file
 
 ### Changed (packaging)
 
@@ -68,6 +72,12 @@
 - Fixed role changes in the admin user table failing with a server error and the user table using a missing `user.id`
 - Markdown and HTML reports escape every target-controlled value (titles, URLs, parameters, evidence) and the HTML report sets a CSP; raw HTML and `javascript:` links no longer pass through
 - Reports list active findings only in the body and move refuted and suppressed findings to an appendix; each finding shows its verification tier and confidence, and risk posture `unknown` is shown
+- Fixed built-in checks reporting `/admin`, `/.env` and debug paths on SPA catch-all and WAF hosts; a path is reported only when it differs from the host's not-found page and passes its validator
+- Fixed `header_checks` reporting headers that do not apply (CSP on JSON, anything on 4xx/5xx) and the obsolete `X-XSS-Protection`; presence is judged by content type and final status
+- Fixed duplicate and unrelated cookie findings from `header_checks` and `cookie_checks`; only session cookies are judged, once, in `cookie_checks` (SameSite maps to CWE-1275, not session fixation)
+- Fixed `info_disclosure` matching "Express 2024", "Caused by: user" and "hackathon"; framework names need a version, `Caused by:` needs an exception class and comment markers are case-sensitive words
+- Fixed `tls_checks` expiry and hostname checks that never ran; the certificate is read without verification, then verified separately, and TLSv1 and TLSv1.1 are probed independently
+- Fixed `outdated_server` CWE mapping on version endpoints and `X-Powered-By` context extraction (`raw_data` now carries the technology headers)
 
 ### Changed
 
@@ -87,6 +97,9 @@
 - Changed LLM backends to default to the models in `llm_models.yaml`; `create_backend()` resolves the model through the provider model list when a key is set
 - Changed the Ollama backend to call `/api/chat` for single and multi-turn requests
 - Changed the chat retrieval threshold and prompt field limits to read from `llm_models.yaml`
+- Changed every built-in check to send requests through `context.http` (`ScopedClient`); the per-check `timeout` option is replaced by `NetworkPolicy.timeout_s`
+- Changed built-in findings to carry a confidence score from `confidence.yaml` (`<check>.<kind>`); a passed validator raises it
+- Changed `robots.txt`, `sitemap.xml` and `security.txt` findings to INFO and moved the API-document paths from `info_disclosure` to `openapi_checks`
 
 ### Added
 

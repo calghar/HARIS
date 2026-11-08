@@ -89,3 +89,120 @@ classes:
     aliases:
       builtin: ["Weak TLS protocol negotiated: .*"]
       sslyze: ["Deprecated protocol .* supported"]
+
+  - id: weak_csp
+    primary_cwe: CWE-693
+    granularity: host
+
+  - id: weak_hsts
+    primary_cwe: CWE-319
+    granularity: host
+
+  - id: banner_disclosure
+    primary_cwe: CWE-200
+    granularity: host
+
+  - id: cookie_missing_secure
+    primary_cwe: CWE-614
+    granularity: host
+
+  - id: cookie_missing_httponly
+    primary_cwe: CWE-1004
+    granularity: host
+
+  - id: cookie_samesite
+    primary_cwe: CWE-1275
+    granularity: host
+
+  - id: cookie_scope
+    primary_cwe: CWE-16
+    granularity: host
+
+  - id: cookie_lifetime
+    primary_cwe: CWE-613
+    granularity: host
+
+  - id: cookie_name_disclosure
+    primary_cwe: CWE-200
+    granularity: host
+
+  - id: tls_cert_expired
+    primary_cwe: CWE-298
+    granularity: host
+
+  - id: tls_cert_hostname
+    primary_cwe: CWE-297
+    granularity: host
+
+  - id: tls_cert_untrusted
+    primary_cwe: CWE-295
+    granularity: host
+
+  - id: tls_weak_cipher
+    primary_cwe: CWE-326
+    granularity: host
+
+  - id: no_https
+    primary_cwe: CWE-319
+    granularity: host
+
+  - id: no_https_redirect
+    primary_cwe: CWE-319
+    granularity: host
+
+  - id: cors_misconfiguration
+    primary_cwe: CWE-942
+    granularity: host
+
+  - id: http_methods
+    primary_cwe: CWE-749
+    granularity: host
+
+  - id: http_trace
+    primary_cwe: CWE-16
+    granularity: host
+
+  - id: dns_missing_caa
+    primary_cwe: CWE-693
+    granularity: host
+
+  - id: dns_missing_spf
+    primary_cwe: CWE-290
+    granularity: host
+
+  - id: dns_missing_dmarc
+    primary_cwe: CWE-290
+    granularity: host
+
+  - id: version_disclosure
+    primary_cwe: CWE-200
+    granularity: path
+
+  - id: cache_sensitive
+    primary_cwe: CWE-525
+    granularity: path
+
+  - id: graphql_introspection
+    primary_cwe: CWE-200
+    granularity: path
+
+  - id: api_docs_exposed
+    primary_cwe: CWE-200
+    granularity: path
+    oracle: content_validator
+
+  - id: directory_listing
+    primary_cwe: CWE-548
+    granularity: path
+
+  - id: verbose_error
+    primary_cwe: CWE-209
+    granularity: parameter
+
+  - id: html_comment_leak
+    primary_cwe: CWE-615
+    granularity: parameter
+
+  - id: missing_sri
+    primary_cwe: CWE-353
+    granularity: parameter

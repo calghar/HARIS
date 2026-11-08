@@ -11,3 +11,39 @@ priors:
   tls_checks: 0.8
   misc_checks: 0.5
   info_disclosure: 0.5
+  header_checks.missing_header: 0.85
+  header_checks.weak_csp: 0.9
+  header_checks.weak_hsts: 0.9
+  header_checks.banner: 0.95
+  cookie_checks.session_flag: 0.9
+  cookie_checks.session_attribute: 0.8
+  cookie_checks.name_disclosure: 0.7
+  tls_checks.no_https: 0.95
+  tls_checks.cert_expired: 0.99
+  tls_checks.cert_expiring: 0.99
+  tls_checks.cert_hostname: 0.95
+  tls_checks.cert_untrusted: 0.9
+  tls_checks.weak_protocol: 0.95
+  tls_checks.weak_cipher: 0.9
+  misc_checks.cors_wildcard: 0.9
+  misc_checks.cors_reflected: 0.9
+  misc_checks.https_redirect: 0.85
+  misc_checks.sensitive_path: 0.5
+  misc_checks.sensitive_path_validated: 0.95
+  info_disclosure.verbose_error: 0.8
+  info_disclosure.html_comment: 0.4
+  info_disclosure.debug_endpoint: 0.5
+  info_disclosure.debug_endpoint_validated: 0.95
+  info_disclosure.version_endpoint: 0.5
+  info_disclosure.version_endpoint_validated: 0.8
+  sri_checks.missing_sri: 0.7
+  cache_checks.sensitive_cacheable: 0.6
+  method_checks.options_methods: 0.6
+  method_checks.trace_enabled: 0.95
+  redirect_checks.open_redirect: 0.9
+  graphql_checks.introspection: 0.95
+  openapi_checks.spec_exposed: 0.95
+  listing_checks.directory_listing: 0.95
+  dns_checks.missing_caa: 0.6
+  dns_checks.missing_spf: 0.6
+  dns_checks.missing_dmarc: 0.6
