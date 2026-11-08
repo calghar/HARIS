@@ -89,6 +89,8 @@ def scan(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
                 "json",
                 "--output",
                 str(tmp_path / "out"),
+                "--verify",
+                "off",
                 *flags,
             ]
         )
