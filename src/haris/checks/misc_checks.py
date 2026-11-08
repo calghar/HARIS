@@ -1,14 +1,16 @@
-import logging
 from typing import Any
 from urllib.parse import urljoin
 
-import requests
-
 from ..core.decorators import register_check
 from ..core.scanner import BaseScanner
-from ..models import Confidence, Finding, ScannerResult, Severity, Target
+from ..models import Finding, ScanContext, ScannerResult, Severity, Target
+from ..net import NetworkError, ScopedClient, ScopedResponse
+from .findings import make_finding
+from .path_probe import probe_paths
+from .requesting import scan_client, try_request
 
-logger = logging.getLogger(__name__)
+TEST_ORIGIN = "https://evil.example.com"
+REDIRECT_STATUSES = frozenset({301, 302, 307, 308})
 
 # Paths that often reveal sensitive information when exposed
 SENSITIVE_PATHS = [
@@ -27,250 +29,211 @@ SENSITIVE_PATHS = [
     ("/elmah.axd", "ELMAH error log (.NET)"),
     ("/trace.axd", "ASP.NET trace log"),
 ]
+CRITICAL_PATHS = frozenset({"/.env", "/.git/config"})
+HIGH_PATHS = frozenset(
+    {"/phpmyadmin", "/elmah.axd", "/trace.axd", "/server-status", "/server-info"}
+)
+INFO_PATHS = frozenset({"/robots.txt", "/sitemap.xml", "/.well-known/security.txt"})
+
+
+def _first_hop(resp: ScopedResponse, request_url: str) -> str:
+    """Where the first response redirected to; empty when it did not redirect."""
+    if resp.redirect_chain:
+        return resp.redirect_chain[0]
+    if resp.status_code in REDIRECT_STATUSES:
+        return urljoin(request_url, resp.headers.get("Location", ""))
+    return ""
 
 
 @register_check
 class MiscCheckScanner(BaseScanner):
-    """Miscellaneous web security checks using HTTP requests.
-
-    Tests for:
-    - Exposed sensitive files and paths
-    - CORS misconfiguration
-    - HTTP-to-HTTPS redirect
-    - Directory listing
-    - Information disclosure via common paths
-    """
+    """CORS, HTTP-to-HTTPS redirect and exposed sensitive paths."""
 
     name = "misc_checks"
-    version = "1.0.0"
+    version = "1.1.0"
     description = "Common web misconfiguration checks"
 
     def __init__(self, options: dict[str, Any] | None = None) -> None:
         super().__init__(options)
-        self.options.setdefault("timeout", 15)
         self.options.setdefault("check_sensitive_paths", True)
         self.options.setdefault("check_cors", True)
         self.options.setdefault("check_redirect", True)
 
-    def scan(self, target: Target, context: Any = None) -> ScannerResult:  # noqa: ARG002
+    def scan(self, target: Target, context: ScanContext | None = None) -> ScannerResult:
         result = ScannerResult(scanner_name=self.name)
-        session = requests.Session()
-        session.headers.update(target.auth.as_headers())
-
-        if self.options["check_cors"]:
-            result.findings.extend(self._check_cors(session, target))
-
-        if self.options["check_redirect"]:
-            result.findings.extend(self._check_https_redirect(session, target))
-
-        if self.options["check_sensitive_paths"]:
-            result.findings.extend(self._check_sensitive_paths(session, target))
-
+        with scan_client(target, context) as client:
+            try:
+                if self.options["check_cors"]:
+                    result.findings.extend(self._check_cors(client, target))
+                if self.options["check_redirect"]:
+                    result.findings.extend(self._check_https_redirect(client, target))
+                if self.options["check_sensitive_paths"]:
+                    result.findings.extend(self._check_sensitive_paths(client, target))
+            except NetworkError as exc:
+                result.errors.append(f"{type(exc).__name__}: {exc}")
         return result
 
     def parse_results(self, raw_output: str) -> list[Finding]:
         return []
 
-    def _check_cors(self, session: requests.Session, target: Target) -> list[Finding]:
+    def _check_cors(self, client: ScopedClient, target: Target) -> list[Finding]:
         """Test for overly permissive CORS configuration."""
-        findings: list[Finding] = []
+        resp = try_request(
+            client, "GET", target.base_url, headers={"Origin": TEST_ORIGIN}
+        )
+        if resp is None:
+            return []
+        acao = resp.headers.get("Access-Control-Allow-Origin", "")
 
-        try:
-            # Send a request with a spoofed Origin header
-            test_origin = "https://evil.example.com"
-            resp = session.get(
-                target.base_url,
-                headers={"Origin": test_origin},
-                timeout=self.options["timeout"],
-                allow_redirects=True,
-                verify=True,
+        if acao == "*":
+            return [
+                make_finding(
+                    self.name,
+                    "cors_wildcard",
+                    "cors_misconfiguration",
+                    title="CORS allows any origin (wildcard)",
+                    description=(
+                        "The Access-Control-Allow-Origin header is set to '*', "
+                        "allowing any website to read responses."
+                    ),
+                    severity=Severity.MEDIUM,
+                    url=target.base_url,
+                    evidence=f"Access-Control-Allow-Origin: {acao}",
+                    remediation=(
+                        "Restrict CORS to specific trusted origins instead "
+                        "of using the wildcard."
+                    ),
+                    tags=["cors_misconfiguration"],
+                )
+            ]
+        if acao == TEST_ORIGIN:
+            credentials = (
+                resp.headers.get("Access-Control-Allow-Credentials", "").lower()
+                == "true"
             )
-
-            acao = resp.headers.get("Access-Control-Allow-Origin", "")
-
-            if acao == "*":
-                findings.append(
-                    Finding(
-                        title="CORS allows any origin (wildcard)",
-                        description=(
-                            "The Access-Control-Allow-Origin header is set to '*', "
-                            "allowing any website to read responses."
-                        ),
-                        severity=Severity.MEDIUM,
-                        confidence=Confidence.CONFIRMED,
-                        url=target.base_url,
-                        evidence=f"Access-Control-Allow-Origin: {acao}",
-                        remediation=(
-                            "Restrict CORS to specific trusted origins instead "
-                            "of using the wildcard."
-                        ),
-                        scanner=self.name,
-                        tags=["cors_misconfiguration"],
-                    )
+            return [
+                make_finding(
+                    self.name,
+                    "cors_reflected",
+                    "cors_misconfiguration",
+                    title="CORS reflects arbitrary Origin",
+                    description=(
+                        f"The server reflected the attacker-controlled Origin "
+                        f"'{TEST_ORIGIN}' in Access-Control-Allow-Origin"
+                        f"{' with credentials allowed' if credentials else ''}."
+                    ),
+                    severity=Severity.HIGH if credentials else Severity.MEDIUM,
+                    url=target.base_url,
+                    evidence=f"Access-Control-Allow-Origin: {acao}",
+                    request_example=(
+                        f"curl -H 'Origin: {TEST_ORIGIN}' {target.base_url}"
+                    ),
+                    remediation=(
+                        "Validate the Origin header against an allowlist. "
+                        "Never reflect arbitrary origins."
+                    ),
+                    tags=["cors_misconfiguration"],
                 )
-            elif acao == test_origin:
-                acac = resp.headers.get("Access-Control-Allow-Credentials", "").lower()
-                sev = Severity.HIGH if acac == "true" else Severity.MEDIUM
-                findings.append(
-                    Finding(
-                        title="CORS reflects arbitrary Origin",
-                        description=(
-                            f"The server reflected the attacker-controlled Origin "
-                            f"'{test_origin}' in Access-Control-Allow-Origin"
-                            f"{' with credentials allowed' if acac == 'true' else ''}."
-                        ),
-                        severity=sev,
-                        confidence=Confidence.CONFIRMED,
-                        url=target.base_url,
-                        evidence=f"Access-Control-Allow-Origin: {acao}",
-                        request_example=(
-                            f"curl -H 'Origin: {test_origin}' {target.base_url}"
-                        ),
-                        remediation=(
-                            "Validate the Origin header against an allowlist. "
-                            "Never reflect arbitrary origins."
-                        ),
-                        scanner=self.name,
-                        tags=["cors_misconfiguration"],
-                    )
-                )
-
-        except requests.RequestException as exc:
-            logger.warning("CORS check failed: %s", exc)
-
-        return findings
+            ]
+        return []
 
     def _check_https_redirect(
-        self, session: requests.Session, target: Target
+        self, client: ScopedClient, target: Target
     ) -> list[Finding]:
         """Check if HTTP requests are redirected to HTTPS."""
-        findings: list[Finding] = []
-
         if target.scheme != "https":
-            return findings  # already flagged by TLS checks
+            return []  # already flagged by TLS checks
 
-        # Test the HTTP version of the URL
         http_url = target.base_url.replace("https://", "http://", 1)
-        try:
-            resp = session.get(
-                http_url,
-                timeout=self.options["timeout"],
-                allow_redirects=False,
-                verify=False,  # noqa: S4830 -- we're intentionally connecting over HTTP here
-            )
+        resp = try_request(client, "GET", http_url)
+        if resp is None:
+            return []  # the HTTP port may be closed, which is fine
 
-            if resp.status_code not in (301, 302, 307, 308):
-                findings.append(
-                    Finding(
-                        title="No HTTP-to-HTTPS redirect",
-                        description=(
-                            f"Requesting {http_url} returned status "
-                            f"{resp.status_code} instead of a redirect to HTTPS."
-                        ),
-                        severity=Severity.MEDIUM,
-                        confidence=Confidence.CONFIRMED,
-                        url=http_url,
-                        remediation=(
-                            "Configure a 301 redirect from HTTP to HTTPS "
-                            "for all routes."
-                        ),
-                        scanner=self.name,
-                        tags=["cleartext_transmission"],
-                    )
+        first_hop = _first_hop(resp, http_url)
+        if not first_hop:
+            return [
+                make_finding(
+                    self.name,
+                    "https_redirect",
+                    "no_https_redirect",
+                    title="No HTTP-to-HTTPS redirect",
+                    description=(
+                        f"Requesting {http_url} returned status "
+                        f"{resp.status_code} instead of a redirect to HTTPS."
+                    ),
+                    severity=Severity.MEDIUM,
+                    url=http_url,
+                    remediation=(
+                        "Configure a 301 redirect from HTTP to HTTPS for all routes."
+                    ),
+                    tags=["cleartext_transmission"],
                 )
-            else:
-                location = resp.headers.get("Location", "")
-                if location and not location.startswith("https://"):
-                    findings.append(
-                        Finding(
-                            title="HTTP redirect does not target HTTPS",
-                            description=(
-                                f"HTTP redirect goes to {location} "
-                                f"which is not an HTTPS URL."
-                            ),
-                            severity=Severity.MEDIUM,
-                            confidence=Confidence.CONFIRMED,
-                            url=http_url,
-                            evidence=f"Location: {location}",
-                            remediation="Ensure the redirect location uses HTTPS.",
-                            scanner=self.name,
-                            tags=["cleartext_transmission"],
-                        )
-                    )
-
-        except requests.RequestException:
-            # HTTP port may not be open, which is fine
-            pass
-
-        return findings
+            ]
+        if not first_hop.startswith("https://"):
+            return [
+                make_finding(
+                    self.name,
+                    "https_redirect",
+                    "no_https_redirect",
+                    title="HTTP redirect does not target HTTPS",
+                    description=(
+                        f"HTTP redirect goes to {first_hop} which is not an HTTPS URL."
+                    ),
+                    severity=Severity.MEDIUM,
+                    url=http_url,
+                    evidence=f"Location: {first_hop}",
+                    remediation="Ensure the redirect location uses HTTPS.",
+                    tags=["cleartext_transmission"],
+                )
+            ]
+        return []
 
     def _check_sensitive_paths(
-        self, session: requests.Session, target: Target
+        self, client: ScopedClient, target: Target
     ) -> list[Finding]:
-        """Probe for commonly exposed sensitive files and paths."""
+        """Probe for exposed files; the baseline and validators gate each hit."""
+        descriptions = dict(SENSITIVE_PATHS)
         findings: list[Finding] = []
-
-        for path, description in SENSITIVE_PATHS:
-            url = urljoin(target.base_url + "/", path.lstrip("/"))
-
-            # Skip if path is excluded from scope
-            if not target.scope.is_url_in_scope(url):
-                continue
-
-            try:
-                resp = session.get(
-                    url,
-                    timeout=self.options["timeout"],
-                    allow_redirects=False,
-                    verify=True,
+        for hit in probe_paths(client, target.base_url, descriptions):
+            path, verdict, resp = hit.path, hit.verdict, hit.response
+            evidence = f"HTTP {resp.status_code}, Content-Length: {len(resp.content)}"
+            if verdict.validated:
+                evidence += f", validated: {verdict.reason} ({verdict.span})"
+            basis = (
+                "passed content validation"
+                if verdict.validated
+                else "differs from the host's not-found page"
+            )
+            findings.append(
+                make_finding(
+                    self.name,
+                    "sensitive_path_validated"
+                    if verdict.validated
+                    else "sensitive_path",
+                    "sensitive_file",
+                    title=f"Accessible sensitive path: {path}",
+                    description=(
+                        f"{descriptions[path]}. The path {path} returned "
+                        f"HTTP {resp.status_code} with content that {basis}."
+                    ),
+                    severity=self._classify_path_severity(path),
+                    url=hit.url,
+                    evidence=evidence,
+                    remediation=(
+                        f"Restrict access to {path} via server "
+                        f"configuration or remove it from the web root."
+                    ),
+                    tags=["security_misconfiguration"],
                 )
-
-                if resp.status_code == 200:
-                    # Determine severity based on path
-                    severity = self._classify_path_severity(path)
-                    tag = self._classify_path_tag(path)
-
-                    findings.append(
-                        Finding(
-                            title=f"Accessible sensitive path: {path}",
-                            description=(
-                                f"{description}. The path {path} returned "
-                                f"HTTP 200, indicating the file/page is accessible."
-                            ),
-                            severity=severity,
-                            confidence=Confidence.CONFIRMED,
-                            url=url,
-                            evidence=f"HTTP 200, Content-Length: {len(resp.content)}",
-                            remediation=(
-                                f"Restrict access to {path} via server "
-                                f"configuration or remove it from the web root."
-                            ),
-                            scanner=self.name,
-                            tags=[tag],
-                        )
-                    )
-
-            except requests.RequestException:
-                continue  # path not reachable, no issue
-
+            )
         return findings
 
     @staticmethod
     def _classify_path_severity(path: str) -> Severity:
-        critical_paths = {"/.env", "/.git/config"}
-        high_paths = {
-            "/phpmyadmin",
-            "/elmah.axd",
-            "/trace.axd",
-            "/server-status",
-            "/server-info",
-        }
-        if path in critical_paths:
+        if path in CRITICAL_PATHS:
             return Severity.CRITICAL
-        if path in high_paths:
+        if path in HIGH_PATHS:
             return Severity.HIGH
+        if path in INFO_PATHS:
+            return Severity.INFO
         return Severity.MEDIUM
-
-    @staticmethod
-    def _classify_path_tag(path: str) -> str:
-        return "security_misconfiguration"

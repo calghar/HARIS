@@ -106,9 +106,23 @@ target-version = "py313"
 line-length = 88
 
 [tool.ruff.lint]
-select = ["E", "F", "W", "I", "N", "UP", "B", "SIM"]
+select = ["E", "F", "W", "I", "N", "UP", "B", "SIM", "TID251"]
 # B008: FastAPI's Depends() in function defaults is the standard DI pattern
 ignore = ["B008"]
+
+[tool.ruff.lint.flake8-tidy-imports.banned-api]
+"requests".msg = "Send HTTP through haris.net.ScopedClient."
+"httpx".msg = "Send HTTP through haris.net.ScopedClient."
+"urllib3".msg = "Send HTTP through haris.net.ScopedClient."
+
+[tool.ruff.lint.per-file-ignores]
+"src/haris/net/**" = ["TID251"]
+# LLM provider SDK calls; not target traffic
+"src/haris/llm/providers.py" = ["TID251"]
+# Fake transports and test servers
+"tests/**" = ["TID251"]
+# Benchmark harness talks to its own local fixtures
+"bench/**" = ["TID251"]
 
 [tool.mypy]
 python_version = "3.13"

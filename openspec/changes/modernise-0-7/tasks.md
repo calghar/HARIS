@@ -8,7 +8,7 @@
 ## 2. Parallel workstreams (disjoint ownership, each in its own worktree)
 
 - [x] 2.1 Core pipeline (`core/`, `models/`, `net/`, `ignore`, `diff`): finding identity, correlator, risk, scoped client, exit codes, baseline file; regression test: 0.6 JSON reports still load
-- [ ] 2.2 Built-in checks (`checks/`): soft-404 baseline, validators, confidence, TLS and cookie fixes, new checks; regression fixtures: SPA catch-all and WAF page produce zero path findings
+- [x] 2.2 Built-in checks (`checks/`): soft-404 baseline, validators, confidence, TLS and cookie fixes, new checks; regression fixtures: SPA catch-all and WAF page produce zero path findings
 - [ ] 2.3 Scanner adapters (`scanners/`, `templates/`, `resources/config/scanners`): bug fixes, argv allow-list, process-group timeouts, redaction, Nuclei flags; golden fixtures from real tool output
 - [ ] 2.4 Web, auth, API (`web/`, `auth/`): routers, access control, SSRF guard, job queue, API tokens, `/api/v1`, CSP; TestClient tests for every route
 - [x] 2.5 LLM layer (`llm/`): structured output, redaction, fencing, budgets, config-driven models
