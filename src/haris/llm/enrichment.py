@@ -1,28 +1,38 @@
-import json
 import logging
-from typing import Any
+
+from pydantic import BaseModel, Field
 
 from ..models import Finding, Target
 from ..models.enrichment import EnrichedFinding
-from .base import BaseLLMBackend
+from .backend import BaseLLMBackend
+from .budget import BudgetExceededError
 from .enrichment_prompts import EnrichmentPromptBuilder
+from .schemas import EnrichmentOut
+from .structured import (
+    SEVERITY_RANK,
+    STATUS_FAILED,
+    STATUS_INVALID,
+    STATUS_OK,
+    STATUS_SKIPPED_BUDGET,
+    StageReport,
+    call_structured,
+    run_bounded,
+)
 
 logger = logging.getLogger(__name__)
 
-_SEVERITY_RANK = {
-    "critical": 0,
-    "high": 1,
-    "medium": 2,
-    "low": 3,
-    "info": 4,
-}
+
+class EnrichmentBatch(BaseModel):
+    items: dict[str, EnrichedFinding] = Field(default_factory=dict)
+    report: StageReport = Field(default_factory=StageReport)
 
 
 class FindingEnricher:
     """Enriches findings with LLM-generated context.
 
     Only findings at or above *severity_threshold* are enriched to
-    manage API token costs.
+    manage API token costs. ``last_report`` records a status for every
+    finding attempted, including ``skipped_budget``.
     """
 
     def __init__(
@@ -32,14 +42,44 @@ class FindingEnricher:
         max_tokens: int = 1024,
     ) -> None:
         self.backend = backend
-        self._threshold_rank = _SEVERITY_RANK.get(severity_threshold, 1)
+        self._threshold_rank = SEVERITY_RANK.get(severity_threshold, 1)
         self._max_tokens = max_tokens
         self._prompts = EnrichmentPromptBuilder()
+        self.last_report = StageReport()
 
     def should_enrich(self, finding: Finding) -> bool:
         """Return True if finding severity meets the threshold."""
-        rank = _SEVERITY_RANK.get(finding.severity.value, 4)
+        rank = SEVERITY_RANK.get(finding.severity.value, 4)
         return rank <= self._threshold_rank
+
+    def _enrich(
+        self,
+        finding: Finding,
+        target: Target,
+        sibling_titles: list[str],
+    ) -> tuple[EnrichedFinding | None, str, list[str]]:
+        system, prompt = self._prompts.enrich_finding(finding, target, sibling_titles)
+        try:
+            result = call_structured(
+                self.backend,
+                prompt,
+                system=system,
+                model=EnrichmentOut,
+                many=False,
+                temperature=0.1,
+                max_tokens=self._max_tokens,
+            )
+        except BudgetExceededError as exc:
+            return None, STATUS_SKIPPED_BUDGET, [str(exc)]
+        except Exception as exc:
+            logger.warning(
+                "Failed to enrich finding %s", finding.finding_id, exc_info=True
+            )
+            return None, STATUS_FAILED, [f"{finding.finding_id}: {exc}"]
+        if not result.items:
+            errors = [f"{finding.finding_id}: {e}" for e in result.errors]
+            return None, STATUS_INVALID, errors
+        return result.items[0].to_model(finding.finding_id), STATUS_OK, []
 
     def enrich_finding(
         self,
@@ -47,34 +87,26 @@ class FindingEnricher:
         target: Target,
         sibling_titles: list[str] | None = None,
     ) -> EnrichedFinding | None:
-        """Enrich a single finding via LLM.
-
-        Returns None if the LLM call fails or the response can't be parsed.
-        """
+        """Enrich a single finding; None when skipped, failed or unparseable."""
         if not self.should_enrich(finding):
             return None
+        return self._enrich(finding, target, sibling_titles or [])[0]
 
-        system, prompt = self._prompts.enrich_finding(
-            finding,
-            target,
-            sibling_titles or [],
+    def run_batch(self, findings: list[Finding], target: Target) -> EnrichmentBatch:
+        """Enrich every qualifying finding with bounded concurrency."""
+        sibling_titles = [f.title for f in findings]
+        selected = [f for f in findings if self.should_enrich(f)]
+        outcomes = run_bounded(
+            lambda f: self._enrich(f, target, sibling_titles), selected
         )
-
-        try:
-            response = self.backend.complete(
-                prompt,
-                system=system,
-                temperature=0.1,
-                max_tokens=self._max_tokens,
-            )
-            return self._parse_enrichment(finding.finding_id, response.text)
-        except Exception:
-            logger.warning(
-                "Failed to enrich finding %s",
-                finding.finding_id,
-                exc_info=True,
-            )
-            return None
+        batch = EnrichmentBatch()
+        for finding, (enriched, status, errors) in zip(selected, outcomes, strict=True):
+            batch.report.statuses[finding.finding_id] = status
+            batch.report.errors.extend(errors)
+            if enriched is not None:
+                batch.items[finding.finding_id] = enriched
+        self.last_report = batch.report
+        return batch
 
     def batch_enrich(
         self,
@@ -82,52 +114,4 @@ class FindingEnricher:
         target: Target,
     ) -> dict[str, EnrichedFinding]:
         """Enrich all qualifying findings, returning a dict keyed by ID."""
-        sibling_titles = [f.title for f in findings]
-        results: dict[str, EnrichedFinding] = {}
-
-        for finding in findings:
-            enriched = self.enrich_finding(finding, target, sibling_titles)
-            if enriched is not None:
-                results[finding.finding_id] = enriched
-
-        return results
-
-    @staticmethod
-    def _parse_enrichment(
-        finding_id: str,
-        raw_text: str,
-    ) -> EnrichedFinding | None:
-        """Parse LLM JSON response into an EnrichedFinding."""
-        try:
-            # Strip markdown fences if present
-            text = raw_text.strip()
-            if text.startswith("```"):
-                text = text.split("\n", 1)[1]
-                text = text.rsplit("```", 1)[0]
-
-            data: dict[str, Any] = json.loads(text)
-            return EnrichedFinding(
-                finding_id=finding_id,
-                attack_narrative=data.get("attack_narrative", ""),
-                business_impact_assessment=data.get(
-                    "business_impact_assessment",
-                    "",
-                ),
-                exploitation_complexity=data.get(
-                    "exploitation_complexity",
-                    "",
-                ),
-                false_positive_likelihood=data.get(
-                    "false_positive_likelihood",
-                    "",
-                ),
-                related_cwes=data.get("related_cwes", []),
-                attack_chain_position=data.get("attack_chain_position", ""),
-                variant_suggestions=data.get("variant_suggestions", []),
-            )
-        except (json.JSONDecodeError, KeyError):
-            logger.warning(
-                "Could not parse enrichment for %s",
-                finding_id,
-            )
-            return None
+        return self.run_batch(findings, target).items

@@ -5,7 +5,15 @@ from typing import Any
 
 import jinja2
 
+from .redaction import fence, new_nonce
+from .settings import load_settings
+
 _TEMPLATES_DIR = Path(__file__).parent / "templates"
+
+
+@jinja2.pass_context
+def _untrusted(context: jinja2.runtime.Context, value: Any) -> str:
+    return fence(str(value), context["nonce"])
 
 
 class PromptTemplateLoader:
@@ -21,11 +29,14 @@ class PromptTemplateLoader:
             trim_blocks=True,
             lstrip_blocks=True,
         )
+        self._env.filters["untrusted"] = _untrusted
 
     def render(self, template_path: str, **context: Any) -> str:
         """Render a template file with the given context variables."""
         template = self._env.get_template(template_path)
-        return template.render(**context)
+        return template.render(
+            nonce=new_nonce(), limits=load_settings().limits, **context
+        )
 
 
 _loader = PromptTemplateLoader()
