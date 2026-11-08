@@ -37,7 +37,7 @@ Before integrating, understand:
 
 ### 2. Create the adapter
 
-Create `src/scanners/my_tool_scanner.py`:
+Create `src/haris/scanners/my_tool_scanner.py`:
 
 ```python
 from __future__ import annotations
@@ -142,7 +142,7 @@ class MyToolScanner(BaseScanner):
 
 ### 3. Register the scanner
 
-In `src/scanners/__init__.py`:
+In `src/haris/scanners/__init__.py`:
 
 ```python
 from .my_tool_scanner import MyToolScanner
@@ -151,7 +151,7 @@ SCANNER_REGISTRY["my_tool"] = MyToolScanner
 
 ### 4. Map to OWASP categories
 
-Add entries to `CATEGORY_TAGS` in your scanner that use keyword keys from `src/core/owasp.py` `OWASP_MAPPINGS`.
+Add entries to `CATEGORY_TAGS` in your scanner that use keyword keys from `src/haris/core/owasp.py` `OWASP_MAPPINGS`.
 
 ### 5. Document the integration
 
@@ -164,25 +164,25 @@ Add a docstring to the scanner module explaining:
 
 ## Existing Integrations
 
-### Wapiti (`src/scanners/wapiti_scanner.py`)
+### Wapiti (`src/haris/scanners/wapiti_scanner.py`)
 
 - **Focus**: Web application vulnerability scanning (SQLi, XSS, injection, SSRF)
 - **Output**: JSON
 - **Key flags**: `--scope`, `--timeout`, `--max-scan-time`, `--module`
 
-### SSLyze (`src/scanners/sslyze_scanner.py`)
+### SSLyze (`src/haris/scanners/sslyze_scanner.py`)
 
 - **Focus**: TLS/SSL configuration analysis
 - **Output**: JSON
 - **Checks**: Protocol support, cipher suites, certificate validity, Heartbleed, ROBOT
 
-### Nmap (`src/scanners/nmap_scanner.py`)
+### Nmap (`src/haris/scanners/nmap_scanner.py`)
 
 - **Focus**: Port scanning, service detection, reconnaissance
 - **Output**: XML
 - **Key flags**: `-sV` (version detection), `-p` (ports), `--open`
 
-### Nuclei (`src/scanners/nuclei_scanner.py`)
+### Nuclei (`src/haris/scanners/nuclei_scanner.py`)
 
 - **Focus**: CVE detection, default credentials, exposed panels, technology fingerprinting
 - **Output**: JSONL (one JSON object per line)
@@ -199,7 +199,7 @@ Use mock output files to test parsing without running the actual tool:
 
 ```python
 from pathlib import Path
-from src.scanners.my_tool_scanner import MyToolScanner
+from haris.scanners.my_tool_scanner import MyToolScanner
 
 def test_parse_results():
     mock_output = Path("tests/fixtures/my_tool_output.json").read_text()

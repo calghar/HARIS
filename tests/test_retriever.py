@@ -3,9 +3,8 @@ from __future__ import annotations
 import sqlite3
 
 import pytest
-
-from src.llm.retriever import FindingRetriever
-from src.models import Confidence, Finding, Severity
+from haris.llm.retriever import FindingRetriever
+from haris.models import Confidence, Finding, Severity
 
 # ---------------------------------------------------------------------------
 # Helpers

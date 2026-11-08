@@ -13,7 +13,7 @@ Custom checks are Python-based security tests that don't require external tools.
 
 ### 1. Create the check file
 
-Create a new file in `src/checks/`, for example `src/checks/cors_check.py`:
+Create a new file in `src/haris/checks/`, for example `src/haris/checks/cors_check.py`:
 
 ```python
 from __future__ import annotations
@@ -69,13 +69,13 @@ class CORSCheckScanner(BaseScanner):
 
 ### 2. Register the check
 
-In `src/checks/__init__.py`:
+In `src/haris/checks/__init__.py`:
 
 ```python
 from .cors_check import CORSCheckScanner
 ```
 
-In `scripts/run_scan.py`, add to `CUSTOM_CHECK_REGISTRY`:
+In `src/haris/cli.py`, add to `CUSTOM_CHECK_REGISTRY`:
 
 ```python
 CUSTOM_CHECK_REGISTRY["cors_check"] = CORSCheckScanner
@@ -83,7 +83,7 @@ CUSTOM_CHECK_REGISTRY["cors_check"] = CORSCheckScanner
 
 ### 3. Add OWASP mapping tags
 
-Use tags from `src/core/owasp.py` `OWASP_MAPPINGS` keys to enable auto-mapping:
+Use tags from `src/haris/core/owasp.py` `OWASP_MAPPINGS` keys to enable auto-mapping:
 
 ```python
 tags=["cors_misconfiguration"]  # Maps to A01: Broken Access Control
@@ -95,14 +95,14 @@ Create `tests/test_cors_check.py` with mocked HTTP responses:
 
 ```python
 from unittest.mock import patch, MagicMock
-from src.checks.cors_check import CORSCheckScanner
-from src.core.target import Target
+from haris.checks.cors_check import CORSCheckScanner
+from haris.core.target import Target
 
 def test_wildcard_cors():
     mock_resp = MagicMock()
     mock_resp.headers = {"Access-Control-Allow-Origin": "*"}
 
-    with patch("src.checks.cors_check.requests.get", return_value=mock_resp):
+    with patch("haris.checks.cors_check.requests.get", return_value=mock_resp):
         scanner = CORSCheckScanner()
         target = Target(base_url="https://example.com")
         result = scanner.scan(target)

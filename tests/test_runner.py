@@ -1,9 +1,8 @@
 from unittest.mock import MagicMock, patch
 
 import pytest
-
-from src.core.runner import ScanRunner, build_scan_list
-from src.models import Scope, Target
+from haris.core.runner import ScanRunner, build_scan_list
+from haris.models import Scope, Target
 
 
 def _make_target(url: str = "https://example.com") -> Target:
@@ -18,7 +17,7 @@ class TestScanRunner:
             profile_name="quick",
         )
 
-        with patch("src.core.runner.all_registered") as mock_reg:
+        with patch("haris.core.runner.all_registered") as mock_reg:
             mock_scanner_cls = MagicMock()
             mock_scanner_instance = MagicMock()
             mock_scanner_instance.name = "header_checks"
@@ -26,14 +25,14 @@ class TestScanRunner:
 
             mock_reg.return_value = {"header_checks": mock_scanner_cls}
 
-            with patch("src.core.runner.get_profile") as mock_profile:
+            with patch("haris.core.runner.get_profile") as mock_profile:
                 mock_profile.return_value = MagicMock(
                     scanners=["header_checks"],
                     display_name="Quick",
                     report_intro="Quick scan",
                 )
 
-                with patch("src.core.runner.ScanEngine") as mock_engine_cls:
+                with patch("haris.core.runner.ScanEngine") as mock_engine_cls:
                     mock_session = MagicMock()
                     mock_engine_cls.return_value.run.return_value = mock_session
 
@@ -49,10 +48,10 @@ class TestScanRunner:
             profile_name="quick",
         )
 
-        with patch("src.core.runner.all_registered") as mock_reg:
+        with patch("haris.core.runner.all_registered") as mock_reg:
             mock_reg.return_value = {}
 
-            with patch("src.core.runner.get_profile") as mock_profile:
+            with patch("haris.core.runner.get_profile") as mock_profile:
                 mock_profile.return_value = MagicMock(
                     scanners=["nonexistent"],
                 )
@@ -67,12 +66,12 @@ class TestScanRunner:
             scanner_names=["header_checks"],
         )
 
-        with patch("src.core.runner.all_registered") as mock_reg:
+        with patch("haris.core.runner.all_registered") as mock_reg:
             mock_cls = MagicMock()
             mock_cls.return_value = MagicMock(name="header_checks")
             mock_reg.return_value = {"header_checks": mock_cls}
 
-            with patch("src.core.runner.ScanEngine") as mock_engine_cls:
+            with patch("haris.core.runner.ScanEngine") as mock_engine_cls:
                 mock_engine_cls.return_value.run.return_value = MagicMock()
                 runner.run()
 

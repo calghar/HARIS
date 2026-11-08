@@ -7,12 +7,17 @@ import yaml
 
 from ..models import AuthConfig, Config, LLMConfig, ScannerConfig, Scope, Target
 from ..models.templates import TemplateSource
+from .paths import resolve_config_file
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_CONFIG_PATH = (
-    Path(__file__).resolve().parent.parent.parent / "config" / "default_config.yaml"
-)
+CONFIG_ENV_VAR = "HARIS_CONFIG"
+
+
+def default_config_path() -> Path:
+    """HARIS_CONFIG, else ./config/default_config.yaml, else the packaged file."""
+    env_path = os.environ.get(CONFIG_ENV_VAR)
+    return Path(env_path) if env_path else resolve_config_file("default_config.yaml")
 
 
 def load_config(
@@ -24,13 +29,14 @@ def load_config(
     Priority (highest to lowest):
     1. ``overrides`` dict
     2. Environment variables (HARIS_*)
-    3. YAML config file
+    3. YAML config file (``config_path``, ``HARIS_CONFIG``, ``./config/``,
+       then the packaged default)
     4. Built-in defaults
     """
     raw: dict[str, Any] = {}
 
     # Load YAML
-    path = Path(config_path) if config_path else DEFAULT_CONFIG_PATH
+    path = Path(config_path) if config_path else default_config_path()
     if path.exists():
         with open(path) as fh:
             raw = yaml.safe_load(fh) or {}

@@ -21,9 +21,8 @@ from starlette.middleware.sessions import SessionMiddleware
 from starlette.responses import Response
 
 # Trigger @register_scanner / @register_check decorators
-import src.checks  # noqa: F401
-import src.scanners  # noqa: F401
-
+# Trigger @register_scanner / @register_check decorators
+from .. import __version__, checks, scanners  # noqa: F401
 from ..auth.bootstrap import bootstrap_admin_from_env
 from ..auth.middleware import (
     get_auth_service,
@@ -50,7 +49,6 @@ BASE_DIR = Path(__file__).resolve().parent
 TEMPLATES_DIR = BASE_DIR / "templates"
 STATIC_DIR = BASE_DIR / "static"
 REPORTS_DIR = Path("./reports")
-ASSETS_DIR = Path(__file__).resolve().parents[2] / "assets"
 LOG_DIR = Path("./data/logs")
 LOG_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -103,7 +101,7 @@ async def _periodic_session_cleanup() -> None:
 app = FastAPI(
     title="HARIS",
     description="Black-box web security audit dashboard",
-    version="0.5.1",
+    version=__version__,
     lifespan=lifespan,
 )
 
@@ -115,7 +113,6 @@ app.add_middleware(
 )
 
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
-app.mount("/assets", StaticFiles(directory=str(ASSETS_DIR)), name="assets")
 app.include_router(llm_router)
 app.include_router(auth_router)
 templates = Jinja2Templates(directory=str(TEMPLATES_DIR))

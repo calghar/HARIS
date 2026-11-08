@@ -1,8 +1,7 @@
 import sqlite3
 
 import pytest
-
-from src.db.store import _SCHEMA_VERSION, ScanStore
+from haris.db.store import _SCHEMA_VERSION, ScanStore
 
 
 def test_schema_version_is_6():

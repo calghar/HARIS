@@ -2,9 +2,9 @@ import json
 import tempfile
 from pathlib import Path
 
-from src.models import Confidence, Finding, ScanSession, Severity, Target
-from src.reporting.json_report import JSONReporter
-from src.reporting.markdown_report import MarkdownReporter
+from haris.models import Confidence, Finding, ScanSession, Severity, Target
+from haris.reporting.json_report import JSONReporter
+from haris.reporting.markdown_report import MarkdownReporter
 
 
 def _make_session() -> ScanSession:

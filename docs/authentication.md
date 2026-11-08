@@ -79,7 +79,7 @@ HARIS uses the **double-submit cookie** pattern:
 
 ## Security Headers
 
-The `SecurityHeadersMiddleware` (`src/auth/security_headers.py`) injects on every response:
+The `SecurityHeadersMiddleware` (`src/haris/auth/security_headers.py`) injects on every response:
 
 | Header | Value |
 | ------ | ----- |
@@ -206,7 +206,7 @@ location / {
 ## Auth Module Structure
 
 ```
-src/auth/
+src/haris/auth/
 ├── __init__.py
 ├── models.py          — User, UserSession, AuditEvent, enums
 ├── service.py         — AuthService: CRUD, sessions, tokens, audit log
@@ -217,7 +217,7 @@ src/auth/
 ├── email.py           — SMTP email sender (stdlib smtplib)
 └── bootstrap.py       — Env-var admin bootstrap (runs once at startup)
 
-src/web/templates/auth/
+src/haris/web/templates/auth/
 ├── login.html         — Sign-in form + optional OIDC button
 ├── register.html      — Self-registration (domain-restricted)
 ├── verify_email.html  — Email verification confirmation

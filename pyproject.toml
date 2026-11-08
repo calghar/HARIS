@@ -3,7 +3,7 @@ requires = ["setuptools>=68.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "HARIS"
+name = "haris"
 version = "0.6.2"
 description = "Black-box web application security audit framework"
 readme = "README.md"
@@ -43,6 +43,7 @@ web = [
     "python-multipart>=0.0.6",
     "authlib>=1.3.0",
     "httpx>=0.24.0",
+    "itsdangerous>=2.0",
 ]
 # Report generation extras
 reporting = [
@@ -74,14 +75,23 @@ scanners = [
 ]
 # Everything
 all = [
-    "HARIS[web,reporting,llm-anthropic,scanners,dev]",
+    "haris[web,reporting,llm-anthropic,scanners,dev]",
 ]
 
 [project.scripts]
-HARIS = "scripts.run_scan:main"
+haris = "haris.cli:main"
 
 [tool.setuptools.packages.find]
-include = ["src*"]
+where = ["src"]
+include = ["haris*"]
+
+[tool.setuptools.package-data]
+haris = [
+    "web/templates/**/*",
+    "web/static/**/*",
+    "llm/templates/**/*",
+    "resources/config/**/*",
+]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

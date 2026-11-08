@@ -6,10 +6,10 @@ import json
 import tempfile
 from pathlib import Path
 
-from src.llm.base import BACKEND_REGISTRY, BaseLLMBackend
-from src.llm.prompts import PromptBuilder
-from src.llm.qa import ReportQA
-from src.models import (
+from haris.llm.base import BACKEND_REGISTRY, BaseLLMBackend
+from haris.llm.prompts import PromptBuilder
+from haris.llm.qa import ReportQA
+from haris.models import (
     Confidence,
     Finding,
     LLMResponse,

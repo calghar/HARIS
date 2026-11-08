@@ -1,6 +1,6 @@
-from src.core.engine import ScanEngine
-from src.core.scanner import BaseScanner
-from src.models import (
+from haris.core.engine import ScanEngine
+from haris.core.scanner import BaseScanner
+from haris.models import (
     Confidence,
     Finding,
     ScannerResult,
@@ -8,7 +8,7 @@ from src.models import (
     Severity,
     Target,
 )
-from src.models.scan_context import ScanContext
+from haris.models.scan_context import ScanContext
 
 
 class MockScanner(BaseScanner):

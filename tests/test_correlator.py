@@ -1,5 +1,5 @@
-from src.core.correlator import FindingCorrelator
-from src.models import Confidence, Finding, Severity
+from haris.core.correlator import FindingCorrelator
+from haris.models import Confidence, Finding, Severity
 
 
 class TestFindingCorrelator:

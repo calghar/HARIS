@@ -3,6 +3,14 @@
 
 ## 0.6.3 — Unreleased
 
+### Changed (packaging)
+
+- Renamed package `src` to `haris` (`src/haris/`); project name `haris`; console script `haris` replaces `scripts/run_scan.py`; `python -m haris` works
+- `config/` moved to `src/haris/resources/config/` and ships in the wheel; override with `HARIS_CONFIG` or `./config/` in the working directory
+- Web logo served from `/static/haris_logo.png`; `/assets` mount removed
+- `haris.__version__` read from package metadata; the web app reports it
+- Added `itsdangerous` to the `web` extra (required by `SessionMiddleware`)
+
 ### Fixed
 
 - **Nuclei scanner Docker template persistence** — nuclei templates now persisted via `nuclei-data` volume across container rebuilds, avoiding 2GB+ re-download on every rebuild

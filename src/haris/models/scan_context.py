@@ -4,7 +4,7 @@ from pydantic import BaseModel, Field
 class ScanContext(BaseModel):
     """Cross-scanner intelligence accumulated during a scan session.
 
-    Built incrementally by :class:`~src.core.engine.ScanEngine` as each
+    Built incrementally by :class:`~haris.core.engine.ScanEngine` as each
     scanner completes.  Downstream scanners can read this context to
     make smarter template/module selections.
     """

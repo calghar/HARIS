@@ -71,11 +71,11 @@ If those variables are not set, visiting `/auth/setup` creates the first admin a
 
 ```bash
 # CLI
-python scripts/run_scan.py --url https://example.com --profile quick --yes
-python scripts/run_scan.py --list-profiles
+haris --url https://example.com --profile quick --yes
+haris --list-profiles
 
 # Web dashboard
-python scripts/run_scan.py --web   # http://localhost:8000 — login required
+haris --web   # http://localhost:8000 — login required
 
 # Docker
 docker compose up                  # web UI on port 8000
@@ -83,16 +83,16 @@ docker compose run --rm cli --url https://example.com --profile quick --yes
 make reload                        # rebuild + restart + stream logs after code changes
 
 # LLM analysis (after a scan completes)
-python scripts/run_scan.py llm ask --scan-id <id> --question "Top 3 risks for an exec"
-python scripts/run_scan.py llm remediate --scan-id <id> --format jira
-python scripts/run_scan.py llm summarize --scan-id <id> --audience developer
+haris llm ask --scan-id <id> --question "Top 3 risks for an exec"
+haris llm remediate --scan-id <id> --format jira
+haris llm summarize --scan-id <id> --audience developer
 
 # In-pipeline LLM enrichment
-python scripts/run_scan.py --url https://example.com --profile quick --yes --llm-enrich
+haris --url https://example.com --profile quick --yes --llm-enrich
 
 # Scanner template updates
-python scripts/run_scan.py update-templates
-python scripts/run_scan.py update-templates --scanner nuclei --list
+haris update-templates
+haris update-templates --scanner nuclei --list
 ```
 
 ## Scan Profiles
@@ -107,7 +107,7 @@ python scripts/run_scan.py update-templates --scanner nuclei --list
 
 ## Configuration
 
-Copy `.env.example` to `.env`. See `config/default_config.yaml` for all options.
+Copy `.env.example` to `.env`. See `src/haris/resources/config/default_config.yaml` for all options. Override it with `HARIS_CONFIG=<file>` or `./config/default_config.yaml` in the working directory.
 
 | Variable | Purpose |
 | -------- | ------- |

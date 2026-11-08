@@ -1,6 +1,6 @@
 """Tests for the Finding model."""
 
-from src.models import Confidence, Finding, Severity
+from haris.models import Confidence, Finding, Severity
 
 
 class TestSeverity:

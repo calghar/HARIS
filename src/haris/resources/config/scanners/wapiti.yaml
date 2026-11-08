@@ -1,5 +1,5 @@
 # Wapiti Scanner Configuration
-# Extracted from src/scanners/wapiti_scanner.py
+# Extracted from haris/scanners/wapiti_scanner.py
 
 # Map Wapiti integer severity levels to internal severity model.
 # Wapiti 3.x uses integers: 0=INFO, 1=LOW, 2=MEDIUM, 3=HIGH, 4=CRITICAL.

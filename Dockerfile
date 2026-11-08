@@ -35,18 +35,11 @@ RUN nuclei -update-templates \
 
 WORKDIR /app
 
-# Install Python dependencies (layer caching: copy manifests first)
-COPY pyproject.toml requirements.txt ./
-RUN pip install --no-cache-dir -e ".[all]" 2>/dev/null \
-    || pip install --no-cache-dir \
-       pydantic requests pyyaml jinja2 \
-       fastapi 'uvicorn[standard]' python-multipart markdown \
-       sslyze wapiti3 anthropic
-
-# Copy application code and install in editable mode
-COPY . .
-RUN pip install --no-cache-dir -e . && mkdir -p /app/reports
+# Copy application code and install (non-editable)
+COPY pyproject.toml README.md ./
+COPY src ./src
+RUN pip install --no-cache-dir ".[all]" && mkdir -p /app/reports
 
 EXPOSE 8000
 
-CMD ["uvicorn", "src.web.app:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uvicorn", "haris.web.app:app", "--host", "0.0.0.0", "--port", "8000"]

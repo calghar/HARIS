@@ -1,5 +1,5 @@
 # Nmap Scanner Configuration
-# Extracted from src/scanners/nmap_scanner.py
+# Extracted from haris/scanners/nmap_scanner.py
 
 # Services that should not normally be exposed to the network
 risky_services:

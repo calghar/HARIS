@@ -1,4 +1,4 @@
-from src.models import AuthConfig, Scope, Target
+from haris.models import AuthConfig, Scope, Target
 
 
 class TestScope:

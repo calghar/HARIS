@@ -18,7 +18,7 @@ class BaseScanner(abc.ABC):
     To add a new scanner:
       1. Subclass BaseScanner.
       2. Implement configure(), scan(), and parse_results().
-      3. Register it in src/scanners/__init__.py.
+      3. Register it in src/haris/scanners/__init__.py.
     """
 
     name: str = "base"

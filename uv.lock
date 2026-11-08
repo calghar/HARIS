@@ -780,6 +780,7 @@ all = [
     { name = "bandit" },
     { name = "fastapi" },
     { name = "httpx" },
+    { name = "itsdangerous" },
     { name = "markdown" },
     { name = "mypy" },
     { name = "pip-audit" },
@@ -822,6 +823,7 @@ web = [
     { name = "authlib" },
     { name = "fastapi" },
     { name = "httpx" },
+    { name = "itsdangerous" },
     { name = "python-multipart" },
     { name = "uvicorn", extra = ["standard"] },
 ]
@@ -836,6 +838,7 @@ requires-dist = [
     { name = "fastapi", marker = "extra == 'web'", specifier = ">=0.104.0" },
     { name = "haris", extras = ["web", "reporting", "llm-anthropic", "scanners", "dev"], marker = "extra == 'all'" },
     { name = "httpx", marker = "extra == 'web'", specifier = ">=0.24.0" },
+    { name = "itsdangerous", marker = "extra == 'web'", specifier = ">=2.0" },
     { name = "jinja2", specifier = ">=3.1.0" },
     { name = "markdown", marker = "extra == 'reporting'", specifier = ">=3.5" },
     { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.7" },

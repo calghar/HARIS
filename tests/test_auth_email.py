@@ -4,8 +4,7 @@ import smtplib
 from unittest.mock import MagicMock, patch
 
 import pytest
-
-from src.auth.email import EmailSender, SMTPConfig
+from haris.auth.email import EmailSender, SMTPConfig
 
 _B64_RE = re.compile(r"(?:[A-Za-z0-9+/]{4})+(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?")
 
@@ -37,7 +36,7 @@ def _make_sender(*, enabled: bool = False, use_tls: bool = True) -> EmailSender:
 class TestSendVerificationEmailSmtpDisabled:
     def test_does_not_call_smtp_when_disabled(self):
         sender = _make_sender(enabled=False)
-        with patch("src.auth.email.smtplib.SMTP") as mock_smtp:
+        with patch("haris.auth.email.smtplib.SMTP") as mock_smtp:
             sender.send_verification_email(
                 to_email="alice@example.com",
                 token="tok123",
@@ -49,7 +48,7 @@ class TestSendVerificationEmailSmtpDisabled:
         sender = _make_sender(enabled=False)
         import logging
 
-        with caplog.at_level(logging.INFO, logger="src.auth.email"):
+        with caplog.at_level(logging.INFO, logger="haris.auth.email"):
             sender.send_verification_email(
                 to_email="alice@example.com",
                 token="tok123",
@@ -61,7 +60,7 @@ class TestSendVerificationEmailSmtpDisabled:
         sender = _make_sender(enabled=False)
         import logging
 
-        with caplog.at_level(logging.INFO, logger="src.auth.email"):
+        with caplog.at_level(logging.INFO, logger="haris.auth.email"):
             sender.send_verification_email(
                 to_email="bob@example.com",
                 token="mytoken",
@@ -74,7 +73,7 @@ class TestSendVerificationEmailSmtpDisabled:
         sender = _make_sender(enabled=False)
         import logging
 
-        with caplog.at_level(logging.INFO, logger="src.auth.email"):
+        with caplog.at_level(logging.INFO, logger="haris.auth.email"):
             sender.send_verification_email(
                 to_email="carol@example.com",
                 token="t99",
@@ -94,7 +93,7 @@ class TestSendVerificationEmailSmtpEnabled:
         mock_smtp_instance.__exit__ = MagicMock(return_value=False)
 
         with patch(
-            "src.auth.email.smtplib.SMTP",
+            "haris.auth.email.smtplib.SMTP",
             return_value=mock_smtp_instance,
         ) as mock_smtp_cls:
             sender.send_verification_email(
@@ -110,7 +109,7 @@ class TestSendVerificationEmailSmtpEnabled:
         mock_smtp_instance.__enter__ = MagicMock(return_value=mock_smtp_instance)
         mock_smtp_instance.__exit__ = MagicMock(return_value=False)
 
-        with patch("src.auth.email.smtplib.SMTP", return_value=mock_smtp_instance):
+        with patch("haris.auth.email.smtplib.SMTP", return_value=mock_smtp_instance):
             sender.send_verification_email(
                 to_email="eve@example.com",
                 token="tok789",
@@ -124,7 +123,7 @@ class TestSendVerificationEmailSmtpEnabled:
         mock_smtp_instance.__enter__ = MagicMock(return_value=mock_smtp_instance)
         mock_smtp_instance.__exit__ = MagicMock(return_value=False)
 
-        with patch("src.auth.email.smtplib.SMTP", return_value=mock_smtp_instance):
+        with patch("haris.auth.email.smtplib.SMTP", return_value=mock_smtp_instance):
             sender.send_verification_email(
                 to_email="frank@example.com",
                 token="tokABC",
@@ -142,7 +141,7 @@ class TestSendVerificationEmailSmtpEnabled:
         mock_smtp_instance.__enter__ = MagicMock(return_value=mock_smtp_instance)
         mock_smtp_instance.__exit__ = MagicMock(return_value=False)
 
-        with patch("src.auth.email.smtplib.SMTP", return_value=mock_smtp_instance):
+        with patch("haris.auth.email.smtplib.SMTP", return_value=mock_smtp_instance):
             sender.send_verification_email(
                 to_email="grace@example.com",
                 token="tok-verify",
@@ -160,7 +159,7 @@ class TestSendVerificationEmailSmtpEnabled:
         mock_smtp_instance.__enter__ = MagicMock(return_value=mock_smtp_instance)
         mock_smtp_instance.__exit__ = MagicMock(return_value=False)
 
-        with patch("src.auth.email.smtplib.SMTP", return_value=mock_smtp_instance):
+        with patch("haris.auth.email.smtplib.SMTP", return_value=mock_smtp_instance):
             sender.send_verification_email(
                 to_email="henry@example.com",
                 token="tok-login",
@@ -182,7 +181,7 @@ class TestSendVerificationEmailSmtpEnabled:
         mock_smtp_instance.__enter__ = MagicMock(return_value=mock_smtp_instance)
         mock_smtp_instance.__exit__ = MagicMock(return_value=False)
 
-        with patch("src.auth.email.smtplib.SMTP", return_value=mock_smtp_instance):
+        with patch("haris.auth.email.smtplib.SMTP", return_value=mock_smtp_instance):
             sender.send_verification_email(
                 to_email="iris@example.com",
                 token="tok-nologin",
@@ -200,7 +199,7 @@ class TestSendVerificationEmailSmtpEnabled:
         )
 
         with (
-            patch("src.auth.email.smtplib.SMTP", return_value=mock_smtp_instance),
+            patch("haris.auth.email.smtplib.SMTP", return_value=mock_smtp_instance),
             pytest.raises(smtplib.SMTPException),
         ):
             sender.send_verification_email(
@@ -215,7 +214,7 @@ class TestSendVerificationEmailSmtpEnabled:
         mock_smtp_instance.__enter__ = MagicMock(return_value=mock_smtp_instance)
         mock_smtp_instance.__exit__ = MagicMock(return_value=False)
 
-        with patch("src.auth.email.smtplib.SMTP", return_value=mock_smtp_instance):
+        with patch("haris.auth.email.smtplib.SMTP", return_value=mock_smtp_instance):
             sender.send_verification_email(
                 to_email="kate@example.com",
                 token="tok-notls",
@@ -228,7 +227,7 @@ class TestSendVerificationEmailSmtpEnabled:
 class TestSendPasswordResetEmailSmtpDisabled:
     def test_does_not_call_smtp_when_disabled(self):
         sender = _make_sender(enabled=False)
-        with patch("src.auth.email.smtplib.SMTP") as mock_smtp:
+        with patch("haris.auth.email.smtplib.SMTP") as mock_smtp:
             sender.send_password_reset_email(
                 to_email="leo@example.com",
                 token="reset-tok",
@@ -240,7 +239,7 @@ class TestSendPasswordResetEmailSmtpDisabled:
         sender = _make_sender(enabled=False)
         import logging
 
-        with caplog.at_level(logging.INFO, logger="src.auth.email"):
+        with caplog.at_level(logging.INFO, logger="haris.auth.email"):
             sender.send_password_reset_email(
                 to_email="leo@example.com",
                 token="reset-tok",
@@ -252,7 +251,7 @@ class TestSendPasswordResetEmailSmtpDisabled:
         sender = _make_sender(enabled=False)
         import logging
 
-        with caplog.at_level(logging.INFO, logger="src.auth.email"):
+        with caplog.at_level(logging.INFO, logger="haris.auth.email"):
             sender.send_password_reset_email(
                 to_email="mia@example.com",
                 token="rst99",
@@ -265,7 +264,7 @@ class TestSendPasswordResetEmailSmtpDisabled:
         sender = _make_sender(enabled=False)
         import logging
 
-        with caplog.at_level(logging.INFO, logger="src.auth.email"):
+        with caplog.at_level(logging.INFO, logger="haris.auth.email"):
             sender.send_password_reset_email(
                 to_email="ned@example.com",
                 token="rst-slash",
@@ -284,7 +283,7 @@ class TestSendPasswordResetEmailSmtpEnabled:
         mock_smtp_instance.__exit__ = MagicMock(return_value=False)
 
         with patch(
-            "src.auth.email.smtplib.SMTP",
+            "haris.auth.email.smtplib.SMTP",
             return_value=mock_smtp_instance,
         ) as mock_smtp_cls:
             sender.send_password_reset_email(
@@ -300,7 +299,7 @@ class TestSendPasswordResetEmailSmtpEnabled:
         mock_smtp_instance.__enter__ = MagicMock(return_value=mock_smtp_instance)
         mock_smtp_instance.__exit__ = MagicMock(return_value=False)
 
-        with patch("src.auth.email.smtplib.SMTP", return_value=mock_smtp_instance):
+        with patch("haris.auth.email.smtplib.SMTP", return_value=mock_smtp_instance):
             sender.send_password_reset_email(
                 to_email="pat@example.com",
                 token="rst-bodycheck",
@@ -322,7 +321,7 @@ class TestSendPasswordResetEmailSmtpEnabled:
         )
 
         with (
-            patch("src.auth.email.smtplib.SMTP", return_value=mock_smtp_instance),
+            patch("haris.auth.email.smtplib.SMTP", return_value=mock_smtp_instance),
             pytest.raises(smtplib.SMTPException),
         ):
             sender.send_password_reset_email(

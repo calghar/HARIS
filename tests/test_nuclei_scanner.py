@@ -1,11 +1,10 @@
 import json
 
 import pytest
-
-from src.models import Finding, Severity
-from src.models.scan_context import ScanContext
-from src.models.target import Scope, Target
-from src.scanners.nuclei_scanner import (
+from haris.models import Finding, Severity
+from haris.models.scan_context import ScanContext
+from haris.models.target import Scope, Target
+from haris.scanners.nuclei_scanner import (
     DEFAULT_TEMPLATE_DIRS,
     TECH_FINGERPRINT_DIR,
     NucleiScanner,
@@ -498,7 +497,7 @@ class TestResolveTargetedSelection:
         ctx = ScanContext()
         ctx.add_technologies(["wordpress"])
         # Mock the template root so the workflow file "exists"
-        with patch("src.scanners.nuclei_scanner._NUCLEI_TEMPLATE_ROOT") as mock_root:
+        with patch("haris.scanners.nuclei_scanner._NUCLEI_TEMPLATE_ROOT") as mock_root:
             mock_path = MagicMock()
             mock_path.exists.return_value = True
             mock_root.__truediv__.return_value = mock_path
@@ -563,7 +562,7 @@ class TestCheckTemplatesAvailable:
         from unittest.mock import patch
 
         scanner = NucleiScanner()
-        with patch("src.scanners.nuclei_scanner._NUCLEI_TEMPLATE_ROOT") as mock_root:
+        with patch("haris.scanners.nuclei_scanner._NUCLEI_TEMPLATE_ROOT") as mock_root:
             mock_root.is_dir.return_value = True
             assert scanner._check_templates_available() is True
 
@@ -571,9 +570,9 @@ class TestCheckTemplatesAvailable:
         from unittest.mock import patch
 
         scanner = NucleiScanner()
-        with patch("src.scanners.nuclei_scanner._NUCLEI_TEMPLATE_ROOT") as mock_root:
+        with patch("haris.scanners.nuclei_scanner._NUCLEI_TEMPLATE_ROOT") as mock_root:
             mock_root.is_dir.return_value = False
-            with patch("src.scanners.nuclei_scanner.logger") as mock_logger:
+            with patch("haris.scanners.nuclei_scanner.logger") as mock_logger:
                 assert scanner._check_templates_available() is False
                 assert mock_logger.warning.called
 
@@ -634,7 +633,7 @@ class TestRunPhase:
         stderr = "line1\nUnsolicited response received\nline2"
         with (
             patch.object(scanner, "_run_command", return_value=(0, "", stderr)),
-            patch("src.scanners.nuclei_scanner.logger") as mock_logger,
+            patch("haris.scanners.nuclei_scanner.logger") as mock_logger,
         ):
             scanner._run_phase(target, phase_label="test")
             # Check that the warning doesn't contain "Unsolicited"
@@ -721,7 +720,7 @@ class TestWriteUrlList:
 
 class TestGenericRemediation:
     def test_known_tag_returns_specific_remediation(self) -> None:
-        from src.models import Severity
+        from haris.models import Severity
 
         remediation = NucleiScanner._generic_remediation(
             ["sql_injection"], Severity.HIGH
@@ -729,7 +728,7 @@ class TestGenericRemediation:
         assert "parameterised queries" in remediation.lower()
 
     def test_unknown_tag_returns_default(self) -> None:
-        from src.models import Severity
+        from haris.models import Severity
 
         remediation = NucleiScanner._generic_remediation(
             ["unknown-tag-xyz"], Severity.MEDIUM
@@ -737,7 +736,7 @@ class TestGenericRemediation:
         assert "security standard" in remediation.lower()
 
     def test_first_match_wins(self) -> None:
-        from src.models import Severity
+        from haris.models import Severity
 
         # Both are in remediation_map, should return first match
         remediation = NucleiScanner._generic_remediation(
@@ -752,7 +751,7 @@ class TestGenericRemediation:
 
 class TestScanAuthHeaderForwarding:
     def test_auth_header_forwarded_to_command(self, target: Target) -> None:
-        from src.models.target import AuthConfig
+        from haris.models.target import AuthConfig
 
         target.auth = AuthConfig(
             method="header", header_name="X-API-Key", header_value="secret123"
@@ -764,7 +763,7 @@ class TestScanAuthHeaderForwarding:
         assert cmd[h_idx + 1] == "X-API-Key: secret123"
 
     def test_no_auth_means_no_h_flag(self, target: Target) -> None:
-        from src.models.target import AuthConfig
+        from haris.models.target import AuthConfig
 
         target.auth = AuthConfig(method="none")
         # Count -H flags - should only be for non-auth headers if any

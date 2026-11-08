@@ -102,7 +102,7 @@ class NucleiScanner(BaseScanner):
     3. **Phase 2b — Tech-targeted scan**: If specific technologies were detected,
        runs templates matching tech-specific tags and workflows.
 
-    Cross-scanner intelligence from :class:`~src.models.scan_context.ScanContext`
+    Cross-scanner intelligence from :class:`~haris.models.scan_context.ScanContext`
     further refines template selection using Nmap service detection,
     Nikto server headers, and Wapiti crawl results.
 

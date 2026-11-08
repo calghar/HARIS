@@ -1,8 +1,7 @@
 from __future__ import annotations
 
 import pytest
-
-from src.models.chat import ChatMessage, Conversation
+from haris.models.chat import ChatMessage, Conversation
 
 
 class TestChatMessageDefaults:

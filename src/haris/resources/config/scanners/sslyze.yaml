@@ -1,5 +1,5 @@
 # SSLyze Scanner Configuration
-# Extracted from src/scanners/sslyze_scanner.py
+# Extracted from haris/scanners/sslyze_scanner.py
 
 # Deprecated TLS/SSL protocols to flag
 # key: SSLyze result key, proto_name: display name, severity: internal severity

@@ -1,20 +1,20 @@
 from unittest.mock import patch
 
-from src.models.templates import (
+from haris.models.templates import (
     TemplateConfig,
     TemplateMetadata,
     TemplateSource,
     UpdateResult,
 )
-from src.templates.adapters import (
+from haris.templates.adapters import (
     ADAPTER_REGISTRY,
     NiktoTemplateAdapter,
     NucleiTemplateAdapter,
     get_adapter,
 )
-from src.templates.manager import TemplateManager
-from src.templates.report import TemplateUpdateReporter
-from src.templates.updater import TemplateUpdater
+from haris.templates.manager import TemplateManager
+from haris.templates.report import TemplateUpdateReporter
+from haris.templates.updater import TemplateUpdater
 
 # ---------------------------------------------------------------------------
 # Model tests

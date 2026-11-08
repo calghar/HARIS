@@ -2,7 +2,7 @@
 
 All data models (enums, value objects, configuration) live here.
 Business logic (scanners, engine, correlators, planners) stays
-in their respective packages (src/core, src/scanners, etc.).
+in their respective packages (src/haris/core, src/haris/scanners, etc.).
 """
 
 from .chat import ChatMessage, Conversation

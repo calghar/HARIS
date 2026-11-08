@@ -1,8 +1,7 @@
 """Tests for scanner_config.py validation logic."""
 
 import pytest
-
-from src.data.scanner_config import _validate_nuclei_config
+from haris.data.scanner_config import _validate_nuclei_config
 
 
 class TestNucleiConfigValidation:
@@ -42,7 +41,10 @@ class TestNucleiConfigValidation:
     def test_real_nuclei_yaml_validates(self) -> None:
         """The actual nuclei.yaml file validates successfully."""
         # Clear cache to force reload with validation
-        from src.data.scanner_config import _load_scanner_config, _scanner_config_cache
+        from haris.data.scanner_config import (
+            _load_scanner_config,
+            _scanner_config_cache,
+        )
 
         _scanner_config_cache.pop("nuclei", None)
 

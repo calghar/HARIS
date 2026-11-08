@@ -15,7 +15,6 @@ services:
       - ./reports:/app/reports
       - ./data:/app/data
       - ./config:/app/config:ro
-      - ./assets:/app/assets:ro
       - ./templates:/app/templates
       - nikto-data:/opt/nikto
       - nuclei-data:/root/nuclei-templates
@@ -31,7 +30,7 @@ services:
   # CLI mode: run one-off scans from the command line
   cli:
     build: .
-    entrypoint: ["python", "scripts/run_scan.py"]
+    entrypoint: ["haris"]
     volumes:
       - ./reports:/app/reports
       - ./data:/app/data

@@ -14,8 +14,8 @@ logger = logging.getLogger(__name__)
 class ScanRunner:
     """High-level scan orchestrator that wires up scanners, templates, and LLM.
 
-    Both the CLI (``scripts/run_scan.py``) and the web dashboard
-    (``src/web/app.py``) delegate to this class so behaviour stays consistent.
+    Both the CLI (``haris.cli``) and the web dashboard
+    (``src/haris/web/app.py``) delegate to this class so behaviour stays consistent.
     """
 
     def __init__(

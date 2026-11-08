@@ -1,19 +1,19 @@
 import json
 from unittest.mock import MagicMock
 
-from src.llm.correlation import LLMCorrelator
-from src.llm.enrichment import FindingEnricher
-from src.llm.enrichment_prompts import EnrichmentPromptBuilder
-from src.llm.triage import SmartTriager
-from src.llm.variant_analysis import VariantAnalyzer, VariantSuggestion
-from src.models import Confidence, Finding, Severity, Target
-from src.models.enrichment import (
+from haris.llm.correlation import LLMCorrelator
+from haris.llm.enrichment import FindingEnricher
+from haris.llm.enrichment_prompts import EnrichmentPromptBuilder
+from haris.llm.triage import SmartTriager
+from haris.llm.variant_analysis import VariantAnalyzer, VariantSuggestion
+from haris.models import Confidence, Finding, Severity, Target
+from haris.models.enrichment import (
     AttackChain,
     EnrichedFinding,
     TriageContext,
     TriagedFinding,
 )
-from src.models.llm import LLMResponse
+from haris.models.llm import LLMResponse
 
 
 def _mock_backend(response_text: str) -> MagicMock:

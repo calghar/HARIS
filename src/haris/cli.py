@@ -7,17 +7,17 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-
 # Import checks and scanners to trigger @register_scanner / @register_check
-import src.checks  # noqa: F401
-import src.scanners  # noqa: F401
-from src.config.loader import load_config
-from src.core.decorators import all_registered
-from src.core.profiles import PROFILES, list_profiles
-from src.core.runner import ScanRunner
-from src.llm.base import create_backend
-from src.reporting import REPORTER_REGISTRY
+from haris import (
+    checks,  # noqa: F401
+    scanners,  # noqa: F401
+)
+from haris.config.loader import load_config
+from haris.core.decorators import all_registered
+from haris.core.profiles import PROFILES, list_profiles
+from haris.core.runner import ScanRunner
+from haris.llm.base import create_backend
+from haris.reporting import REPORTER_REGISTRY
 
 LEGAL_BANNER = """
 ============================================================
@@ -248,8 +248,8 @@ def _create_backend(args: argparse.Namespace):
 
 
 def handle_update_templates(args: argparse.Namespace) -> int:
-    from src.templates.manager import TemplateManager
-    from src.templates.report import TemplateUpdateReporter
+    from haris.templates.manager import TemplateManager
+    from haris.templates.report import TemplateUpdateReporter
 
     config = load_config(config_path=getattr(args, "config", None))
 
@@ -279,7 +279,7 @@ def handle_update_templates(args: argparse.Namespace) -> int:
 
 
 def handle_llm_command(args: argparse.Namespace) -> int:
-    from src.llm.qa import ReportQA
+    from haris.llm.qa import ReportQA
 
     if not args.llm_action:
         print("Usage: HARIS llm {ask|summarize|remediate|test-cases}")
@@ -337,7 +337,7 @@ def _handle_non_scan_actions(args: argparse.Namespace) -> int | None:
         return 0
 
     if args.web:
-        from src.web.app import app
+        from haris.web.app import app
 
         uvicorn = importlib.import_module("uvicorn")
 
@@ -388,7 +388,7 @@ def _write_reports(session: Any, config: Any) -> None:
 
 def _save_session_to_db(session: Any) -> None:
     try:
-        from src.db.store import ScanStore
+        from haris.db.store import ScanStore
 
         store = ScanStore()
         store.save_session(session)

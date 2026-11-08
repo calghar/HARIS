@@ -2,10 +2,9 @@ import sqlite3
 from pathlib import Path
 
 import pytest
-
-from src.auth.models import AuditAction, AuditEvent, AuthProvider, UserRole
-from src.auth.service import AuthService
-from src.db.store import ScanStore
+from haris.auth.models import AuditAction, AuditEvent, AuthProvider, UserRole
+from haris.auth.service import AuthService
+from haris.db.store import ScanStore
 
 
 @pytest.fixture()

@@ -10,7 +10,7 @@ Configuration -> Target -> Scanners (+ ScanContext) -> Findings -> Enrichment ->
 
 ## Layers
 
-### 1. Configuration (`src/config/`, `src/models/scan_config_template.py`)
+### 1. Configuration (`src/haris/config/`, `src/haris/models/scan_config_template.py`)
 
 The configuration layer loads settings from three sources (in priority order):
 
@@ -22,7 +22,7 @@ This ensures sensitive values (credentials, tokens) never need to be committed t
 
 **Scan Configuration Templates** add a fourth source: reusable presets stored in the SQLite database (`scan_config_templates` table, schema v4).  A template bundles a scan profile with per-scanner option overrides (Nuclei tags/severity, Nikto tuning/plugins, Nmap ports/script categories, Wapiti modules/scope, etc.).  When a scan is started with a template, its `template_id` is recorded on the scan session.  Five built-in templates are seeded on first run.
 
-### 2. Target Model (`src/core/target.py`)
+### 2. Target Model (`src/haris/core/target.py`)
 
 The `Target` dataclass represents the system under test:
 
@@ -32,7 +32,7 @@ The `Target` dataclass represents the system under test:
 
 The `Scope` object is the enforcement mechanism for lawful testing. Every scanner must check `scope.is_url_in_scope()` before making requests.
 
-### 3. Scanner Interface (`src/core/scanner.py`)
+### 3. Scanner Interface (`src/haris/core/scanner.py`)
 
 `BaseScanner` defines the contract for all scanners:
 
@@ -44,10 +44,10 @@ parse_results(raw_output) -> list[Finding]
 
 Two categories of scanners exist:
 
-- **External tool adapters** (`src/scanners/`): Wrap CLI tools like Wapiti, SSLyze, Nmap. They shell out to the tool, capture output (JSON/XML), and parse it.
-- **Custom checks** (`src/checks/`): Pure Python checks that use `requests` or `ssl` directly. No external dependencies.
+- **External tool adapters** (`src/haris/scanners/`): Wrap CLI tools like Wapiti, SSLyze, Nmap. They shell out to the tool, capture output (JSON/XML), and parse it.
+- **Custom checks** (`src/haris/checks/`): Pure Python checks that use `requests` or `ssl` directly. No external dependencies.
 
-### 4. Finding Model (`src/core/finding.py`)
+### 4. Finding Model (`src/haris/core/finding.py`)
 
 All scanners produce `Finding` objects with a unified schema:
 
@@ -57,11 +57,11 @@ All scanners produce `Finding` objects with a unified schema:
 - Evidence: raw evidence, example request, response snippet
 - Remediation: suggested fix, references
 
-### 5. OWASP Mapping (`src/core/owasp.py`)
+### 5. OWASP Mapping (`src/haris/core/owasp.py`)
 
 A lookup table maps vulnerability keywords and CWE IDs to OWASP Top 10 (2025) categories. The engine auto-enriches findings with OWASP categories based on scanner tags.
 
-### 6. ScanContext (`src/models/scan_context.py`)
+### 6. ScanContext (`src/haris/models/scan_context.py`)
 
 The `ScanContext` model accumulates cross-scanner intelligence during a scan:
 
@@ -72,7 +72,7 @@ The `ScanContext` model accumulates cross-scanner intelligence during a scan:
 
 The engine builds context incrementally after each scanner completes. Downstream scanners (notably Nuclei) read this context to make smarter template selections.
 
-### 7. Orchestration Engine (`src/core/engine.py`)
+### 7. Orchestration Engine (`src/haris/core/engine.py`)
 
 `ScanEngine` coordinates the scan:
 
@@ -92,7 +92,7 @@ Intelligence extraction sources:
 - **header_checks**: `Server`, `X-Powered-By`, and other response headers
 - **Wapiti**: crawled URLs (HTTP/HTTPS only)
 
-### 7. Reporting (`src/reporting/`)
+### 7. Reporting (`src/haris/reporting/`)
 
 `BaseReporter` defines `generate(session) -> str`. Three implementations:
 
@@ -100,7 +100,7 @@ Intelligence extraction sources:
 - **JSONReporter**: Machine-readable structured output
 - **HTMLReporter**: Self-contained HTML wrapping the Markdown report
 
-### 9. Authentication Layer (`src/auth/`)
+### 9. Authentication Layer (`src/haris/auth/`)
 
 All web routes are protected by a session-based authentication system:
 
@@ -115,7 +115,7 @@ All web routes are protected by a session-based authentication system:
 
 Sessions use opaque `secrets.token_urlsafe(32)` tokens stored in the `user_sessions` table and delivered as `httponly` cookies. CSRF uses the double-submit cookie pattern (`haris_csrf` cookie + `X-CSRF-Token` request header injected by HTMX via `hx-headers` on `<body>`).
 
-### 10. Web Dashboard (`src/web/`)
+### 10. Web Dashboard (`src/haris/web/`)
 
 The FastAPI web application serves a multi-page dashboard. All routes require login (minimum `user` role):
 
@@ -194,7 +194,7 @@ Per-scanner options per template:
 - **Nikto**: `plugins`, `tuning`, `timeout`
 - **Wapiti**: `modules`, `scope`, `max_scan_time`, `max_links`, `timeout`
 - **Nmap**: `ports`, `script_categories`, `timeout`
-- See `src/models/scan_config_template.py` for the full option set.
+- See `src/haris/models/scan_config_template.py` for the full option set.
 
 **API**: `GET/POST /api/scan-templates`, `PUT/DELETE /api/scan-templates/{id}`, `POST /api/scan-templates/{id}/set-default`
 **Web UI**: `/templates` → *Scan Configurations* tab — create, edit, clone, delete, set default.
@@ -210,7 +210,7 @@ External scanner template files are stored in `./templates/{scanner}/{source_nam
 | Nmap | None — drop `.nse` files in `templates/nmap/custom/` | Custom scripts passed as `--script` args |
 | Wapiti | No template support | — |
 
-**CLI**: `python scripts/run_scan.py update-templates [--scanner nuclei] [--force] [--list]`
+**CLI**: `haris update-templates [--scanner nuclei] [--force] [--list]`
 **Web UI**: `/templates` → *Scanner Templates* tab — per-source status and update trigger.
 **API**: `GET /api/templates/status`, `POST /api/templates/update`
 

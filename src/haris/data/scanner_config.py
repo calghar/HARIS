@@ -8,16 +8,14 @@ Cross-scanner shared data lives in ``config/scanner_data.yaml``.
 """
 
 import logging
-from pathlib import Path
 from typing import Any, cast
 
 import yaml
 from pydantic import BaseModel, Field, ValidationError
 
-logger = logging.getLogger(__name__)
+from ..config.paths import resolve_config_file
 
-_REPO_ROOT = Path(__file__).parent.parent.parent
-_SCANNERS_DIR = _REPO_ROOT / "config" / "scanners"
+logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
 # Generic per-scanner config loader
@@ -46,7 +44,7 @@ def _load_scanner_config(scanner_name: str) -> dict[str, Any]:
     if scanner_name in _scanner_config_cache:
         return _scanner_config_cache[scanner_name]
 
-    path = _SCANNERS_DIR / f"{scanner_name}.yaml"
+    path = resolve_config_file(f"scanners/{scanner_name}.yaml")
     try:
         with open(path, encoding="utf-8") as f:
             data = yaml.safe_load(f) or {}
@@ -249,7 +247,7 @@ def _load_shared_data() -> dict[str, Any]:
     if _shared_data_cache is not None:
         return _shared_data_cache
 
-    path = _REPO_ROOT / "config" / "scanner_data.yaml"
+    path = resolve_config_file("scanner_data.yaml")
     try:
         with open(path, encoding="utf-8") as f:
             data = yaml.safe_load(f) or {}

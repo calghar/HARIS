@@ -2,14 +2,14 @@
 
 ## Design: Direct LLM Adapter
 
-HARIS uses a direct LLM integration layer (`src/llm/`) for report analysis.  Users run a scan, then ask questions about the results through the CLI or web UI.  The LLM interprets structured scan data and generates human-readable analysis, remediation plans, and test cases.
+HARIS uses a direct LLM integration layer (`src/haris/llm/`) for report analysis.  Users run a scan, then ask questions about the results through the CLI or web UI.  The LLM interprets structured scan data and generates human-readable analysis, remediation plans, and test cases.
 
 ### Architecture
 
 ```txt
 CLI user          Web UI user
     |                    |
-run_scan.py llm       FastAPI /api/
+haris llm            FastAPI /api/
     |                    |
     +----+-------+-------+
          |               |
@@ -20,9 +20,9 @@ run_scan.py llm       FastAPI /api/
  OpenAI  Claude  Ollama
 ```
 
-- **`src/llm/base.py`** defines the abstract `BaseLLMBackend` interface.  Provider-specific code (API clients, authentication, response parsing) lives in concrete implementations.
-- **`src/llm/prompts.py`** handles all prompt construction.  It takes structured scan data and returns formatted prompts.  No LLM calls happen here — this makes prompts auditable and testable.
-- **`src/llm/qa.py`** is the high-level Q&A service.  It assembles context from a `ScanSession`, calls `PromptBuilder`, and routes through the backend.  Sessions can be loaded from JSON report files or from the SQLite database.
+- **`src/haris/llm/base.py`** defines the abstract `BaseLLMBackend` interface.  Provider-specific code (API clients, authentication, response parsing) lives in concrete implementations.
+- **`src/haris/llm/prompts.py`** handles all prompt construction.  It takes structured scan data and returns formatted prompts.  No LLM calls happen here — this makes prompts auditable and testable.
+- **`src/haris/llm/qa.py`** is the high-level Q&A service.  It assembles context from a `ScanSession`, calls `PromptBuilder`, and routes through the backend.  Sessions can be loaded from JSON report files or from the SQLite database.
 
 ### Design principles
 
@@ -50,22 +50,22 @@ run_scan.py llm       FastAPI /api/
 
 ```bash
 # Ask a question about a completed scan
-python scripts/run_scan.py llm ask \
+haris llm ask \
   --scan-id 20250222-143025 \
   --question "Explain the top 3 findings for an executive"
 
 # Generate a Jira remediation plan
-python scripts/run_scan.py llm remediate \
+haris llm remediate \
   --scan-id 20250222-143025 \
   --format jira
 
 # Summarize for developers
-python scripts/run_scan.py llm summarize \
+haris llm summarize \
   --scan-id 20250222-143025 \
   --audience developer
 
 # Use a different backend
-python scripts/run_scan.py llm ask \
+haris llm ask \
   --scan-id 20250222-143025 \
   --question "What needs fixing first?" \
   --backend anthropic
@@ -113,7 +113,7 @@ When no routing is configured, all tasks use the default model.
 Enable LLM enrichment during a scan to add attack narratives, business impact, and exploitation complexity to findings above the severity threshold:
 
 ```bash
-python scripts/run_scan.py --url https://example.com --profile quick --yes --llm-enrich
+haris --url https://example.com --profile quick --yes --llm-enrich
 ```
 
 Configure via `llm.enrichment_enabled: true` in `config/default_config.yaml` or the enrichment toggle on the New Scan form.
