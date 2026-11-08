@@ -4,7 +4,9 @@ repos:
     rev: v6.0.0
     hooks:
       - id: trailing-whitespace
+        exclude: ^src/haris/web/static/vendor/
       - id: end-of-file-fixer
+        exclude: ^src/haris/web/static/vendor/
       - id: check-yaml
       - id: check-toml
       - id: check-merge-conflict
