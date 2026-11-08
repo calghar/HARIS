@@ -1,4 +1,5 @@
 import logging
+import threading
 
 from ..llm.backend import BaseLLMBackend
 from ..models import ScanSession
@@ -16,12 +17,18 @@ def run_verification(
     mode: VerifyMode | str,
     backend: BaseLLMBackend | None = None,
     settings: VerifySettings | None = None,
+    *,
+    cancel: threading.Event | None = None,
 ) -> None:
-    """Replay, then (mode ``llm``) LLM verdicts, on ``session.correlated``."""
+    """Replay, then (mode ``llm``) LLM verdicts, then the opt-in agent."""
+    from ..agent.policy import current_policy
+    from ..agent.stages import note_stage
+
     mode = VerifyMode(mode)
     if mode == VerifyMode.OFF:
         return
     settings = settings or load_verify_settings()
+    note_stage(session, "replay")
     report = replay(session.correlated, client, settings)
     if report.skipped:
         reasons = sorted(set(report.skipped.values()))
@@ -30,6 +37,7 @@ def run_verification(
             + "; ".join(reasons)
         )
     if mode == VerifyMode.LLM:
+        note_stage(session, "llm_verdict")
         if backend is None:
             session.errors.append("[verify] llm verdict skipped: no LLM backend")
         else:
@@ -37,6 +45,13 @@ def run_verification(
                 f"[verify] {e}"
                 for e in run_llm_verdicts(session.correlated, backend, settings)
             )
+    policy = current_policy()
+    if policy is not None:
+        note_stage(session, "agent")
+        from ..agent.coordinator import run_agent_stage
+
+        run_agent_stage(session, client, backend, policy, cancel=cancel)
+    note_stage(session, "confidence")
     sync_findings(session)
 
 

@@ -7,6 +7,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import UTC, date, datetime
 from typing import Any
 
+from ..agent.stages import note_stage
 from ..ignore import IgnoreFile, apply_ignores
 from ..models import (
     Finding,
@@ -120,11 +121,19 @@ class ScanEngine:
             session.scan_state = self._final_state(session)
             self._enrich_findings(session)
             self._correlate_findings(session)
+            note_stage(session, "correlate")
             self._apply_ignores(session)
+            note_stage(session, "suppress")
             if not self._cancelled.is_set():
                 from ..verify import run_verification  # lazy: verify imports core
 
-                run_verification(session, client, self._verify_mode, self._llm_backend)
+                run_verification(
+                    session,
+                    client,
+                    self._verify_mode,
+                    self._llm_backend,
+                    cancel=self._cancelled,
+                )
             if client.budget_exceeded:
                 session.errors.append(
                     "[net] request cap max_requests="
@@ -133,11 +142,13 @@ class ScanEngine:
 
         session.finished_at = datetime.now(UTC).isoformat()
         self._assess_risk(session)
+        note_stage(session, "risk")
         self._plan_remediation(session)
 
         if self._llm_backend and self._llm_config.get("enrichment_enabled"):
             self._llm_enrich(session)
 
+        note_stage(session, "report")
         logger.info(
             "Audit session %s %s - %d findings (%d correlated), "
             "risk posture: %s, %.1fs",

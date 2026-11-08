@@ -1,0 +1,24 @@
+# Opt-in agentic validator. Absent keys keep the defaults in AgentSettings.
+classes:
+  - xss_reflected
+  - sqli_error
+  - sqli_time
+  - path_traversal
+  - open_redirect
+  - ssrf
+max_tool_calls: 40
+max_tokens: 300000
+wall_clock_s: 600
+max_jobs: 10
+max_cost_usd: 10.0
+max_requests: 300
+rate_limit_rps: 2
+guardrail_abort_at: 3
+min_severity: medium
+image: haris-agent-sandbox
+memory: 512m
+cpus: "1"
+pids_limit: 128
+sandbox_user: "65534:65534"
+work_tmpfs: 64m
+tmp_tmpfs: 16m

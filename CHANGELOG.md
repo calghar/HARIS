@@ -5,6 +5,7 @@
 
 ### Added
 
+- Added an opt-in sandboxed exploit validator (`haris.agent`) behind `--agent` and `--i-have-authorization`; a finding reaches `exploit_validated` only after the PoC is re-executed and the oracle is positive
 - Finding identity: every finding has a stable `fingerprint` (SHA-256 over CWE, vulnerability class, normalised URL, method and parameter), a per-sighting `observation_id`, a `confidence_score`, a `verification` tier and a `suppression`; 0.6.x JSON reports still load
 - Vulnerability classes in `vuln_classes.yaml` and per-scanner confidence priors in `confidence.yaml`
 - Correlator merges the same finding across scanners by fingerprint, scores consensus confidence and no longer mutates its input
