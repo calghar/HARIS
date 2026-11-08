@@ -76,9 +76,9 @@
         <div class="form-group">
           <label for="new_password">New password</label>
           <input type="password" id="new_password" name="new_password" autocomplete="new-password"
-                 placeholder="Minimum 12 characters">
+                 placeholder="Minimum {{ min_password_length }} characters" data-min-length="{{ min_password_length }}">
           <div id="pw-length-msg" style="font-size:.75rem; margin-top:.3rem; color:var(--fg-muted); display:none;">
-            Password must be at least 12 characters.
+            Password must be at least {{ min_password_length }} characters.
           </div>
         </div>
 
@@ -138,7 +138,7 @@
             <td style="vertical-align:top; padding-top:.7rem;">
               {% if not session.is_current %}
               <button class="btn btn-danger btn-sm"
-                      onclick="revokeSession('{{ session.token_hash }}')">
+                      data-action="revoke-session" data-token-hash="{{ session.token_hash }}">
                 Revoke
               </button>
               {% endif %}
@@ -160,49 +160,6 @@
 {% endblock %}
 
 {% block scripts %}
-<script>
-  var csrfToken = {{ csrf_token | tojson }};
-
-  /* Password validation on profile form */
-  var newPwInput = document.getElementById('new_password');
-  var confirmNewPwInput = document.getElementById('confirm_new_password');
-  var matchMsg = document.getElementById('pw-match-msg');
-  var lengthMsg = document.getElementById('pw-length-msg');
-  var profileSubmit = document.getElementById('profile-submit');
-
-  function validatePw() {
-    if (!newPwInput) return;
-    var pw = newPwInput.value;
-    var cpw = confirmNewPwInput ? confirmNewPwInput.value : '';
-    var tooShort = pw.length > 0 && pw.length < 12;
-    var mismatch = cpw.length > 0 && pw !== cpw;
-
-    if (lengthMsg) lengthMsg.style.display = tooShort ? 'block' : 'none';
-    if (matchMsg) matchMsg.style.display = mismatch ? 'block' : 'none';
-    if (profileSubmit) profileSubmit.disabled = tooShort || mismatch;
-
-    newPwInput.style.borderColor = tooShort ? 'var(--critical)' : '';
-    if (confirmNewPwInput) confirmNewPwInput.style.borderColor = mismatch ? 'var(--critical)' : '';
-  }
-
-  if (newPwInput) newPwInput.addEventListener('input', validatePw);
-  if (confirmNewPwInput) confirmNewPwInput.addEventListener('input', validatePw);
-
-  /* Session revoke */
-  function revokeSession(tokenHash) {
-    if (!confirm('Revoke this session? The device will be signed out.')) return;
-    fetch('/auth/profile/sessions/' + encodeURIComponent(tokenHash), {
-      method: 'DELETE',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: 'csrf_token=' + encodeURIComponent(csrfToken)
-    }).then(function(r) {
-      if (r.ok) {
-        var row = document.getElementById('session-row-' + tokenHash);
-        if (row) row.remove();
-      } else {
-        r.json().then(function(d) { alert(d.detail || 'Revoke failed.'); });
-      }
-    }).catch(function() { alert('Request failed.'); });
-  }
-</script>
+<script src="/static/js/password_form.js"></script>
+<script src="/static/js/profile.js"></script>
 {% endblock %}

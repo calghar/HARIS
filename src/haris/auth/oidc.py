@@ -89,15 +89,22 @@ class OIDCClient:
         realm_access.roles list as a fallback.
         """
         cfg = self._config
-        # Direct claim (e.g. custom KeyCloak mapper attribute)
-        claim_value = userinfo.get(cfg.role_claim, "")
-        if claim_value == cfg.admin_role_value:
-            return UserRole.ADMIN
-        # KeyCloak realm_access.roles list
-        realm_roles: list[str] = userinfo.get("realm_access", {}).get("roles", [])
-        if cfg.admin_role_value in realm_roles:
-            return UserRole.ADMIN
+        realm_access = userinfo.get("realm_access")
+        realm_roles = (
+            realm_access.get("roles") if isinstance(realm_access, dict) else None
+        )
+        for claim in (userinfo.get(cfg.role_claim), realm_roles):
+            # A claim is a single string or a list of strings (e.g. groups).
+            values = [claim] if isinstance(claim, str) else claim
+            if isinstance(values, list) and cfg.admin_role_value in values:
+                return UserRole.ADMIN
         return UserRole.USER
+
+    @staticmethod
+    def is_email_verified(userinfo: dict[str, Any]) -> bool:
+        """Only a boolean true (or the string "true") counts as verified."""
+        verified = userinfo.get("email_verified")
+        return verified is True or verified == "true"
 
     @staticmethod
     def get_display_name(userinfo: dict[str, Any]) -> str:

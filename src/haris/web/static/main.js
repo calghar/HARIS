@@ -1,3 +1,69 @@
+// CSRF: add the session token to every same-origin state-changing fetch
+(function() {
+  const meta = document.querySelector('meta[name="csrf-token"]');
+  const token = meta ? meta.content : '';
+  const safe = ['GET', 'HEAD', 'OPTIONS'];
+  const nativeFetch = globalThis.fetch;
+  globalThis.fetch = function(input, init) {
+    const opts = init || {};
+    const source = input instanceof Request ? input : null;
+    const method = (opts.method || (source && source.method) || 'GET').toUpperCase();
+    const url = new URL(source ? source.url : String(input), globalThis.location.href);
+    if (!safe.includes(method) && url.origin === globalThis.location.origin) {
+      const headers = new Headers(opts.headers || (source && source.headers));
+      if (!headers.has('X-CSRF-Token')) headers.set('X-CSRF-Token', token);
+      opts.headers = headers;
+    }
+    return nativeFetch.call(this, input, opts);
+  };
+})();
+
+// Shared helpers for page scripts (no inline handlers: pages use data-action)
+globalThis.haris = {
+  actions(handlers) {
+    document.addEventListener('click', function(e) {
+      const el = e.target.closest('[data-action]');
+      const handler = el && handlers[el.dataset.action];
+      if (handler) handler(el, e);
+    });
+  },
+  pageData() {
+    const node = document.getElementById('page-data');
+    return node ? JSON.parse(node.textContent) : {};
+  },
+  // LLM markdown is untrusted: sanitise before it reaches innerHTML
+  setMarkdown(el, text) {
+    if (typeof marked === 'undefined' || typeof DOMPurify === 'undefined') {
+      el.textContent = text;
+      return;
+    }
+    el.innerHTML = DOMPurify.sanitize(marked.parse(text, { breaks: true, gfm: true }));
+  },
+  setSpinner(el, text, small) {
+    const spinner = document.createElement('span');
+    spinner.className = small ? 'spinner spinner-sm' : 'spinner';
+    el.replaceChildren(spinner, document.createTextNode(text ? ' ' + text : ''));
+  },
+  fillBackends(select, saved) {
+    return fetch('/api/llm/backends')
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        select.replaceChildren();
+        data.backends.forEach(function(b) {
+          const opt = new Option(b.available ? b.name : b.name + ' (unavailable)', b.name);
+          opt.disabled = !b.available;
+          opt.selected = saved ? b.name === saved : b.name === data.default;
+          select.appendChild(opt);
+        });
+      })
+      .catch(function() { select.replaceChildren(new Option('anthropic', 'anthropic')); });
+  },
+  async errorMessage(resp) {
+    const body = await resp.json().catch(function() { return {}; });
+    return body.detail || body.error || 'Request failed';
+  },
+};
+
 // Theme
 function toggleTheme() {
   const html = document.documentElement;

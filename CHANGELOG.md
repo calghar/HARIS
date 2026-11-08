@@ -28,6 +28,11 @@
 - **Nuclei scanner config validation** — added Pydantic schema validation (`_NucleiConfig`) for `config/scanners/nuclei.yaml` with warn-only error handling to catch type mismatches early
 - **Nuclei scanner timeout defaults** — `timeout_per_request` now properly defaulted to 30 seconds in both `default_config.yaml` and `NucleiScanner.__init__()` instead of only as inline fallback
 - Added clarifying comments to `config/scanners/nuclei.yaml` documenting that workflow paths are relative to nuclei's built-in template root
+- Fixed unauthenticated access to `/api/llm/*`, scan-template reads and `/api/templates/status`; every route now requires a session unless listed in `haris.auth.public.PUBLIC_ROUTES`
+- Fixed the open redirect on login `next`; only same-origin relative paths are followed
+- Fixed OIDC linking a local account by an unverified email; `is_active` is enforced and `extract_role` handles string and list claims
+- Fixed inline handlers and scripts that the nonce CSP blocked; all page scripts now live in `static/js/`
+- Fixed role changes in the admin user table failing with a server error and the user table using a missing `user.id`
 
 ### Changed
 
@@ -36,6 +41,17 @@
 - Replaced the hand-rolled SQLite schema versioning with `yoyo-migrations`; a 0.6 database is backed up to `<db>.pre-0.7.bak` and adopted as the baseline, and `ScanStore` opens the database through one connection helper
 - Split `ScanStore` into scan, finding, template and website repositories behind an unchanged facade
 - Stored session, remember-me and email-verification tokens as SHA-256 hashes; existing rows were hashed in place so current sessions stay valid
+- Split `web/app.py` and `auth/router.py` into routers under `web/routers/` with a `create_app()` factory; routers are authenticated by default (`protected_router`, `admin_router`)
+- Scans, websites, conversations and scan templates are visible only to their owner and admins (404 otherwise); `HARIS_SHARE_SCANS_ORG_WIDE=true` makes scans readable to all users
+- Moved `GET/POST /auth/login` to `/login`; `/docs`, `/redoc` and `/openapi.json` are disabled
+- Replaced Google Fonts and CDN scripts with vendored, SRI-pinned htmx 2, DOMPurify, marked and Chart.js and self-hosted Inter (`static/vendor/README`); LLM markdown is sanitised before insertion
+- CSP now sets `base-uri 'none'`, `form-action 'self'`, `object-src 'none'` and `frame-ancestors 'none'`
+- The Docker image runs as non-root user `haris` (uid 10001) and starts uvicorn with `--proxy-headers`; the nuclei template volume moved to `/home/haris/nuclei-templates`
+
+### Added
+
+- App-wide CSRF check on every `POST`, `PUT`, `PATCH` and `DELETE` (`X-CSRF-Token` header or `csrf_token` form field); the token is derived from the session cookie
+- `TestClient` suites for the route matrix, ownership, CSRF, login redirects, template rendering and OIDC (`tests/test_web_*.py`, `tests/test_auth_oidc.py`)
 
 ## 0.6.2 — 2026-04-04
 

@@ -5,15 +5,18 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>{% block title %}HARIS{% endblock %}</title>
   <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/css/fonts.css">
   <link rel="stylesheet" href="/static/style.css">
+  <link rel="stylesheet" href="/static/css/findings.css">
+  <link rel="stylesheet" href="/static/css/pages.css">
+  <link rel="stylesheet" href="/static/css/layout.css">
+  {% block head %}{% endblock %}
+  <meta name="csrf-token" content="{{ csrf_token }}">
+  <meta name="htmx-config" content='{"inlineStyleNonce": "{{ csp_nonce }}", "allowEval": false, "allowScriptTags": false}'>
   <script src="/static/theme-init.js"></script>
-  <script src="https://unpkg.com/htmx.org@1.9.12"></script>
-
+  <script src="/static/vendor/htmx.min.js" integrity="sha384-2OatzQy1H+Zd/IIrjr1TcuDGqLXeHhbooAyJY1KdQMKnr4LZ22k31GBLdYKHmVjg"></script>
 </head>
-<body hx-headers='{"X-CSRF-Token": "{{ csrf_token | default("") }}"}'>
+<body hx-headers='{"X-CSRF-Token": "{{ csrf_token }}"}'>
 
   <header>
     <div class="container header-inner">
@@ -63,7 +66,7 @@
           {% endif %}
           <div class="user-menu-divider"></div>
           <form method="post" action="/auth/logout">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token | default('') }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
             <button type="submit" class="user-menu-item user-menu-signout" role="menuitem">
               <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M6 2H3a1 1 0 00-1 1v10a1 1 0 001 1h3M11 11l3-3-3-3M14 8H6"/></svg>
               Sign Out

@@ -80,7 +80,7 @@
     </thead>
     <tbody>
       {% for user in users %}
-      <tr id="user-row-{{ user.id }}">
+      <tr id="user-row-{{ user.user_id }}">
         <td>
           <div style="font-weight:500; font-size:.875rem;">{{ user.display_name or user.email }}</div>
           {% if user.display_name %}
@@ -116,19 +116,19 @@
         </td>
         <td>
           <div style="display:flex; gap:.35rem; flex-wrap:wrap;">
-            {% if user.id != current_user.id %}
+            {% if user.user_id != current_user.user_id %}
             <button class="btn btn-secondary btn-sm"
-                    onclick="toggleActive('{{ user.id }}', {{ 'false' if user.is_active else 'true' }})"
+                    data-action="toggle-active" data-user-id="{{ user.user_id }}" data-active="{{ 'false' if user.is_active else 'true' }}"
                     title="{{ 'Deactivate' if user.is_active else 'Activate' }}">
               {% if user.is_active %}Deactivate{% else %}Activate{% endif %}
             </button>
             <button class="btn btn-secondary btn-sm"
-                    onclick="changeRole('{{ user.id }}', '{{ 'user' if user.role == 'admin' else 'admin' }}')"
+                    data-action="change-role" data-user-id="{{ user.user_id }}" data-role="{{ 'user' if user.role == 'admin' else 'admin' }}"
                     title="Switch to {{ 'user' if user.role == 'admin' else 'admin' }}">
               &rarr; {{ 'User' if user.role == 'admin' else 'Admin' }}
             </button>
             <button class="btn btn-danger btn-sm"
-                    onclick="deleteUser('{{ user.id }}', '{{ user.email | e }}')"
+                    data-action="delete-user" data-user-id="{{ user.user_id }}" data-email="{{ user.email }}"
                     title="Delete user">
               Delete
             </button>
@@ -151,54 +151,5 @@
 {% endblock %}
 
 {% block scripts %}
-<script>
-  var csrfToken = {{ csrf_token | tojson }};
-
-  document.getElementById('create-user-toggle').addEventListener('click', function() {
-    document.getElementById('create-user-form').style.display = 'block';
-    document.getElementById('create-user-toggle').style.display = 'none';
-  });
-
-  document.getElementById('create-user-cancel').addEventListener('click', function() {
-    document.getElementById('create-user-form').style.display = 'none';
-    document.getElementById('create-user-toggle').style.display = '';
-  });
-
-  function toggleActive(userId, newActive) {
-    var label = newActive === 'true' || newActive === true ? 'activate' : 'deactivate';
-    if (!confirm('Are you sure you want to ' + label + ' this user?')) return;
-    fetch('/auth/users/' + userId, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: 'csrf_token=' + encodeURIComponent(csrfToken) + '&is_active=' + newActive
-    }).then(function(r) {
-      if (r.ok) { window.location.reload(); }
-      else { r.json().then(function(d) { alert(d.detail || 'Action failed.'); }); }
-    }).catch(function() { alert('Request failed.'); });
-  }
-
-  function changeRole(userId, newRole) {
-    if (!confirm('Change this user\'s role to ' + newRole + '?')) return;
-    fetch('/auth/users/' + userId, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: 'csrf_token=' + encodeURIComponent(csrfToken) + '&role=' + encodeURIComponent(newRole)
-    }).then(function(r) {
-      if (r.ok) { window.location.reload(); }
-      else { r.json().then(function(d) { alert(d.detail || 'Action failed.'); }); }
-    }).catch(function() { alert('Request failed.'); });
-  }
-
-  function deleteUser(userId, email) {
-    if (!confirm('Permanently delete user "' + email + '"? This cannot be undone.')) return;
-    fetch('/auth/users/' + userId, {
-      method: 'DELETE',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: 'csrf_token=' + encodeURIComponent(csrfToken)
-    }).then(function(r) {
-      if (r.ok) { window.location.reload(); }
-      else { r.json().then(function(d) { alert(d.detail || 'Delete failed.'); }); }
-    }).catch(function() { alert('Request failed.'); });
-  }
-</script>
+<script src="/static/js/users.js"></script>
 {% endblock %}

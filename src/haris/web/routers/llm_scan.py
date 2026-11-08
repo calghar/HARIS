@@ -1,32 +1,20 @@
 import logging
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import Depends, HTTPException, Request
 from fastapi.responses import JSONResponse
 
-from ..auth.middleware import get_current_user
-from ..auth.models import User
-from ..llm.base import create_backend, get_default_backend_name
-from ..llm.qa import ReportQA
-from ..models import ScanSession
+from ...auth.middleware import require_user
+from ...auth.models import User
+from ...llm.base import create_backend, get_default_backend_name
+from ...llm.qa import ReportQA
+from ..routing import protected_router
+from ..scan_runtime import get_completed_session
+from ..state import AppState, get_state
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/api/scan/{scan_id}", tags=["llm"])
-
-
-def _get_session(scan_id: str) -> ScanSession:
-    """Retrieve a completed session. Raises HTTPException on failure."""
-    # Deferred import to avoid circular dependency
-    from .app import ScanStatus, _get_scan_and_session
-
-    scan, session = _get_scan_and_session(scan_id)
-    if scan["status"] != ScanStatus.COMPLETED or not session:
-        raise HTTPException(
-            status_code=404,
-            detail="Scan not found or not complete",
-        )
-    return session
+router = protected_router(prefix="/api/scan/{scan_id}", tags=["llm"])
 
 
 def _get_qa(backend_name: str | None = None) -> ReportQA:
@@ -48,10 +36,13 @@ async def _safe_json(request: Request) -> dict[str, Any]:
 
 @router.post("/summarize")
 async def summarize_scan(
-    scan_id: str, request: Request, current_user: User = Depends(get_current_user)
+    scan_id: str,
+    request: Request,
+    user: User = Depends(require_user),
+    state: AppState = Depends(get_state),
 ) -> JSONResponse:
     """Generate an audience-specific summary."""
-    session = _get_session(scan_id)
+    session = get_completed_session(state, user, scan_id)
     body = await request.json()
     audience = body.get("audience", "executive")
     backend_name = body.get("backend")
@@ -76,10 +67,11 @@ async def explain_finding(
     scan_id: str,
     finding_id: str,
     request: Request,
-    current_user: User = Depends(get_current_user),
+    user: User = Depends(require_user),
+    state: AppState = Depends(get_state),
 ) -> JSONResponse:
     """Explain a specific finding."""
-    session = _get_session(scan_id)
+    session = get_completed_session(state, user, scan_id)
     body = await _safe_json(request)
     backend_name = body.get("backend")
 
@@ -100,10 +92,13 @@ async def explain_finding(
 
 @router.post("/remediation-plan")
 async def remediation_plan(
-    scan_id: str, request: Request, current_user: User = Depends(get_current_user)
+    scan_id: str,
+    request: Request,
+    user: User = Depends(require_user),
+    state: AppState = Depends(get_state),
 ) -> JSONResponse:
     """Generate a remediation plan in the specified format."""
-    session = _get_session(scan_id)
+    session = get_completed_session(state, user, scan_id)
     body = await request.json()
     fmt = body.get("format", "markdown")
     backend_name = body.get("backend")
@@ -125,10 +120,13 @@ async def remediation_plan(
 
 @router.post("/test-cases")
 async def generate_test_cases(
-    scan_id: str, request: Request, current_user: User = Depends(get_current_user)
+    scan_id: str,
+    request: Request,
+    user: User = Depends(require_user),
+    state: AppState = Depends(get_state),
 ) -> JSONResponse:
     """Generate CI security test cases from findings."""
-    session = _get_session(scan_id)
+    session = get_completed_session(state, user, scan_id)
     body = await _safe_json(request)
     framework = body.get("framework", "generic")
     backend_name = body.get("backend")
@@ -150,10 +148,13 @@ async def generate_test_cases(
 
 @router.post("/mitigations")
 async def suggest_mitigations(
-    scan_id: str, request: Request, current_user: User = Depends(get_current_user)
+    scan_id: str,
+    request: Request,
+    user: User = Depends(require_user),
+    state: AppState = Depends(get_state),
 ) -> JSONResponse:
     """Suggest code-level mitigations for findings."""
-    session = _get_session(scan_id)
+    session = get_completed_session(state, user, scan_id)
     body = await _safe_json(request)
     stack = body.get("stack", "generic web")
     backend_name = body.get("backend")
@@ -175,10 +176,13 @@ async def suggest_mitigations(
 
 @router.post("/filter-findings")
 async def filter_findings(
-    scan_id: str, request: Request, current_user: User = Depends(get_current_user)
+    scan_id: str,
+    request: Request,
+    user: User = Depends(require_user),
+    state: AppState = Depends(get_state),
 ) -> JSONResponse:
     """Filter and explain findings matching a query."""
-    session = _get_session(scan_id)
+    session = get_completed_session(state, user, scan_id)
     body = await request.json()
     criteria = body.get("criteria", "").strip()
     if not criteria:
