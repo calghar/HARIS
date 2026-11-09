@@ -1,56 +1,96 @@
-# Exact truth: each entry maps to a deliberate weakness in bench/fixtures/vuln_ai_app/server.py.
+# Truth: the deliberate weaknesses and real properties of bench/fixtures/vuln_ai_app/server.py, keyed as HARIS reports them.
 target: vuln_ai_app
 kind: fixture
 entries:
   - id: ai-prompt-injection
     method: POST
     url: /v1/chat/completions
-    parameter: messages
-    vuln_class: ai_prompt_injection
+    parameter: injection_canary
+    vuln_class: ai_prompt_injection_canary
     cwe: CWE-1427
     expected: true_positive
     notes: The documented injection prompt makes the fake model follow the injected instruction.
   - id: ai-system-prompt-leak
     method: POST
     url: /v1/chat/completions
-    parameter: messages
+    parameter: system_prompt_leak
     vuln_class: ai_system_prompt_leak
     cwe: CWE-200
     expected: true_positive
     notes: The injection prompt returns the system prompt containing the canary token.
-  - id: ai-unauth-inference
-    method: POST
-    url: /v1/chat/completions
-    vuln_class: ai_unauth_inference
+  - id: ai-unauthenticated-inference
+    method: GET
+    url: /v1/models
+    vuln_class: ai_unauthenticated_inference
     cwe: CWE-306
     expected: true_positive
-    notes: No authentication on the inference endpoint.
-  - id: ai-verbose-error
+    notes: No authentication on the model list or the inference endpoint.
+  - id: ai-verbose-provider-error
     method: POST
     url: /v1/chat/completions
-    vuln_class: ai_verbose_error
+    vuln_class: ai_verbose_provider_error
     cwe: CWE-209
     expected: true_positive
     notes: Malformed JSON returns HTTP 500 with a Python traceback.
-  - id: ai-output-xss
+  - id: ai-output-handling-xss
     method: GET
     url: /chat
     parameter: q
-    vuln_class: ai_output_xss
+    vuln_class: ai_output_handling_xss
     cwe: CWE-79
     expected: true_positive
     notes: The question is reflected unescaped in an HTML page.
-  - id: mcp-unauth-tools-list
+  - id: ai-mcp-unauthenticated
     method: POST
     url: /mcp
-    vuln_class: mcp_unauth_tools_list
+    vuln_class: ai_mcp_unauthenticated
     cwe: CWE-306
     expected: true_positive
     notes: tools/list answers without authentication.
-  - id: mcp-tool-description-injection
+  - id: ai-tool-description-injection
     method: POST
     url: /mcp
-    vuln_class: mcp_tool_description_injection
+    parameter: lookup_order
+    vuln_class: ai_tool_description_injection
     cwe: CWE-1427
     expected: true_positive
     notes: The lookup_order tool description carries hidden instructions.
+  - id: ai-missing-rate-limit
+    method: POST
+    url: /v1/chat/completions
+    vuln_class: ai_missing_rate_limit
+    cwe: CWE-770
+    expected: true_positive
+    notes: The handler applies no rate limit.
+  - id: ai-ignored-token-cap
+    method: POST
+    url: /v1/chat/completions
+    vuln_class: ai_ignored_token_cap
+    cwe: CWE-770
+    expected: true_positive
+    notes: The handler ignores max_tokens.
+  - id: no-https
+    method: GET
+    url: /
+    vuln_class: no_https
+    cwe: CWE-319
+    expected: true_positive
+    notes: The fixture serves plain HTTP only.
+  - id: banner-disclosure
+    method: GET
+    url: /
+    parameter: Server
+    vuln_class: banner_disclosure
+    cwe: CWE-200
+    expected: true_positive
+    notes: http.server sends a Server header with the Python and BaseHTTP versions.
+ignore:
+  - vuln_class: sensitive_file
+    url: /health
+    reason: The runner's liveness path; it exposes nothing sensitive.
+  - vuln_class: ai_endpoint_discovered
+    url: /v1/models
+    reason: Info-level discovery record, not a weakness.
+  - vuln_class: ai_endpoint_discovered
+    url: /mcp
+    reason: Info-level discovery record, not a weakness.

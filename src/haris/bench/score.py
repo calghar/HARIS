@@ -22,6 +22,7 @@ METRICS = (
 class RunScore(BaseModel):
     source: str = ""
     findings: int
+    ignored: int = 0
     true_positives: int
     false_positives: int
     false_negatives: int
@@ -78,8 +79,12 @@ def score_run(
     source: str = "",
     baseline_fp: float | None = None,
 ) -> RunScore:
-    """Precision is 1.0 with no findings and recall 1.0 with no truth (vacuous)."""
-    keys = unique_finding_keys(report)
+    """Precision is 1.0 with no findings and recall 1.0 with no truth (vacuous).
+
+    Findings matching a truth `ignore` entry are excluded before scoring.
+    """
+    all_keys = unique_finding_keys(report)
+    keys = {k for k in all_keys if not any(i.matches(*k) for i in truth.ignore)}
     matched_entries: set[str] = set()
     true_positives = 0
     for key in keys:
@@ -98,6 +103,7 @@ def score_run(
     return RunScore(
         source=source,
         findings=len(keys),
+        ignored=len(all_keys) - len(keys),
         true_positives=true_positives,
         false_positives=false_positives,
         false_negatives=false_negatives,

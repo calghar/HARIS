@@ -5,10 +5,12 @@ import yaml
 from pydantic import ValidationError
 
 from haris.bench.truth import GroundTruth, load_ground_truth
+from haris.core.vuln_class import get_registry
 
 BENCH = Path(__file__).resolve().parent.parent / "bench"
 TRUTH_FILES = sorted((BENCH / "ground_truth").glob("*.yaml"))
-EXPECTED_TARGETS = {"juice_shop", "dvwa", "webgoat", "spa_catchall", "vuln_ai_app"}
+FIXTURE_TARGETS = {"spa_catchall", "vuln_ai_app"}
+EXPECTED_TARGETS = {"juice_shop", "dvwa", "webgoat"} | FIXTURE_TARGETS
 ENTRY = {
     "id": "e",
     "method": "GET",
@@ -37,9 +39,59 @@ def test_external_entries_cite_a_source_url(path: Path) -> None:
         assert all(str(entry.source).startswith("https://") for entry in truth.entries)
 
 
-def test_spa_catchall_truth_is_empty_and_ai_app_truth_is_not() -> None:
-    assert load_ground_truth(BENCH / "ground_truth" / "spa_catchall.yaml").entries == []
-    assert load_ground_truth(BENCH / "ground_truth" / "vuln_ai_app.yaml").entries
+def test_spa_catchall_truth_has_no_path_or_debug_class() -> None:
+    truth = load_ground_truth(BENCH / "ground_truth" / "spa_catchall.yaml")
+    registry = get_registry().classes
+    assert truth.entries
+    assert not truth.ignore
+    assert {registry[entry.vuln_class].granularity for entry in truth.entries} == {
+        "host"
+    }
+
+
+@pytest.mark.parametrize(
+    "path", [p for p in TRUTH_FILES if p.stem in FIXTURE_TARGETS], ids=lambda p: p.stem
+)
+def test_fixture_truth_classes_exist_with_their_primary_cwe(path: Path) -> None:
+    truth = load_ground_truth(path)
+    registry = get_registry().classes
+    classes = [entry.vuln_class for entry in truth.entries]
+    classes += [entry.vuln_class for entry in truth.ignore]
+    assert set(classes) <= registry.keys()
+    assert all(
+        registry[entry.vuln_class].primary_cwe == entry.cwe for entry in truth.entries
+    )
+
+
+def test_ignore_entry_loads_with_optional_parameter() -> None:
+    truth = GroundTruth.model_validate(
+        {
+            "target": "t",
+            "kind": "fixture",
+            "entries": [],
+            "ignore": [
+                {"vuln_class": "sensitive_file", "url": "/health", "reason": "r"},
+                {
+                    "vuln_class": "x",
+                    "url": "/a",
+                    "parameter": "p",
+                    "reason": "r",
+                },
+            ],
+        }
+    )
+    assert [entry.parameter for entry in truth.ignore] == [None, "p"]
+
+
+@pytest.mark.parametrize("reason", [None, ""], ids=["missing", "empty"])
+def test_ignore_entry_without_reason_is_rejected(reason: str | None) -> None:
+    entry: dict[str, object] = {"vuln_class": "sensitive_file", "url": "/health"}
+    if reason is not None:
+        entry["reason"] = reason
+    with pytest.raises(ValidationError, match="reason"):
+        GroundTruth.model_validate(
+            {"target": "t", "kind": "fixture", "entries": [], "ignore": [entry]}
+        )
 
 
 def test_external_entry_without_source_is_rejected() -> None:
