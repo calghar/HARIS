@@ -41,12 +41,14 @@ class ScanConfigTemplate(BaseModel):
     #   wapiti:  modules, scope, max_scan_time, max_links, timeout
     #   nmap:    ports, script_categories, timeout
     #   sslyze:  timeout
-    #   header_checks:  follow_redirects, timeout
+    #   header_checks:  (none; request timeout comes from the network policy)
     #   tls_checks:     cert_expiry_warn_days, timeout
     #   misc_checks:    check_cors, check_redirect, check_sensitive_paths
     #   info_disclosure: check_error_pages, check_debug_endpoints,
     #                    check_html_comments, check_version_endpoints
-    #   cookie_checks:  timeout
+    #   cookie_checks:  max_cookie_lifetime_seconds
+    #   ai_security:    active, max_prompts, max_tokens_per_prompt
+    #   garak, promptfoo: timeout, probes (garak) or plugins (promptfoo)
     scanner_options: dict[str, dict[str, Any]] = Field(
         default_factory=dict,
     )

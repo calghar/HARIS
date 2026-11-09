@@ -1,5 +1,11 @@
 from ..models.enums import OwaspCategory
-from ..models.owasp import OwaspMapping
+from ..models.owasp import AgenticRisk, AiRisk, LlmRisk, McpRisk, OwaspMapping
+
+AI_RISKS: dict[str, AiRisk] = {
+    risk.value.split(" - ")[0]: risk
+    for risks in (LlmRisk, AgenticRisk, McpRisk)
+    for risk in risks
+}
 
 # Keyword -> OWASP mapping table
 
@@ -204,6 +210,11 @@ def map_cwe_to_owasp(cwe_id: str) -> OwaspMapping | None:
         if cwe_id in mapping.typical_cwes:
             return mapping
     return None
+
+
+def map_ai_risk(risk_id: str) -> AiRisk | None:
+    """Look up an OWASP LLM, Agentic or MCP risk by id (``LLM01:2025``, ``ASI03``)."""
+    return AI_RISKS.get(risk_id)
 
 
 def all_categories() -> list[OwaspCategory]:

@@ -14,6 +14,14 @@ PROFILES: dict[str, ScanProfile] = {
             "misc_checks",
             "info_disclosure",
             "cookie_checks",
+            "sri_checks",
+            "cache_checks",
+            "method_checks",
+            "redirect_checks",
+            "graphql_checks",
+            "openapi_checks",
+            "listing_checks",
+            "dns_checks",
             "nmap",
             "sslyze",
             "wapiti",
@@ -40,6 +48,14 @@ PROFILES: dict[str, ScanProfile] = {
             "misc_checks",
             "info_disclosure",
             "cookie_checks",
+            "sri_checks",
+            "cache_checks",
+            "method_checks",
+            "redirect_checks",
+            "graphql_checks",
+            "openapi_checks",
+            "listing_checks",
+            "dns_checks",
         ],
         report_intro=(
             "This quick surface scan checks security headers, TLS "
@@ -66,6 +82,14 @@ PROFILES: dict[str, ScanProfile] = {
             "misc_checks",
             "info_disclosure",
             "cookie_checks",
+            "sri_checks",
+            "cache_checks",
+            "method_checks",
+            "redirect_checks",
+            "graphql_checks",
+            "openapi_checks",
+            "listing_checks",
+            "dns_checks",
             "nmap",
             "sslyze",
             "wapiti",
@@ -79,6 +103,33 @@ PROFILES: dict[str, ScanProfile] = {
         ),
         estimated_duration="20-30 minutes",
         use_case="Thorough security assessment for compliance or due-diligence",
+    ),
+    "ai-security": ScanProfile(
+        name="ai-security",
+        display_name="AI System Security",
+        description=(
+            "Finds exposed LLM, MCP and AI-platform endpoints and reviews them "
+            "without sending prompts.  --ai-active with --i-have-authorization "
+            "adds canary prompt-injection probes and the garak and promptfoo "
+            "adapters."
+        ),
+        scanners=[
+            "header_checks",
+            "tls_checks",
+            "info_disclosure",
+            "ai_security",
+            "garak",
+            "promptfoo",
+        ],
+        report_intro=(
+            "This AI security audit discovers LLM serving endpoints, MCP "
+            "servers and AI platforms, checks their access control, client "
+            "bundles and tool definitions, and maps findings to the OWASP "
+            "LLM, Agentic and MCP Top 10 lists.  Prompt-sending probes ran "
+            "only when explicitly authorised."
+        ),
+        estimated_duration="1-10 minutes",
+        use_case="Assessing a chatbot, LLM API, RAG service or MCP server",
     ),
     "regression": ScanProfile(
         name="regression",

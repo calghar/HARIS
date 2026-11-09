@@ -15,6 +15,7 @@ from haris import (
     checks,  # noqa: F401
     scanners,  # noqa: F401
 )
+from haris.ai_security.options import add_ai_arguments, ai_scanner_options
 from haris.config.loader import load_config
 from haris.core.decorators import all_registered
 from haris.core.engine import DEFAULT_PARALLEL
@@ -177,6 +178,8 @@ def build_parser() -> argparse.ArgumentParser:
         default=DEFAULT_PARALLEL,
         help="Scanners to run concurrently (default: %(default)s)",
     )
+
+    add_ai_arguments(parser)
 
     parser.add_argument(
         "--verify",
@@ -564,6 +567,10 @@ def main(argv: list[str] | None = None) -> int:
     if non_scan_result is not None:
         return non_scan_result
 
+    if args.ai_active and not args.i_have_authorization:
+        print("Error: --ai-active requires --i-have-authorization.", file=sys.stderr)
+        return EXIT_USAGE
+
     try:
         config = load_config(config_path=args.config, overrides=_build_overrides(args))
         ignore = resolve_ignore_file(args.ignore_file)
@@ -601,6 +608,9 @@ def main(argv: list[str] | None = None) -> int:
             network_policy=NetworkPolicy(allow_private=args.allow_private),
             ignore=ignore,
             checkpoint=_checkpoint(config.output_dir),
+            scanner_options=ai_scanner_options(
+                args.ai_active, args.i_have_authorization, args.ai_system_prompt_marker
+            ),
         )
         session = runner.run()
     except RuntimeError as exc:
