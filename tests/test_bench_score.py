@@ -7,6 +7,8 @@ import pytest
 from haris.bench.__main__ import main
 from haris.bench.score import load_reports, score_run, score_runs
 from haris.bench.truth import GroundTruth, TruthEntry, normalise_cwe, normalise_path
+from haris.cli import main as haris_main
+from haris.core.exit_codes import EXIT_USAGE
 
 ENTRIES = [
     ("sqli", "/rest/search", "q", "sqli_error", "CWE-89"),
@@ -259,3 +261,53 @@ class TestCli:
         assert scored["target"] == "unit"
         assert scored["runs"][0]["false_positives"] == 3
         assert "# Benchmark score: unit" in (runs / "score" / "score.md").read_text()
+
+
+class TestHarisBenchCli:
+    @staticmethod
+    def _inputs(tmp_path: Path) -> tuple[Path, Path]:
+        runs = tmp_path / "runs"
+        runs.mkdir()
+        (runs / "run1.json").write_text(json.dumps(report(list(TP.values()))))
+        truth_file = tmp_path / "truth.yaml"
+        truth_file.write_text(
+            "target: unit\nkind: fixture\nentries:\n"
+            "  - {id: a, method: GET, url: /rest/search, parameter: q,"
+            " vuln_class: sqli_error, cwe: CWE-89, expected: true_positive}\n"
+        )
+        return runs, truth_file
+
+    def test_prints_the_same_table_as_python_m(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        runs, truth_file = self._inputs(tmp_path)
+        assert main(["score", str(runs), str(truth_file)]) == 0
+        expected = capsys.readouterr().out
+        assert haris_main(["bench", "score", str(runs), str(truth_file)]) == 0
+        assert capsys.readouterr().out == expected
+
+    def test_baseline_is_forwarded(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        runs, truth_file = self._inputs(tmp_path)
+        argv = ["bench", "score", str(runs), str(truth_file), "--baseline", str(runs)]
+        assert haris_main(argv) == 0
+        assert (
+            json.loads((runs / "score" / "score.json").read_text())["baseline_runs"]
+            == 1
+        )
+
+    def test_missing_path_exits_usage(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        runs, truth_file = self._inputs(tmp_path)
+        missing = str(tmp_path / "nope")
+        assert haris_main(["bench", "score", missing, str(truth_file)]) == EXIT_USAGE
+        assert haris_main(["bench", "score", str(runs), missing]) == EXIT_USAGE
+        assert "Error:" in capsys.readouterr().err
+
+    def test_help_lists_bench(self, capsys: pytest.CaptureFixture[str]) -> None:
+        with pytest.raises(SystemExit) as exit_info:
+            haris_main(["--help"])
+        assert exit_info.value.code == 0
+        assert "bench" in capsys.readouterr().out

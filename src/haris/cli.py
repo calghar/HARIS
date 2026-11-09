@@ -193,7 +193,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--i-have-authorization",
         action="store_true",
-        help="Confirm written authorisation; required with --agent",
+        help="Confirm written authorisation; required with --agent and --ai-active",
     )
     parser.add_argument(
         "--agent-allow-unsafe-methods",
@@ -209,6 +209,19 @@ def build_parser() -> argparse.ArgumentParser:
     )
     diff_parser.add_argument("old", help="Earlier JSON report")
     diff_parser.add_argument("new", help="Later JSON report")
+
+    bench_sub = subparsers.add_parser("bench", help="Benchmark tools").add_subparsers(
+        dest="bench_action", required=True
+    )
+    bench_score = bench_sub.add_parser(
+        "score", help="Score HARIS JSON reports against ground truth"
+    )
+    bench_score.add_argument("report", help="Report file, or directory of reports")
+    bench_score.add_argument("ground_truth", help="Ground-truth YAML")
+    bench_score.add_argument("--baseline", help="Baseline report file or directory")
+    bench_score.add_argument(
+        "--out", help="Output directory (default: <report dir>/score)"
+    )
 
     tmpl_parser = subparsers.add_parser(
         "update-templates",
@@ -393,6 +406,20 @@ def handle_diff(args: argparse.Namespace) -> int:
     return 0
 
 
+def handle_bench(args: argparse.Namespace) -> int:
+    from haris.bench.__main__ import main as bench_main
+
+    argv = ["score", args.report, args.ground_truth]
+    for flag in ("baseline", "out"):
+        if getattr(args, flag):
+            argv += [f"--{flag}", getattr(args, flag)]
+    try:
+        return bench_main(argv)
+    except (OSError, ValueError) as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        return EXIT_USAGE
+
+
 def handle_llm_command(args: argparse.Namespace) -> int:
     from haris.llm.qa import ReportQA
 
@@ -442,6 +469,8 @@ def _handle_non_scan_actions(args: argparse.Namespace) -> int | None:
         return handle_llm_command(args)
     if args.subcommand == "diff":
         return handle_diff(args)
+    if args.subcommand == "bench":
+        return handle_bench(args)
 
     if args.list_profiles:
         print("Available scan profiles:\n")
