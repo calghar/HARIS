@@ -14,6 +14,7 @@ from ..net import NetworkPolicy
 from ..reporting import REPORTER_REGISTRY
 from ..verify.settings import VerifyMode
 from .access import Access, require_scan_access
+from .agent_gate import agent_policy
 from .job_queue import CancelToken
 from .state import AppState
 
@@ -39,6 +40,7 @@ class ScanJobParams(BaseModel):
     llm_enrich: bool = False
     llm_backend_name: str | None = None
     verify: VerifyMode | None = None  # None: use the server default
+    agent: bool = False
     template_id: str = ""
     scanner_options: dict[str, dict[str, Any]] = Field(default_factory=dict)
 
@@ -93,7 +95,10 @@ def execute_scan(state: AppState, job: Job, token: CancelToken) -> JobStatus:
     token.on_cancel(runner.cancel)
     if token.cancelled:
         return JobStatus.CANCELLED
-    session = stamp(runner.run())
+    with agent_policy(state, job, params.agent, params.verify) as skipped:
+        session = stamp(runner.run())
+    if skipped:
+        session.errors.append(f"[agent] skipped: {skipped}")
     state.store.save_session(session, job.owner_user_id)
     write_reports(state, session, params.report_formats)
     try:

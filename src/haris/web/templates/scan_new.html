@@ -96,6 +96,18 @@
     </select>
   </div>
 
+  {% if user_is_admin %}
+  <div class="form-group">
+    <label>Exploit validation</label>
+    <div class="checkbox-group">
+      <label><input type="checkbox" name="agent" id="agent" value="1"> Run the sandboxed exploit validator</label>
+    </div>
+    <p class="text-sm text-muted mt-1">
+      Needs a verified ownership proof for the host, Docker on the server and verification not off.
+    </p>
+  </div>
+  {% endif %}
+
   <!-- LLM Enrichment -->
   <div class="form-group">
     <label>AI-Powered Analysis</label>

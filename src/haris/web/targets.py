@@ -98,6 +98,10 @@ class TargetAuthoriser:
     def is_authorised(self, user_id: str, host: str) -> bool:
         if any(fnmatch.fnmatchcase(host, pattern) for pattern in self._allowlist):
             return True
+        return self.has_verified_proof(user_id, host)
+
+    def has_verified_proof(self, user_id: str, host: str) -> bool:
+        """True for a current proof row of (user, host); the allow-list is ignored."""
         row = self._repo.get(user_id, host)
         return row is not None and self.is_current(row)
 
