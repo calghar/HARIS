@@ -9,6 +9,7 @@ from ...auth.middleware import get_auth_service, require_user
 from ...auth.models import AuditAction, AuditEvent, User
 from ...auth.service import AuthService
 from ...models import ScanState
+from ...verify.settings import VerifyMode
 from ..access import Access, require_scan_access, require_template_access, visible_owner
 from ..routing import api_router
 from ..scan_runtime import (
@@ -62,6 +63,19 @@ def _with_template(
     return params.model_copy(update=update)
 
 
+def _verify_mode(form: FormData) -> VerifyMode | None:
+    raw = str(form.get("verify", "")).strip()
+    if not raw:
+        return None
+    try:
+        return VerifyMode(raw)
+    except ValueError as exc:
+        modes = ", ".join(m.value for m in VerifyMode)
+        raise HTTPException(
+            status_code=422, detail=f"verify must be one of: {modes}"
+        ) from exc
+
+
 def _audit(
     auth_service: AuthService,
     request: Request,
@@ -88,6 +102,7 @@ def _audit(
     status_code=202,
     responses={
         400: {"description": "Bad request or target rejected by the SSRF guard"},
+        422: {"description": "Invalid verify mode, or llm without an LLM backend"},
         403: {"description": "Target not authorised for this user"},
     },
 )
@@ -117,10 +132,15 @@ async def start_scan(
         auth_method=str(form.get("auth_method", "none")),
         llm_enrich=bool(form.get("llm_enrich")),
         llm_backend_name=str(form.get("llm_backend", "")).strip() or None,
+        verify=_verify_mode(form),
         template_id=str(form.get("template_id", "")).strip(),
     )
     if params.template_id:
         params = _with_template(state, user, form, params)
+    if params.verify is VerifyMode.LLM and not params.llm_enrich:
+        raise HTTPException(
+            status_code=422, detail="verify=llm requires LLM enrichment (llm_enrich)"
+        )
     scan_id = uuid.uuid4().hex[:SCAN_ID_LENGTH]
     header_value = str(form.get("auth_header_value", ""))
     if params.auth_method != "none" and header_value:

@@ -127,6 +127,8 @@ The FastAPI web application serves a multi-page dashboard. All routes require lo
 - **Settings** (`/settings`): Read-only overview of LLM backends, available scanners, and database info. Requires `admin` role.
 - **Auth routes** (`/auth/*`): Login, logout, self-registration (domain-restricted), email verification, profile & session management, user management (admin), audit log (admin), OIDC login/callback.
 
+Web scans run the verification stage: `verify` (`off`, `replay` or `llm`, the last only with `llm_enrich`) on `POST /api/v1/scans` and the New Scan form overrides the server default `HARIS_WEB_VERIFY_DEFAULT` (default `replay`).
+
 Navigation order: Dashboard | Websites | Scans | Templates | New Scan (CTA button style). The sidebar bottom anchors a user menu with avatar, popup for Profile / Admin Panel / Sign Out.
 
 ## Data Flow

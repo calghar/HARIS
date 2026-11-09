@@ -34,6 +34,7 @@
 - Added `ScanSession.stage_log` and `Finding.agent_annotation` as persisted fields (migration `0008_agent_fields`); the JSON report adds `stage_log` and `agent_annotation`, SARIF adds `properties.agentAnnotation`, and the Markdown and HTML reports show the annotation in a fenced block
 - Added `soft404` and `content_validator` verification oracles; `sensitive_file` findings can now reach `replay_verified` or `refuted`
 - Added `haris bench score REPORTS TRUTH.yaml [--baseline DIR] [--out DIR]`, the same scorer as `python -m haris.bench score` (exit 3 on a missing path)
+- Added `verify` to web scan requests and `HARIS_WEB_VERIFY_DEFAULT` (default `replay`)
 
 ### Changed (packaging)
 

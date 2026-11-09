@@ -5,9 +5,11 @@ from pathlib import Path
 from pydantic import BaseModel, Field
 
 from ..auth.config import env_flag
+from ..verify.settings import DEFAULT_VERIFY_MODE, VerifyMode
 
 TARGET_ALLOWLIST_ENV = "HARIS_TARGET_ALLOWLIST"
 MAX_CONCURRENT_SCANS_ENV = "HARIS_MAX_CONCURRENT_SCANS"
+VERIFY_DEFAULT_ENV = "HARIS_WEB_VERIFY_DEFAULT"
 DEFAULT_MAX_CONCURRENT_SCANS = 2
 
 
@@ -24,6 +26,7 @@ class WebSettings(BaseModel):
     share_scans_org_wide: bool = False
     target_allowlist: list[str] = Field(default_factory=list)
     max_concurrent_scans: int = Field(default=DEFAULT_MAX_CONCURRENT_SCANS, ge=1)
+    verify_default: VerifyMode = DEFAULT_VERIFY_MODE
 
     @classmethod
     def from_env(cls) -> "WebSettings":
@@ -33,6 +36,9 @@ class WebSettings(BaseModel):
             target_allowlist=_csv(os.environ.get(TARGET_ALLOWLIST_ENV, "")),
             max_concurrent_scans=int(
                 os.environ.get(MAX_CONCURRENT_SCANS_ENV, DEFAULT_MAX_CONCURRENT_SCANS)
+            ),
+            verify_default=VerifyMode(
+                os.environ.get(VERIFY_DEFAULT_ENV, DEFAULT_VERIFY_MODE.value)
             ),
         )
         if secret := os.environ.get("HARIS_SECRET_KEY"):
