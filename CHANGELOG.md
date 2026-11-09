@@ -35,6 +35,7 @@
 - Added `soft404` and `content_validator` verification oracles; `sensitive_file` findings can now reach `replay_verified` or `refuted`
 - Added `haris bench score REPORTS TRUTH.yaml [--baseline DIR] [--out DIR]`, the same scorer as `python -m haris.bench score` (exit 3 on a missing path)
 - Added `verify` to web scan requests and `HARIS_WEB_VERIFY_DEFAULT` (default `replay`)
+- Added an `ignore` list to benchmark ground truth (reported as an ignored count in `score.md`) and a per-target profile and extra `haris` args in `bench/run.py`; `--profile` is now optional
 
 ### Changed (packaging)
 

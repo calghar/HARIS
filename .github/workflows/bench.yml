@@ -6,8 +6,8 @@ on:
   workflow_dispatch:
     inputs:
       profile:
-        description: HARIS profile to measure
-        default: quick
+        description: "HARIS profile for every target (empty: each target's own profile)"
+        default: ""
       baseline_profile:
         description: Profile used as the false-positive baseline (optional)
         default: ""
@@ -24,7 +24,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 120
     env:
-      BENCH_PROFILE: ${{ inputs.profile || 'quick' }}
+      BENCH_PROFILE: ${{ inputs.profile }}
       BENCH_BASELINE_PROFILE: ${{ inputs.baseline_profile }}
       BENCH_RUNS: ${{ inputs.runs || '3' }}
     steps:
@@ -41,7 +41,10 @@ jobs:
       - name: Run benchmark
         # Scores are reported, never gated: the step fails only when a target cannot run.
         run: |
-          args=(--profile "$BENCH_PROFILE" --runs "$BENCH_RUNS" --haris "uv run haris")
+          args=(--runs "$BENCH_RUNS" --haris "uv run haris")
+          if [ -n "$BENCH_PROFILE" ]; then
+            args+=(--profile "$BENCH_PROFILE")
+          fi
           if [ -n "$BENCH_BASELINE_PROFILE" ]; then
             args+=(--baseline-profile "$BENCH_BASELINE_PROFILE")
           fi

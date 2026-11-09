@@ -9,8 +9,8 @@ The harness in `bench/` measures how many of HARIS's findings are real (precisio
 | OWASP Juice Shop `v20.4.0` | external | seed set from the [companion guide](https://pwning.owasp-juice.shop/) |
 | DVWA (digest of `latest`) | external | seed set from the [module list](https://github.com/digininja/DVWA), security level low |
 | WebGoat `v2026.5` | external | seed set of lesson endpoints from the [WebGoat repository](https://github.com/WebGoat/WebGoat) |
-| `spa_catchall` | fixture | empty: every finding is a false positive |
-| `vuln_ai_app` | fixture | exact: 7 deliberate weaknesses (prompt injection, system-prompt leak, unauthenticated inference, verbose error, output XSS, unauthenticated MCP `tools/list`, poisoned MCP tool description) |
+| `spa_catchall` | fixture | the fixture's real properties: plain HTTP, `Server` banner, five missing security headers; any path or debug finding is a false positive |
+| `vuln_ai_app` | fixture | 7 deliberate weaknesses (prompt injection, system-prompt leak, unauthenticated inference, verbose error, output XSS, unauthenticated MCP `tools/list`, poisoned MCP tool description) plus 4 real properties (plain HTTP, `Server` banner, no rate limit, ignored `max_tokens`); the `/health` path and `ai_endpoint_discovered` records are ignored |
 
 `spa_catchall` answers 200 with one HTML shell for every path and method, so `.env`, `.git/config` and similar checks must not report. `vuln_ai_app` is a deterministic fake model (no LLM calls) with a canary in its system prompt. The documented injection prompt is `INJECTION_PROMPT` in `bench/fixtures/vuln_ai_app/server.py`; a benign prompt never returns the canary.
 
@@ -18,7 +18,7 @@ The harness in `bench/` measures how many of HARIS's findings are real (precisio
 
 ## Ground truth
 
-`bench/ground_truth/<target>.yaml`, validated by `haris.bench.truth.GroundTruth`. Each entry is one request instance: `method`, `url` (path glob), `parameter`, `vuln_class`, `cwe`, `expected: true_positive`. Entries for external targets carry a `source` URL. The seed sets are small and are not a claim of completeness: a real finding outside them counts as a false positive.
+`bench/ground_truth/<target>.yaml`, validated by `haris.bench.truth.GroundTruth`. Each entry is one request instance: `method`, `url` (path glob), `parameter`, `vuln_class`, `cwe`, `expected: true_positive`. Entries for external targets carry a `source` URL. An optional `ignore` list holds findings that are neither true nor false positives: `vuln_class`, `url` (path glob), optional `parameter` (any when omitted) and a required `reason`. The seed sets are small and are not a claim of completeness: a real finding outside them counts as a false positive.
 
 ## Scoring
 
@@ -29,6 +29,7 @@ python -m haris.bench score <report.json | reports-dir> <ground_truth.yaml> [--b
 `haris bench score` takes the same arguments (exit 3 on a missing or invalid path). A directory holds one JSON report per run. Output: `score.json` and `score.md`.
 
 - A finding matches an entry when the class token (the finding's `vuln_class`, else its `cwe_id`), the normalised URL path and the parameter all match. Scheme, host, query and trailing slash are ignored. The method is recorded but not matched.
+- A finding that matches an `ignore` entry is excluded from precision and recall and counted as ignored (`ignored` in `score.json`, the Ignored column in `score.md`). Ignore is checked before truth entries.
 - Findings with the same key count once. Precision is true-positive findings over unique findings; recall is matched entries over entries. True-positive rate equals recall (DASTestBed naming).
 - With no findings, precision is 1.0; with no entries, recall is 1.0. Read false positives next to these values.
 - F1 is the harmonic mean of precision and recall.
@@ -40,9 +41,13 @@ python -m haris.bench score <report.json | reports-dir> <ground_truth.yaml> [--b
 
 ```bash
 uv sync --extra web --extra reporting
-uv run python bench/run.py --profile quick --runs 3
-# optional: --targets spa_catchall,vuln_ai_app  --baseline-profile <profile>
+uv run python bench/run.py --runs 3
+# optional: --targets spa_catchall,vuln_ai_app  --profile <profile>  --baseline-profile <profile>
 ```
+
+Each target has its own profile: `quick` by default, `ai-security` with `--ai-active --i-have-authorization` for `vuln_ai_app`. `--profile` overrides the profile of every target and keeps each target's extra flags. `--baseline-profile` adds baseline runs for the false-positive reduction rate.
+
+`garak` and `promptfoo` may be absent on the runner. The `vuln_ai_app` run then ends `incomplete` (exit code 2); the runner accepts a non-zero `haris` exit when exactly one JSON report exists.
 
 The runner starts the targets, waits for health, runs `haris` for each run, stores artifacts under `bench/results/<date>/` and tears the targets down. It scans only the `127.0.0.1` targets from the compose file. WebGoat takes about a minute to start.
 

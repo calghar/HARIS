@@ -17,6 +17,7 @@ COMPOSE_FILE = BENCH_DIR / "compose.yaml"
 TRUTH_DIR = BENCH_DIR / "ground_truth"
 RESULTS_DIR = BENCH_DIR / "results"
 HEALTH_POLL_SECONDS = 3.0
+DEFAULT_PROFILE = "quick"
 DVWA_SETUP_PATH = "/setup.php"
 PARTIAL_REPORT = "session.partial.json"
 
@@ -30,6 +31,8 @@ class Target(BaseModel):
     container_port: int
     health_path: str
     scan_path: str = ""
+    profile: str | None = None
+    haris_args: tuple[str, ...] = ()
 
 
 TARGETS = {
@@ -49,7 +52,11 @@ TARGETS = {
         service="spa_catchall", container_port=8080, health_path="/health"
     ),
     "vuln_ai_app": Target(
-        service="vuln_ai_app", container_port=8080, health_path="/health"
+        service="vuln_ai_app",
+        container_port=8080,
+        health_path="/health",
+        profile="ai-security",
+        haris_args=("--ai-active", "--i-have-authorization"),
     ),
 }
 
@@ -96,8 +103,18 @@ def prepare_dvwa(base_url: str) -> None:
 PREPARE = {"dvwa": prepare_dvwa}
 
 
+def resolve_profile(target: Target, override: str | None) -> str:
+    """`--profile` wins over the target's own profile, which wins over the default."""
+    return override or target.profile or DEFAULT_PROFILE
+
+
 def run_haris(
-    haris_cmd: list[str], url: str, profile: str, out_dir: Path, report: Path
+    haris_cmd: list[str],
+    url: str,
+    profile: str,
+    out_dir: Path,
+    report: Path,
+    extra_args: tuple[str, ...] = (),
 ) -> None:
     """One scan; the JSON report is copied to `report` for the scorer."""
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -114,6 +131,7 @@ def run_haris(
         "json",
         "--yes",
         "--allow-private",
+        *extra_args,
     ]
     done = subprocess.run(cmd, capture_output=True, text=True, check=False)
     (out_dir / "stdout.log").write_text(done.stdout)
@@ -144,7 +162,10 @@ def bench_target(name: str, args: argparse.Namespace, results: Path) -> None:
     if name in PREPARE:
         PREPARE[name](base_url)
     scan_url = base_url + target.scan_path
-    profiles = {"runs": args.profile, "baseline": args.baseline_profile}
+    profiles = {
+        "runs": resolve_profile(target, args.profile),
+        "baseline": args.baseline_profile,
+    }
     for label, profile in profiles.items():
         if not profile:
             continue
@@ -155,6 +176,7 @@ def bench_target(name: str, args: argparse.Namespace, results: Path) -> None:
                 profile,
                 results / name / "raw" / label / f"run{run}",
                 results / name / label / f"run{run}.json",
+                target.haris_args if label == "runs" else (),
             )
     baseline_dir = results / name / "baseline" if args.baseline_profile else None
     score(results / name / "runs", TRUTH_DIR / f"{name}.yaml", baseline_dir)
@@ -163,7 +185,10 @@ def bench_target(name: str, args: argparse.Namespace, results: Path) -> None:
 def parse_args(argv: list[str] | None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Run the HARIS benchmark")
     parser.add_argument("--targets", default=",".join(TARGETS), help="Comma list")
-    parser.add_argument("--profile", required=True, help="HARIS profile to measure")
+    parser.add_argument(
+        "--profile",
+        help="HARIS profile for every target (default: each target's own profile)",
+    )
     parser.add_argument("--baseline-profile", help="Profile for FP-reduction baseline")
     parser.add_argument("--runs", type=int, default=3)
     parser.add_argument("--haris", default="haris", help="HARIS command line")

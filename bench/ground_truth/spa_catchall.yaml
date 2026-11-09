@@ -1,4 +1,59 @@
-# No vulnerabilities by construction: any finding on this target is a false positive.
+# Path and debug classes (sensitive_file, debug_endpoint) are absent on purpose: the catch-all shell must never produce them.
 target: spa_catchall
 kind: fixture
-entries: []
+entries:
+  - id: no-https
+    method: GET
+    url: /
+    vuln_class: no_https
+    cwe: CWE-319
+    expected: true_positive
+    notes: The fixture serves plain HTTP only.
+  - id: banner-disclosure
+    method: GET
+    url: /
+    parameter: Server
+    vuln_class: banner_disclosure
+    cwe: CWE-200
+    expected: true_positive
+    notes: http.server sends a Server header with the Python and BaseHTTP versions.
+  - id: missing-content-security-policy
+    method: GET
+    url: /
+    parameter: Content-Security-Policy
+    vuln_class: missing_header
+    cwe: CWE-693
+    expected: true_positive
+    notes: The fixture sets no security headers.
+  - id: missing-x-content-type-options
+    method: GET
+    url: /
+    parameter: X-Content-Type-Options
+    vuln_class: missing_header
+    cwe: CWE-693
+    expected: true_positive
+    notes: The fixture sets no security headers.
+  - id: missing-x-frame-options
+    method: GET
+    url: /
+    parameter: X-Frame-Options
+    vuln_class: missing_header
+    cwe: CWE-693
+    expected: true_positive
+    notes: The fixture sets no security headers.
+  - id: missing-referrer-policy
+    method: GET
+    url: /
+    parameter: Referrer-Policy
+    vuln_class: missing_header
+    cwe: CWE-693
+    expected: true_positive
+    notes: The fixture sets no security headers.
+  - id: missing-permissions-policy
+    method: GET
+    url: /
+    parameter: Permissions-Policy
+    vuln_class: missing_header
+    cwe: CWE-693
+    expected: true_positive
+    notes: The fixture sets no security headers.

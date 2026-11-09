@@ -6,7 +6,13 @@ import pytest
 
 from haris.bench.__main__ import main
 from haris.bench.score import load_reports, score_run, score_runs
-from haris.bench.truth import GroundTruth, TruthEntry, normalise_cwe, normalise_path
+from haris.bench.truth import (
+    GroundTruth,
+    IgnoreEntry,
+    TruthEntry,
+    normalise_cwe,
+    normalise_path,
+)
 from haris.cli import main as haris_main
 from haris.core.exit_codes import EXIT_USAGE
 
@@ -99,6 +105,38 @@ class TestScoreRun:
         assert (trap.false_positives, trap.precision, trap.recall) == (1, 0.0, 1.0)
         clean = score_run(report([]), truth)
         assert (clean.false_positives, clean.precision, clean.recall) == (0, 1.0, 1.0)
+
+    def test_ignored_findings_leave_precision_and_recall_unchanged(self) -> None:
+        truth = TRUTH.model_copy(
+            update={
+                "ignore": [
+                    IgnoreEntry(vuln_class="sensitive_file", url="/health", reason="r"),
+                    IgnoreEntry(
+                        vuln_class="info", url="/disc/*", parameter="p", reason="r"
+                    ),
+                ]
+            }
+        )
+        noise = [
+            finding("sensitive_file", "http://t:1/health"),
+            finding("info", "http://t:1/disc/a", "p"),
+            finding("info", "http://t:1/disc/b", "p"),
+        ]
+        score = score_run(report([TP["sqli"], FP[0], *noise]), truth)
+        assert (score.findings, score.ignored) == (2, 3)
+        assert (score.true_positives, score.false_positives) == (1, 1)
+        assert (score.precision, score.recall) == (0.5, 0.25)
+
+    def test_ignore_without_parameter_matches_any_parameter_only_on_its_path(
+        self,
+    ) -> None:
+        truth = TRUTH.model_copy(
+            update={"ignore": [IgnoreEntry(vuln_class="info", url="/disc", reason="r")]}
+        )
+        hits = [finding("info", "http://t:1/disc", "a")]
+        misses = [finding("info", "http://t:1/other", "a")]
+        assert score_run(report(hits), truth).ignored == 1
+        assert score_run(report(misses), truth).ignored == 0
 
     def test_duplicate_findings_count_once(self) -> None:
         duplicates = [
@@ -261,6 +299,26 @@ class TestCli:
         assert scored["target"] == "unit"
         assert scored["runs"][0]["false_positives"] == 3
         assert "# Benchmark score: unit" in (runs / "score" / "score.md").read_text()
+
+    def test_ignored_count_is_written_to_json_and_markdown(
+        self, tmp_path: Path
+    ) -> None:
+        runs = tmp_path / "runs"
+        runs.mkdir()
+        (runs / "run1.json").write_text(
+            json.dumps(report([finding("sensitive_file", "http://t:1/health")]))
+        )
+        truth_file = tmp_path / "truth.yaml"
+        truth_file.write_text(
+            "target: unit\nkind: fixture\nentries: []\nignore:\n"
+            "  - {vuln_class: sensitive_file, url: /health, reason: liveness path}\n"
+        )
+        assert main(["score", str(runs), str(truth_file)]) == 0
+        scored = json.loads((runs / "score" / "score.json").read_text())
+        assert (scored["runs"][0]["ignored"], scored["runs"][0]["findings"]) == (1, 0)
+        markdown = (runs / "score" / "score.md").read_text()
+        assert "| Ignored |" in markdown
+        assert "| run1.json | 0 | 1 | 0 | 0 | 0 |" in markdown
 
 
 class TestHarisBenchCli:

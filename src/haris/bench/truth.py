@@ -43,12 +43,33 @@ class TruthEntry(BaseModel):
         )
 
 
+class IgnoreEntry(BaseModel):
+    """A finding that is neither a true nor a false positive; scoring skips it."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    vuln_class: str
+    url: str = Field(description="Path glob matched against the normalised finding URL")
+    parameter: str | None = Field(
+        default=None, description="Matches any parameter when omitted"
+    )
+    reason: str = Field(min_length=1)
+
+    def matches(self, class_token: str, path: str, parameter: str) -> bool:
+        return (
+            class_token == self.vuln_class
+            and fnmatchcase(path, normalise_path(self.url))
+            and (self.parameter is None or parameter == self.parameter)
+        )
+
+
 class GroundTruth(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     target: str
     kind: Literal["fixture", "external"]
     entries: list[TruthEntry]
+    ignore: list[IgnoreEntry] = Field(default_factory=list)
 
     @model_validator(mode="after")
     def _check_entries(self) -> Self:

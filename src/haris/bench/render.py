@@ -20,11 +20,11 @@ def render_markdown(score: BenchScore) -> str:
     lines += [f"| {metric} | {_cell(score.summary[metric])} |" for metric in METRICS]
     lines += [
         "",
-        "| Run | Findings | TP | FP | FN | Precision | Recall | F1 |",
-        "|---|---|---|---|---|---|---|---|",
+        "| Run | Findings | Ignored | TP | FP | FN | Precision | Recall | F1 |",
+        "|---|---|---|---|---|---|---|---|---|",
     ]
     lines += [
-        f"| {run.source} | {run.findings} | {run.true_positives} "
+        f"| {run.source} | {run.findings} | {run.ignored} | {run.true_positives} "
         f"| {run.false_positives} | {run.false_negatives} | {run.precision:.3f} "
         f"| {run.recall:.3f} | {run.f1:.3f} |"
         for run in score.runs
