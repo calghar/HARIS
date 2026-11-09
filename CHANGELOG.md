@@ -18,6 +18,7 @@
 - SARIF 2.1.0 (`sarif`), CSV (`csv`) and JUnit XML (`junit`) report formats for `--formats`; SARIF carries partial fingerprints, web request and response, `suppressions` and, with `--baseline`, `baselineState`
 - JSON report adds `scan_state`, `scanner_status` and `correlated` (with `sources`); published JSON Schema at `src/haris/resources/schema/report.schema.json`
 - GitHub Action (`action.yml`) and GitLab CI template (`integrations/gitlab/templates/haris.yml`); see `docs/integrations.md`
+- Added an admin-only "Exploit validation" option to web scans (`agent=1`): it needs a verified ownership proof for the host, `HARIS_AGENT_DISABLED` unset and verify not `off`, and is re-checked when the queued scan starts
 - Added a soft-404 baseline (`checks/baseline.py`) and content validators (`checks/validators.py`): SPA catch-all and WAF block pages no longer produce sensitive-path or debug-endpoint findings, `.env` must look like `KEY=VALUE` and `.git/config` must contain `[core]`
 - Added built-in checks `sri_checks`, `cache_checks`, `method_checks` (OPTIONS and TRACE), `redirect_checks` (open redirect), `graphql_checks` (introspection), `openapi_checks`, `listing_checks` (directory listing) and `dns_checks` (CAA, SPF, DMARC), each with a class in `vuln_classes.yaml` and a prior in `confidence.yaml`
 - Added CSP and HSTS quality findings (`unsafe-inline`, `unsafe-eval`, wildcard sources, missing `object-src` or `base-uri`, short `max-age`, missing `includeSubDomains`)

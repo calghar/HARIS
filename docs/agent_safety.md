@@ -6,7 +6,7 @@ The validator stays off unless the operator opts in. A finding becomes `exploit_
 
 ## Activation
 
-The CLI binds a policy when both `--agent` and `--i-have-authorization` are present. `--agent` alone makes `bind_cli` return exit code 3 before `ScanRunner` starts, so the process makes no target request. `HARIS_AGENT_DISABLED=1` leaves the policy unset. Web scans have no call site in this tree. `policy_for_web(is_admin, target_authorised, output_dir)` returns a policy only for an admin whose target authorisation is verified. The web layer has to call `bind_policy` with that result.
+The CLI binds a policy when both `--agent` and `--i-have-authorization` are present. `--agent` alone makes `bind_cli` return exit code 3 before `ScanRunner` starts, so the process makes no target request. `HARIS_AGENT_DISABLED=1` leaves the policy unset. Web scans bind the policy in `execute_scan` on the worker thread, through `policy_for_web(is_admin, target_authorised, output_dir)`, and reset it when the run ends. Four gates apply: the owner is an active `admin`, an `authorized_targets` row for that user and the exact host was verified within 30 days (the `HARIS_TARGET_ALLOWLIST` does not count), `HARIS_AGENT_DISABLED` is not `1`, and the effective verify mode is not `off`. The form never sets `allow_unsafe_methods`. `start_scan` checks the gates and refuses with 403 or 422 before it creates a scan. `execute_scan` checks them again with fresh state; on failure the scan runs without the agent and `session.errors` gets `[agent] skipped: <reason>`. The audit log is written under `<reports_dir>/agent-runs/<scan_id>/`, which `DELETE /api/v1/scans/<id>` removes.
 
 ## Boundaries
 

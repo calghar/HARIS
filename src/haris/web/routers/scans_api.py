@@ -11,6 +11,7 @@ from ...auth.service import AuthService
 from ...models import ScanState
 from ...verify.settings import VerifyMode
 from ..access import Access, require_scan_access, require_template_access, visible_owner
+from ..agent_gate import remove_agent_run, require_agent_allowed
 from ..routing import api_router
 from ..scan_runtime import (
     FINISHED,
@@ -102,8 +103,8 @@ def _audit(
     status_code=202,
     responses={
         400: {"description": "Bad request or target rejected by the SSRF guard"},
-        422: {"description": "Invalid verify mode, or llm without an LLM backend"},
-        403: {"description": "Target not authorised for this user"},
+        422: {"description": "Bad verify mode, or llm or agent without what it needs"},
+        403: {"description": "Target not authorised, or agent not permitted"},
     },
 )
 async def start_scan(
@@ -116,7 +117,7 @@ async def start_scan(
     target_url = str(form.get("target_url", "")).strip()
     if not target_url:
         raise HTTPException(status_code=400, detail="target_url is required")
-    state.targets.check_scan_target(user.user_id, target_url)
+    host = state.targets.check_scan_target(user.user_id, target_url)
     params = ScanJobParams(
         target_url=target_url,
         profile_name=str(form.get("profile", DEFAULT_PROFILE)),
@@ -133,6 +134,7 @@ async def start_scan(
         llm_enrich=bool(form.get("llm_enrich")),
         llm_backend_name=str(form.get("llm_backend", "")).strip() or None,
         verify=_verify_mode(form),
+        agent=bool(form.get("agent")),
         template_id=str(form.get("template_id", "")).strip(),
     )
     if params.template_id:
@@ -141,6 +143,8 @@ async def start_scan(
         raise HTTPException(
             status_code=422, detail="verify=llm requires LLM enrichment (llm_enrich)"
         )
+    if params.agent:
+        require_agent_allowed(state, user, host, params.verify)
     scan_id = uuid.uuid4().hex[:SCAN_ID_LENGTH]
     header_value = str(form.get("auth_header_value", ""))
     if params.auth_method != "none" and header_value:
@@ -153,6 +157,7 @@ async def start_scan(
         scan_id,
         target_url=target_url,
         profile=params.profile_name,
+        agent=params.agent,
     )
     state.jobs.submit(
         scan_id,
@@ -294,5 +299,6 @@ async def delete_scan(
     state.store.delete_session(scan_id)
     for report_file in state.settings.reports_dir.glob(f"*_{scan_id}.*"):
         report_file.unlink(missing_ok=True)
+    remove_agent_run(state, scan_id)
     _audit(auth_service, request, user, AuditAction.SCAN_DELETED, scan_id)
     return Response(status_code=204)
