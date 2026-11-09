@@ -2,7 +2,7 @@ import logging
 import secrets
 from collections.abc import Callable
 from pathlib import Path
-from urllib.parse import urlsplit
+from urllib.parse import urljoin, urlsplit
 
 from ..llm.backend import BaseLLMBackend
 from ..llm.budget import BudgetExceededError
@@ -111,7 +111,7 @@ def run_job(
         proxy_target(session.target, settings, policy.allow_unsafe_methods),
         client.policy,
         allow_unsafe=policy.allow_unsafe_methods,
-        finding_url=case.canonical.url,
+        finding_url=urljoin(f"{session.target.base_url}/", case.canonical.url),
         finding_method=case.canonical.method,
         audit=audit,
     )

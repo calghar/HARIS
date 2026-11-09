@@ -1,23 +1,22 @@
 import secrets
-from urllib.parse import quote, urlsplit
+from urllib.parse import quote, urljoin, urlsplit
 
 from ..core.confidence import rescore
 from ..core.vuln_class import get_registry
 from ..models import (
     CorrelatedFinding,
     EvidenceExchange,
-    Finding,
     VerificationMethod,
     VerificationOracle,
     VerificationTier,
 )
-from ..net import NetworkError, ScopedClient
+from ..net import NetworkError, ScopedClient, ScopedResponse
 from ..verify.oracles import INERT_HTML, MARKER_TAG, is_html
-from ..verify.probe import Prober, random_token
-from .models import PoC
+from ..verify.probe import FORM_HEADERS, Prober, random_token
+from .models import PoC, PoCRequest
+from .proxy import classify_request
 
 POC_REQUESTS = 8
-SAFE_METHODS = frozenset({"GET", "HEAD", "OPTIONS"})
 
 
 def fresh_marker() -> str:
@@ -36,16 +35,14 @@ def _in_scope(client: ScopedClient, url: str) -> bool:
     )
 
 
-def _method_ok(method: str, url: str, *, allow_unsafe: bool, finding: Finding) -> bool:
-    verb = method.upper()
-    if verb in SAFE_METHODS:
-        return True
-    return bool(
-        allow_unsafe
-        and verb == "POST"
-        and finding.method.upper() == "POST"
-        and url == finding.url
-    )
+def _send(prober: Prober, request: PoCRequest, value: str) -> ScopedResponse:
+    """Put *value* at ``{marker}`` in the URL and, for POST, in the form body."""
+    encoded = quote(value, safe="")
+    url = request.url.replace("{marker}", encoded)
+    if request.method.upper() != "POST":
+        return prober.request(request.method, url)
+    body = request.body.replace("{marker}", encoded).encode()
+    return prober.request(request.method, url, body=body, headers=dict(FORM_HEADERS))
 
 
 def reexecute(
@@ -62,29 +59,36 @@ def reexecute(
         return False, []
     if poc.oracle != "reflection":
         return False, []
-    request = poc.requests[0]
-    if not _method_ok(
-        request.method, request.url, allow_unsafe=allow_unsafe, finding=finding
-    ):
-        return False, []
-    if not _in_scope(prober.client, request.url):
+    base = prober.client.target.base_url
+    request = poc.requests[0].model_copy(
+        update={"url": urljoin(f"{base}/", poc.requests[0].url)}
+    )
+    outcome, _reason = classify_request(
+        request.method,
+        request.url,
+        request.body,
+        allowed_domains=list(prober.client.target.scope.allowed_domains),
+        allow_unsafe=allow_unsafe,
+        finding_url=urljoin(f"{base}/", finding.url),
+        finding_method=finding.method,
+    )
+    if outcome == "rejects" or not _in_scope(prober.client, request.url):
         return False, []
     marker = fresh_marker()
     payload = f"\"'>{marker}"
-    probe_url = request.url.replace("{marker}", quote(payload, safe=""))
-    control_url = request.url.replace(
-        "{marker}", quote(random_token(len(payload)), safe="")
-    )
+    control = random_token(len(payload))
     try:
-        probe = prober.request(request.method, probe_url)
-        control = prober.request(request.method, control_url)
+        probe = _send(prober, request, payload)
+        control_response = _send(prober, request, control)
     except NetworkError:
         return False, []
     exchanges = [
         prober.exchange(probe, "poc", marker),
-        prober.exchange(control, "control"),
+        prober.exchange(control_response, "control"),
     ]
-    return _positive(probe.text, control.text, marker, is_html(probe)), exchanges
+    return _positive(
+        probe.text, control_response.text, marker, is_html(probe)
+    ), exchanges
 
 
 def apply_validation(
