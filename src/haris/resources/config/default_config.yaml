@@ -11,8 +11,7 @@ target:
   url: "https://example.com"
 
   scope:
-    allowed_domains:
-      - "example.com"
+    # allowed_domains: ["example.com"]   # empty = the target host only
     excluded_paths:
       - "/logout"
       - "/api/admin/.*"

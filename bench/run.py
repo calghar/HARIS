@@ -18,6 +18,7 @@ TRUTH_DIR = BENCH_DIR / "ground_truth"
 RESULTS_DIR = BENCH_DIR / "results"
 HEALTH_POLL_SECONDS = 3.0
 DVWA_SETUP_PATH = "/setup.php"
+PARTIAL_REPORT = "session.partial.json"
 
 logger = logging.getLogger("bench")
 
@@ -112,12 +113,13 @@ def run_haris(
         "--formats",
         "json",
         "--yes",
+        "--allow-private",
     ]
     done = subprocess.run(cmd, capture_output=True, text=True, check=False)
     (out_dir / "stdout.log").write_text(done.stdout)
     (out_dir / "stderr.log").write_text(done.stderr)
     (out_dir / "wall_time_s.txt").write_text(f"{time.monotonic() - started:.3f}\n")
-    reports = sorted(out_dir.glob("*.json"))
+    reports = sorted(p for p in out_dir.glob("*.json") if p.name != PARTIAL_REPORT)
     if len(reports) != 1:
         raise RuntimeError(
             f"{out_dir}: expected one JSON report, found {len(reports)} "
