@@ -1,0 +1,14 @@
+# garak 0.17.1 (Apache-2.0). Probes are the offline injection and leakage families; none fetch data at run time.
+default_selection:
+  - promptinject.HijackLongPrompt
+  - latentinjection.LatentInjectionTranslationEnFr
+allowed_selection:
+  - promptinject.HijackLongPrompt
+  - latentinjection.LatentInjectionTranslationEnFr
+request_timeout: 20
+
+# Flags accepted from scanner_options.extra_args: flag -> number of values.
+extra_args_allowlist:
+  "--seed": 1
+  "--eval_threshold": 1
+  "--deprefix": 0

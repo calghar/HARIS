@@ -1,0 +1,168 @@
+# AI endpoint signatures, probed through ScopedClient. A hit needs a 2xx answer that misses the
+# soft-404 baseline and passes `validator` (haris/ai_security/body_validators.py).
+# capability: chat (OpenAI-style route in chat_path), admin (management API), mcp, info.
+# exposure_severity: severity of the "no credentials needed" finding for chat and admin endpoints.
+# [UNVERIFIED] Response shapes come from vendor documentation and the bench fixture, not from live installs.
+signatures:
+  - id: openai_compatible
+    label: OpenAI-compatible API
+    path: /v1/models
+    validator: openai_models
+    capability: chat
+    chat_path: /v1/chat/completions
+    exposure_severity: medium
+  - id: vllm
+    label: vLLM server
+    path: /v1/models
+    validator: vllm_models
+    capability: chat
+    chat_path: /v1/chat/completions
+    exposure_severity: medium
+  - id: ollama
+    label: Ollama server
+    path: /api/tags
+    validator: ollama_tags
+    capability: chat
+    chat_path: /v1/chat/completions  # [UNVERIFIED] Ollama's OpenAI-compatible route
+    exposure_severity: medium
+  - id: tgi
+    label: Text Generation Inference
+    path: /info
+    validator: tgi_info
+    capability: chat
+    chat_path: /v1/chat/completions  # [UNVERIFIED] TGI Messages API route
+    exposure_severity: medium
+  - id: triton
+    label: NVIDIA Triton Inference Server
+    path: /v2
+    validator: triton_metadata
+    capability: info
+  - id: langserve
+    label: LangServe app
+    path: /docs
+    validator: langserve_docs
+    capability: info
+  - id: flowise
+    label: Flowise
+    path: /api/v1/chatflows
+    validator: flowise_chatflows
+    capability: admin
+    exposure_severity: high
+  - id: open_webui
+    label: Open WebUI
+    path: /api/config
+    validator: open_webui_config
+    capability: info
+  - id: gradio
+    label: Gradio app
+    path: /config
+    validator: gradio_config
+    capability: info
+  - id: mlflow
+    label: MLflow tracking server
+    path: /api/2.0/mlflow/experiments/search?max_results=1  # [UNVERIFIED] GET is accepted on this route
+    validator: mlflow_experiments
+    capability: admin
+    exposure_severity: high
+  - id: ray
+    label: Ray dashboard
+    path: /api/version
+    validator: ray_version
+    capability: admin
+    exposure_severity: critical
+  - id: comfyui
+    label: ComfyUI
+    path: /system_stats
+    validator: comfyui_stats
+    capability: admin
+    exposure_severity: high
+  - id: jupyter
+    label: Jupyter server
+    path: /api/kernels
+    validator: jupyter_kernels
+    capability: admin
+    exposure_severity: critical
+  - id: mcp_streamable_http
+    label: MCP server (Streamable HTTP)
+    method: POST
+    path: /mcp
+    rpc: initialize
+    validator: mcp_initialize
+    capability: mcp
+  - id: mcp_sse
+    label: MCP server (SSE transport)
+    method: HEAD  # a GET would hold the event stream open; ScopedClient reads whole bodies
+    path: /sse
+    validator: mcp_sse_endpoint
+    capability: mcp
+  - id: oauth_protected_resource
+    label: OAuth protected resource metadata
+    path: /.well-known/oauth-protected-resource
+    validator: oauth_resource
+    capability: info
+
+mcp:
+  protocol_version: "2025-06-18"  # [UNVERIFIED] newest MCP spec revision; servers negotiate down
+  max_pages: 5
+  instruction_patterns:
+    - '(?i)ignore\s+(?:all\s+|any\s+)?(?:previous|prior|above)\s+instructions'
+    - '(?i)do\s+not\s+(?:tell|inform|mention|reveal)\s+(?:this\s+to\s+)?the\s+user'
+    - "(?i)don't\\s+(?:tell|inform|mention|reveal)\\s+(?:this\\s+to\\s+)?the\\s+user"
+    - '(?i)<\s*important\s*>'
+    - '(?i)before\s+(?:calling|using|invoking)\s+this\s+tool.{0,80}\b(?:read|send|fetch|pass|include)\b'
+    - '(?i)(?:~/\.ssh|id_rsa|\.aws/credentials|/etc/passwd)'
+  free_form_params: [command, code, sql, path, url]
+  # Tool names are split on non-letters; a flow needs one reader of private data and one sender.
+  read_verbs: [read, get, fetch, list, search, query, retrieve, dump]
+  private_nouns: [private, secret, secrets, credential, credentials, password, passwords, notes, email, emails, inbox, ssh, token, tokens, keys]
+  send_verbs: [send, post, upload, publish, webhook, tweet, notify, forward]
+
+# Entropy is measured on the captured group, so placeholders such as `example-key-here` are dropped.
+# [UNVERIFIED] Key formats are taken from vendor documentation and were not re-checked against live keys.
+provider_keys:
+  - id: anthropic
+    label: Anthropic API key
+    pattern: 'sk-ant-([A-Za-z0-9_-]{16,})'
+  - id: openai
+    label: OpenAI API key
+    pattern: 'sk-(?:proj-|svcacct-)?([A-Za-z0-9_-]{20,})'
+  - id: google
+    label: Google API key
+    pattern: 'AIza([0-9A-Za-z_-]{35})'
+  - id: huggingface
+    label: Hugging Face token
+    pattern: 'hf_([A-Za-z0-9]{30,})'
+min_key_entropy: 3.5
+
+system_prompt_patterns:
+  - '(?i)["'']?system[_-]?prompt["'']?\s*[:=]\s*["''`]([^"''`]{20,})'
+  - '(?i)role["'']?\s*:\s*["'']system["'']\s*,\s*content["'']?\s*:\s*["''`]([^"''`]{20,})'
+
+llm_settings_patterns:
+  - '(?is)\bmodel(?:Name)?["'']?\s*:\s*["''](?:gpt-|claude-|gemini-|llama|mistral|mixtral|qwen)[\w.:/-]*["''].{0,200}?\b(?:temperature|max_?tokens|top_p)["'']?\s*:'
+
+# Stack-trace shapes that make an error body "verbose" (Python, Java, Node, package paths).
+error_signatures:
+  - 'Traceback \(most recent call last\)'
+  - 'File "[^"]+", line \d+'
+  - '\bat [\w$.]+\([\w$]+\.java:\d+\)'
+  - '\bat .+ \([^)]*:\d+:\d+\)'
+  - '(?:site-packages|node_modules)/'
+
+# [UNVERIFIED] Loader hosts written from memory; confirm against each vendor's embed documentation.
+widgets:
+  - id: botpress
+    label: Botpress webchat
+    pattern: 'cdn\.botpress\.cloud'
+  - id: voiceflow
+    label: Voiceflow widget
+    pattern: 'cdn\.voiceflow\.com/widget'
+  - id: chatbase
+    label: Chatbase embed
+    pattern: 'chatbase\.co/(?:embed|chatbot-iframe)'
+  - id: flowise_embed
+    label: Flowise embed
+    pattern: 'flowise-embed'
+  - id: dify
+    label: Dify embed
+    pattern: '(?:udify\.app|dify\.ai)/embed'
