@@ -50,16 +50,21 @@ def classify_request(
     *,
     allowed_domains: list[str],
     allow_unsafe: bool,
+    finding_url: str = "",
+    finding_method: str = "GET",
 ) -> tuple[Literal["forwards", "rejects"], str]:
     """Return ``(forwards|rejects, reason)`` with no I/O.
 
+    ``POST`` forwards only to replay a finding observed on ``POST`` to that URL.
     Scope, SSRF, rate and the request cap are enforced again by ScopedClient
     when a decision to forward is actually sent.
     """
     verb = method.upper()
     if verb in {"PUT", "PATCH", "DELETE"} or verb not in SAFE_METHODS | {"POST"}:
         return "rejects", "method"
-    if verb == "POST" and not allow_unsafe:
+    if verb == "POST" and not (
+        allow_unsafe and finding_method.upper() == "POST" and url == finding_url
+    ):
         return "rejects", "method"
     if destructive(body) or destructive(url):
         return "rejects", "destructive"
@@ -96,12 +101,16 @@ class ScopeProxy:
         policy: NetworkPolicy | None = None,
         *,
         allow_unsafe: bool = False,
+        finding_url: str = "",
+        finding_method: str = "GET",
         resolver: Resolver = system_resolver,
         audit: AuditLog | None = None,
         token: str | None = None,
     ) -> None:
         self.target = target
         self.allow_unsafe = allow_unsafe
+        self.finding_url = finding_url
+        self.finding_method = finding_method
         self.audit = audit
         self.token = token if token is not None else new_proxy_token()
         if audit is not None:
@@ -139,6 +148,8 @@ class ScopeProxy:
             body,
             allowed_domains=list(self.target.scope.allowed_domains),
             allow_unsafe=self.allow_unsafe,
+            finding_url=self.finding_url,
+            finding_method=self.finding_method,
         )
         event = ProxyEvent(
             method=method.upper(), url=url, outcome=outcome, reason=reason

@@ -6,9 +6,30 @@ from contextlib import contextmanager
 from pathlib import Path
 from urllib.parse import parse_qs, urlsplit
 
+import pytest
+
+from haris.agent.models import PoC, PoCRequest
+from haris.agent.validator import reexecute
 from haris.llm.base import BaseLLMBackend
-from haris.models import LLMResponse, VerificationMethod, VerificationTier
-from tests.agent_support import ScriptedBackend, policy_for, run, session_for
+from haris.models import (
+    CorrelatedFinding,
+    LLMResponse,
+    Scope,
+    Target,
+    VerificationMethod,
+    VerificationTier,
+)
+from haris.net import NetworkPolicy, ScopedClient
+from haris.verify.probe import Prober
+from tests.agent_support import (
+    ScriptedBackend,
+    policy_for,
+    run,
+    session_for,
+)
+from tests.agent_support import (
+    finding as make_finding,
+)
 
 
 class _Page(http.server.BaseHTTPRequestHandler):
@@ -107,7 +128,7 @@ def test_encoded_marker_keeps_the_tier(tmp_path: Path):
         run(session, client, Reviewing(base), policy_for(str(tmp_path)), _runtime())
         finding = session.correlated[0].canonical
         assert finding.verification.tier is VerificationTier.REPLAY_VERIFIED
-        assert "not confirmed" in str(finding.raw_data.get("agent_annotation", ""))
+        assert "not confirmed" in finding.agent_annotation
         client.close()
 
 
@@ -118,7 +139,7 @@ def test_prose_claim_does_not_change_the_tier(tmp_path: Path):
     run(session, client, backend, policy_for(str(tmp_path)), _runtime())
     finding = session.correlated[0].canonical
     assert finding.verification.tier is VerificationTier.REPLAY_VERIFIED
-    assert finding.raw_data["agent_annotation"] == "exploit succeeded"
+    assert finding.agent_annotation == "exploit succeeded"
     assert client.requests_sent == 0
     client.close()
 
@@ -142,6 +163,43 @@ def test_out_of_scope_poc_is_not_sent(tmp_path: Path):
     assert finding.verification.tier is VerificationTier.REPLAY_VERIFIED
     assert client.requests_sent == 0
     client.close()
+
+
+POST_ROWS = [
+    ("GET", "POST", "/search", "/search", False),
+    ("POST", "POST", "/search", "/other", False),
+    ("POST", "PUT", "/search", "/search", False),
+    ("POST", "DELETE", "/search", "/search", False),
+    ("POST", "PATCH", "/search", "/search", False),
+    ("POST", "POST", "/search", "/search", True),
+]
+
+
+@pytest.mark.parametrize("observed,sent,found,poc_path,sends", POST_ROWS)
+def test_unsafe_method_replays_only_the_observed_post(
+    observed: str, sent: str, found: str, poc_path: str, sends: bool
+):
+    """Scenario: Proxy egress matrix (re-execution path)."""
+    with _serve(escape=False) as base:
+        item = make_finding(f"{base}{found}").model_copy(update={"method": observed})
+        target = Target(
+            base_url=base,
+            scope=Scope(
+                rate_limit_rps=1000,
+                max_requests=100,
+                allowed_methods=["GET", "HEAD", "OPTIONS", "POST", "PUT", "DELETE"],
+            ),
+        )
+        client = ScopedClient(target, NetworkPolicy(allow_private=True))
+        poc = PoC(
+            requests=[PoCRequest(method=sent, url=f"{base}{poc_path}")],
+            oracle="reflection",
+        )
+        case = CorrelatedFinding(canonical=item, consensus_score=0.5)
+        positive, _ = reexecute(poc, case, Prober(client, 8), allow_unsafe=True)
+        assert positive is False
+        assert (client.requests_sent > 0) is sends
+        client.close()
 
 
 def _runtime():

@@ -29,6 +29,7 @@ class ScanSession(BaseModel):
     risk_posture: RiskPosture = RiskPosture.EXCELLENT
     risk_posture_text: str = ""
     errors: list[str] = Field(default_factory=list)
+    stage_log: list[str] = Field(default_factory=list)
     scan_state: ScanState = ScanState.PENDING
 
     # LLM enrichment data (populated when enrichment_enabled is True)
@@ -64,9 +65,10 @@ class ScanSession(BaseModel):
         }
 
     def report_extras(self) -> dict[str, Any]:
-        """Report keys added in 0.7: scan state, scanner status, correlated."""
+        """Report keys added in 0.7: state, stage log, scanner status, correlated."""
         return {
             "scan_state": self.scan_state.value,
+            "stage_log": self.stage_log,
             "scanner_status": self.scanner_status,
             "correlated": [
                 {**c.canonical.to_dict(), "sources": [list(s) for s in c.sources]}

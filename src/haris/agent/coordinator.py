@@ -75,7 +75,7 @@ def run_agent_stage(
             continue
         finally:
             runtime.stop()
-        remember(case, result.annotation)
+        remember(session, case, result.annotation)
         if result.status != "completed":
             continue
         note = apply_validation(
@@ -87,7 +87,7 @@ def run_agent_stage(
         )
         if note:
             claim = result.annotation
-            remember(case, f"{claim}; {note}" if claim else note)
+            remember(session, case, f"{claim}; {note}" if claim else note)
         if isinstance(runtime, SandboxRuntime) and getattr(backend, "budget", None):
             spent = float(getattr(backend.budget, "used_cost", spent))
 
@@ -111,6 +111,8 @@ def run_job(
         proxy_target(session.target, settings, policy.allow_unsafe_methods),
         client.policy,
         allow_unsafe=policy.allow_unsafe_methods,
+        finding_url=case.canonical.url,
+        finding_method=case.canonical.method,
         audit=audit,
     )
     budget = JobBudget(

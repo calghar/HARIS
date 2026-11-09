@@ -30,6 +30,7 @@
 - Added active AI probes behind `--ai-active` and `--i-have-authorization` (exit 3 without the second flag): canary injection, system prompt leak, output-handling XSS marker, a small jailbreak set, a rate-limit burst and a `max_tokens` check; payloads come only from `ai_probes.yaml`, limited by `ai.max_prompts` (50) and `ai.max_tokens_per_prompt` (256), and a finding reaches `replay_verified` only after a repeat with a fresh canary
 - Added `garak` and `promptfoo` scanners (not vendored; Apache-2.0 and MIT) that run under the same flags and map failures to OWASP LLM Top 10 2025 ids; added OWASP LLM Top 10 2025, Agentic Top 10 and MCP Top 10 (`[UNVERIFIED]`, beta) tables and the `ai-security` profile; see `docs/ai_security.md`
 - Added the `sri_checks`, `cache_checks`, `method_checks`, `redirect_checks`, `graphql_checks`, `openapi_checks`, `listing_checks` and `dns_checks` checks to the `quick`, `pre-launch` and `full` profiles
+- Added `ScanSession.stage_log` and `Finding.agent_annotation` as persisted fields (migration `0008_agent_fields`); the JSON report adds `stage_log` and `agent_annotation`, SARIF adds `properties.agentAnnotation`, and the Markdown and HTML reports show the annotation in a fenced block
 
 ### Changed (packaging)
 
@@ -109,6 +110,7 @@
 - Changed every built-in check to send requests through `context.http` (`ScopedClient`); the per-check `timeout` option is replaced by `NetworkPolicy.timeout_s`
 - Changed built-in findings to carry a confidence score from `confidence.yaml` (`<check>.<kind>`); a passed validator raises it
 - Changed `robots.txt`, `sitemap.xml` and `security.txt` findings to INFO and moved the API-document paths from `info_disclosure` to `openapi_checks`
+- Changed the agent proxy and PoC re-execution to forward `POST` only with `--agent-allow-unsafe-methods`, to the finding's own URL, for a finding observed on `POST`; `PUT`, `PATCH` and `DELETE` stay rejected
 
 ### Added
 

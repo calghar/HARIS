@@ -4,7 +4,7 @@ from ..llm.backend import BaseLLMBackend, ProviderBackend
 from ..llm.budget import BudgetExceededError, LLMBudget
 from ..llm.redaction import fence, new_nonce
 from ..llm.structured import call_structured
-from ..models import CorrelatedFinding, Target
+from ..models import CorrelatedFinding, ScanSession, Target
 from .audit import AuditLog, digest
 from .budget import llm_budget
 from .models import PoC, PoCRequest, Review, ToolCall
@@ -102,9 +102,16 @@ def attach_budget(
     return backend.budget
 
 
-def remember(case: CorrelatedFinding, text: str) -> None:
-    if text:
-        case.canonical.raw_data["agent_annotation"] = text[:ANNOTATION_CAP]
+def remember(session: ScanSession, case: CorrelatedFinding, text: str) -> None:
+    """Annotate the canonical and its ``all_findings`` twins (reports read both)."""
+    if not text:
+        return
+    fingerprint = case.canonical.fingerprint
+    twins = [
+        f for f in session.all_findings if fingerprint and f.fingerprint == fingerprint
+    ]
+    for finding in (case.canonical, *twins):
+        finding.agent_annotation = text[:ANNOTATION_CAP]
 
 
 def cancelled(cancel: object | None) -> bool:

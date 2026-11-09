@@ -50,6 +50,7 @@ class Finding(BaseModel):
     fingerprint: str = ""
     tags: list[str] = Field(default_factory=list)
     raw_data: dict[str, Any] = Field(default_factory=dict)
+    agent_annotation: str = ""
 
     verification: Verification = Field(default_factory=Verification)
     suppression: Suppression | None = None
@@ -109,6 +110,7 @@ class Finding(BaseModel):
             "scanner": self.scanner,
             "found_at": self.found_at,
             "tags": self.tags,
+            "agent_annotation": self.agent_annotation,
             "verification": self.verification.model_dump(mode="json"),
             "suppression": (
                 self.suppression.model_dump(mode="json") if self.suppression else None

@@ -7,7 +7,7 @@ from .policy import (
     policy_for_web,
     reset_policy,
 )
-from .stages import note_stage, stage_log
+from .stages import note_stage
 
 __all__ = [
     "AgentPolicy",
@@ -18,5 +18,4 @@ __all__ = [
     "note_stage",
     "policy_for_web",
     "reset_policy",
-    "stage_log",
 ]
