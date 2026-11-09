@@ -1,7 +1,4 @@
 # Seed set from the DVWA module list at security level low; the runner logs in first.
-# Known gaps (HARIS has no class): dvwa-command-injection (CWE-78, POST /vulnerabilities/exec, ip),
-# dvwa-csrf (CWE-352, GET /vulnerabilities/csrf, password_new), dvwa-upload (CWE-434, POST /vulnerabilities/upload, uploaded).
-# Wapiti reports all three, but each title becomes an `unclassified:wapiti:<title slug>` token that embeds the finding text.
 target: dvwa
 kind: external
 entries:
@@ -47,6 +44,31 @@ entries:
     expected: true_positive
     source: https://github.com/digininja/DVWA
     notes: Local file inclusion through page; HARIS reports it as path_traversal.
+  - id: dvwa-command-injection
+    method: POST
+    url: /vulnerabilities/exec
+    parameter: ip
+    vuln_class: command_injection
+    cwe: CWE-78
+    expected: true_positive
+    source: https://github.com/digininja/DVWA
+  - id: dvwa-csrf
+    method: GET
+    url: /vulnerabilities/csrf
+    parameter: password_new
+    vuln_class: csrf
+    cwe: CWE-352
+    expected: true_positive
+    source: https://github.com/digininja/DVWA
+    notes: Wapiti's csrf module attacks POST forms only and sets no parameter, so this entry may stay a miss.
+  - id: dvwa-upload
+    method: POST
+    url: /vulnerabilities/upload
+    parameter: uploaded
+    vuln_class: unrestricted_upload
+    cwe: CWE-434
+    expected: true_positive
+    source: https://github.com/digininja/DVWA
 ignore:
   - vuln_class: no_https
     url: /*

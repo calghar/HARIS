@@ -61,6 +61,24 @@ classes:
       wapiti: ["XML External Entity"]
       nuclei: ["xxe"]
 
+  - id: command_injection
+    primary_cwe: CWE-78
+    granularity: parameter
+    aliases:
+      wapiti: ["Command execution"]
+
+  - id: csrf
+    primary_cwe: CWE-352
+    granularity: path
+    aliases:
+      wapiti: ["Cross Site Request Forgery"]
+
+  - id: unrestricted_upload
+    primary_cwe: CWE-434
+    granularity: parameter
+    aliases:
+      wapiti: ["Unrestricted File Upload"]
+
   - id: missing_header
     primary_cwe: CWE-693
     granularity: host
