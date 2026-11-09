@@ -178,6 +178,11 @@ class MarkdownReporter(BaseReporter):
                 f"\n**Reproduction:**\n"
                 f"{md_fence(f.request_example, angles=self._angles)}"
             )
+        if f.agent_annotation:
+            parts.append(
+                "\n**Agent note:**\n"
+                f"{md_fence(f.agent_annotation, angles=self._angles)}"
+            )
         if f.remediation:
             parts.append(f"\n**Remediation:** {md_text(f.remediation)}")
         if f.references:

@@ -15,20 +15,39 @@ from haris.models import Scope, Target
 from haris.net import NetworkPolicy
 from haris.net.ssrf import Resolver
 
+LOGIN = "https://example.com/login"
 MATRIX = [
-    (False, "GET", "https://example.com/search?q=1", "", "forwards"),
-    (False, "GET", "https://evil.test/", "", "rejects"),
-    (False, "GET", "http://169.254.169.254/latest/meta-data", "", "rejects"),
-    (False, "POST", "https://example.com/login", "", "rejects"),
-    (True, "POST", "https://example.com/login", "", "forwards"),
-    (True, "DELETE", "https://example.com/item/1", "", "rejects"),
-    (True, "POST", "https://example.com/q", "id=1;DROP TABLE users", "rejects"),
+    (False, "GET", "https://example.com/search?q=1", "", "GET", "", "forwards"),
+    (False, "GET", "https://evil.test/", "", "GET", "", "rejects"),
+    (False, "GET", "http://169.254.169.254/latest/meta-data", "", "GET", "", "rejects"),
+    (False, "POST", LOGIN, "", "POST", LOGIN, "rejects"),
+    (True, "POST", LOGIN, "", "POST", LOGIN, "forwards"),
+    (True, "POST", LOGIN, "", "GET", LOGIN, "rejects"),
+    (True, "POST", LOGIN, "", "POST", "https://example.com/other", "rejects"),
+    (True, "DELETE", "https://example.com/item/1", "", "POST", "", "rejects"),
+    (True, "PUT", LOGIN, "", "POST", LOGIN, "rejects"),
+    (True, "PATCH", LOGIN, "", "POST", LOGIN, "rejects"),
+    (
+        True,
+        "POST",
+        "https://example.com/q",
+        "id=1;DROP TABLE users",
+        "POST",
+        "",
+        "rejects",
+    ),
 ]
 
 
-@pytest.mark.parametrize("unsafe,method,url,body,outcome", MATRIX)
+@pytest.mark.parametrize("unsafe,method,url,body,observed,observed_url,outcome", MATRIX)
 def test_proxy_egress_matrix(
-    unsafe: bool, method: str, url: str, body: str, outcome: str
+    unsafe: bool,
+    method: str,
+    url: str,
+    body: str,
+    observed: str,
+    observed_url: str,
+    outcome: str,
 ):
     """Scenario: Proxy egress matrix."""
     decision, _reason = classify_request(
@@ -37,6 +56,8 @@ def test_proxy_egress_matrix(
         body,
         allowed_domains=["example.com"],
         allow_unsafe=unsafe,
+        finding_url=observed_url,
+        finding_method=observed,
     )
     assert decision == outcome
 

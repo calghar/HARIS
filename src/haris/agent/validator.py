@@ -6,6 +6,7 @@ from ..core.vuln_class import get_registry
 from ..models import (
     CorrelatedFinding,
     EvidenceExchange,
+    Finding,
     VerificationMethod,
     VerificationOracle,
     VerificationTier,
@@ -35,11 +36,16 @@ def _in_scope(client: ScopedClient, url: str) -> bool:
     )
 
 
-def _method_ok(method: str, *, allow_unsafe: bool, finding_method: str) -> bool:
+def _method_ok(method: str, url: str, *, allow_unsafe: bool, finding: Finding) -> bool:
     verb = method.upper()
     if verb in SAFE_METHODS:
         return True
-    return bool(allow_unsafe and verb == "POST" and finding_method.upper() == "POST")
+    return bool(
+        allow_unsafe
+        and verb == "POST"
+        and finding.method.upper() == "POST"
+        and url == finding.url
+    )
 
 
 def reexecute(
@@ -58,7 +64,7 @@ def reexecute(
         return False, []
     request = poc.requests[0]
     if not _method_ok(
-        request.method, allow_unsafe=allow_unsafe, finding_method=finding.method
+        request.method, request.url, allow_unsafe=allow_unsafe, finding=finding
     ):
         return False, []
     if not _in_scope(prober.client, request.url):

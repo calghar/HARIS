@@ -2,6 +2,11 @@
   "$defs": {
     "CorrelatedRecord": {
       "properties": {
+        "agent_annotation": {
+          "default": "",
+          "title": "Agent Annotation",
+          "type": "string"
+        },
         "confidence": {
           "title": "Confidence",
           "type": "string"
@@ -226,6 +231,11 @@
     "FindingRecord": {
       "description": "One finding as ``Finding.to_dict`` writes it; 0.7 keys are optional.",
       "properties": {
+        "agent_annotation": {
+          "default": "",
+          "title": "Agent Annotation",
+          "type": "string"
+        },
         "confidence": {
           "title": "Confidence",
           "type": "string"
@@ -635,6 +645,13 @@
       },
       "title": "Scanner Status",
       "type": "object"
+    },
+    "stage_log": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Stage Log",
+      "type": "array"
     },
     "summary": {
       "additionalProperties": true,

@@ -92,6 +92,8 @@ def test_upgrade_keeps_data_and_backs_up(upgraded):
     assert session is not None
     assert [f.finding_id for f in session.all_findings] == ["f1"]
     assert session.template_id == "tpl-1"
+    assert session.stage_log == []
+    assert session.all_findings[0].agent_annotation == ""
 
 
 def test_upgrade_hashes_every_token_in_place(upgraded):

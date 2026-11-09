@@ -123,7 +123,7 @@ The agent validator SHALL run only when both `--agent` and `--i-have-authorizati
 | --agent --i-have-authorization | HARIS_AGENT_DISABLED=1 | agent stage skipped |
 
 ### Requirement: Agent sandbox boundary
-Each agent job SHALL run its tool calls in a fresh Docker container with read-only root filesystem, tmpfs `/work` of 64 MiB, all capabilities dropped, `no-new-privileges`, pids limit 128, memory 512 MiB, 1 CPU, user 65534, no volumes, no Docker socket and no host network, attached only to an internal network whose sole peer is the scope-enforcing proxy. The proxy MUST apply the scope, SSRF guard, method allow-list, rate limit (default 2 rps per job) and request cap (default 300 per job) of scoped-http, and MUST reject `PUT`, `PATCH` and `DELETE` always and `POST` unless `--agent-allow-unsafe-methods` is set. LLM API keys MUST NOT be present in the container.
+Each agent job SHALL run its tool calls in a fresh Docker container with read-only root filesystem, tmpfs `/work` of 64 MiB, all capabilities dropped, `no-new-privileges`, pids limit 128, memory 512 MiB, 1 CPU, user 65534, no volumes, no Docker socket and no host network, attached only to an internal network whose sole peer is the scope-enforcing proxy. The proxy MUST apply the scope, SSRF guard, method allow-list, rate limit (default 2 rps per job) and request cap (default 300 per job) of scoped-http, and MUST reject `PUT`, `PATCH` and `DELETE` always and `POST` unless `--agent-allow-unsafe-methods` is set, the request URL equals the finding's URL and the finding was observed on a `POST` request. LLM API keys MUST NOT be present in the container.
 
 #### Scenario: Container flags
 - **WHEN** an agent job starts
@@ -132,20 +132,23 @@ Each agent job SHALL run its tool calls in a fresh Docker container with read-on
 - **AND** the container environment has no variable whose value equals a configured LLM API key
 
 #### Scenario: Proxy egress matrix
-- **GIVEN** target `https://example.com` in scope and `--agent-allow-unsafe-methods` `<unsafe>`
+- **GIVEN** target `https://example.com` in scope, `--agent-allow-unsafe-methods` `<unsafe>` and a finding observed on `<observed>`
 - **WHEN** the sandbox sends `<request>` through the proxy
 - **THEN** the proxy `<outcome>`
 
 #### Examples:
-| unsafe | request | outcome |
-|--------|---------|---------|
-| false | GET https://example.com/search?q=1 | forwards |
-| false | GET https://evil.test/ | rejects |
-| false | GET http://169.254.169.254/latest/meta-data | rejects |
-| false | POST https://example.com/login | rejects |
-| true | POST https://example.com/login | forwards |
-| true | DELETE https://example.com/item/1 | rejects |
-| true | POST https://example.com/q with body id=1;DROP TABLE users | rejects |
+| unsafe | observed | request | outcome |
+|--------|----------|---------|---------|
+| false | GET https://example.com/search?q=1 | GET https://example.com/search?q=1 | forwards |
+| false | GET https://example.com/search?q=1 | GET https://evil.test/ | rejects |
+| false | GET https://example.com/search?q=1 | GET http://169.254.169.254/latest/meta-data | rejects |
+| false | POST https://example.com/login | POST https://example.com/login | rejects |
+| true | POST https://example.com/login | POST https://example.com/login | forwards |
+| true | GET https://example.com/login | POST https://example.com/login | rejects |
+| true | POST https://example.com/login | POST https://example.com/other | rejects |
+| true | POST https://example.com/login | PUT https://example.com/login | rejects |
+| true | POST https://example.com/item/1 | DELETE https://example.com/item/1 | rejects |
+| true | POST https://example.com/q | POST https://example.com/q with body id=1;DROP TABLE users | rejects |
 
 ### Requirement: Agent budgets, guardrails and kill switch
 Each agent job SHALL stop when it reaches `agent.max_tool_calls` (default 40), `agent.max_tokens` (default 300000) or `agent.wall_clock_s` (default 600), and the scan MUST run at most `agent.max_jobs` (default 10) jobs within `agent.max_cost_usd` (default 10.00). Tool-call arguments containing shell substitution (`$(`, backticks, `${`), pipes into `sh`, `bash` or `python`, `eval`, or decode functions (`base64 -d`, `b64decode`, `fromhex`) combined with execution MUST be rejected and logged as guardrail hits. A budget breach, a third guardrail hit in one job, `haris cancel`, SIGINT or web cancel MUST kill the job container and proxy and mark the job `aborted` with the finding's tier unchanged. Every LLM message digest, tool call, tool result digest, proxy exchange and guardrail hit MUST be appended to `<out>/agent/<job_id>/audit.jsonl`.

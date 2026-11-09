@@ -7,7 +7,6 @@ import pytest
 
 from haris.agent.policy import bind_policy, policy_for_web
 from haris.agent.settings import load_agent_settings
-from haris.agent.stages import stage_log
 from haris.core.engine import ScanEngine
 from haris.llm.base import BaseLLMBackend
 from haris.models import LLMResponse, Scope, Target
@@ -77,7 +76,7 @@ def test_stage_order_includes_the_agent(monkeypatch: pytest.MonkeyPatch):
                 network_policy=NetworkPolicy(allow_private=True),
             )
             session = engine.run(target)
-        assert stage_log(session) == ORDER
+        assert session.stage_log == ORDER
     finally:
         from haris.agent.policy import reset_policy
 

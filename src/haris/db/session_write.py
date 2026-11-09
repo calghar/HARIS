@@ -62,6 +62,7 @@ def _finding_row(sid: str, f: Finding) -> tuple[object, ...]:
         f.confidence_score,
         f.verification.model_dump_json(),
         f.suppression.model_dump_json() if f.suppression else "",
+        f.agent_annotation,
     )
 
 
@@ -77,8 +78,8 @@ def write_session(
             risk_posture, risk_posture_text, errors, target_json,
             false_positive_assessments, executive_priorities,
             template_id, scan_state, scanner_status, correlated_json,
-            owner_user_id, started_by)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            owner_user_id, started_by, stage_log)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
            ON CONFLICT(session_id) DO UPDATE SET
              target_url = excluded.target_url,
              profile_name = excluded.profile_name,
@@ -99,7 +100,8 @@ def write_session(
              owner_user_id = COALESCE(NULLIF(excluded.owner_user_id, ''),
                                       scans.owner_user_id),
              started_by = COALESCE(NULLIF(excluded.started_by, ''),
-                                   scans.started_by)""",
+                                   scans.started_by),
+             stage_log = excluded.stage_log""",
         (
             sid,
             session.target.base_url,
@@ -120,6 +122,7 @@ def write_session(
             _correlated_json(session),
             owner_user_id,
             owner_user_id,
+            json.dumps(session.stage_log),
         ),
     )
     for table in ("findings", "remediation_steps", "scanner_results"):
@@ -132,9 +135,9 @@ def write_session(
             request_example, response_snippet, remediation,
             references_json, scanner, found_at, tags_json,
             observation_id, fingerprint, vuln_class, confidence_score,
-            verification_json, suppression_json)
+            verification_json, suppression_json, agent_annotation)
            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-                   ?, ?, ?, ?, ?, ?)""",
+                   ?, ?, ?, ?, ?, ?, ?)""",
         [_finding_row(sid, f) for f in session.all_findings],
     )
     conn.executemany(

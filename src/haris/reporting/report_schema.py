@@ -41,6 +41,7 @@ class FindingRecord(BaseModel):
     confidence_score: float = Field(default=0.5, ge=0.0, le=1.0)
     verification: Verification = Field(default_factory=Verification)
     suppression: Suppression | None = None
+    agent_annotation: str = ""
 
 
 class CorrelatedRecord(FindingRecord):
@@ -71,6 +72,7 @@ class ReportDocument(BaseModel):
     remediation: list[RemediationRecord] = Field(default_factory=list)
     errors: list[str] = Field(default_factory=list)
     scan_state: str = "pending"
+    stage_log: list[str] = Field(default_factory=list)
     scanner_status: dict[str, str] = Field(default_factory=dict)
     correlated: list[CorrelatedRecord] = Field(default_factory=list)
 

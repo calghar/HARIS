@@ -111,6 +111,8 @@ def _result(f: Finding, base_url: str, baseline_state: str | None) -> dict[str, 
             "cwe": f.cwe_id,
         },
     }
+    if f.agent_annotation:
+        result["properties"]["agentAnnotation"] = f.agent_annotation
     if f.fingerprint:
         result["partialFingerprints"] = {FINGERPRINT_KEY: f.fingerprint}
     exchange = _exchange(f)

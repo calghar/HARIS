@@ -52,6 +52,7 @@ def _finding(row: sqlite3.Row, base_url: str) -> Finding:
         scanner=row["scanner"],
         found_at=row["found_at"],
         tags=json.loads(row["tags_json"]),
+        agent_annotation=row["agent_annotation"],
     )
     if not row["verification_json"]:
         # 0.6 row: identity is recomputed on read; the stored finding_id stays.
@@ -158,6 +159,7 @@ def read_session(conn: sqlite3.Connection, session_id: str) -> ScanSession | Non
         risk_posture=RiskPosture(scan_row["risk_posture"]),
         risk_posture_text=scan_row["risk_posture_text"],
         errors=session_errors,
+        stage_log=json.loads(scan_row["stage_log"]),
         llm_enrichments=enrichments,
         attack_chains=chains,
         triaged_findings=triaged,
