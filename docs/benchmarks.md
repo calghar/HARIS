@@ -26,7 +26,7 @@ The harness in `bench/` measures how many of HARIS's findings are real (precisio
 python -m haris.bench score <report.json | reports-dir> <ground_truth.yaml> [--baseline <report.json | dir>] [--out DIR]
 ```
 
-A directory holds one JSON report per run. Output: `score.json` and `score.md`.
+`haris bench score` takes the same arguments (exit 3 on a missing or invalid path). A directory holds one JSON report per run. Output: `score.json` and `score.md`.
 
 - A finding matches an entry when the class token (the finding's `vuln_class`, else its `cwe_id`), the normalised URL path and the parameter all match. Scheme, host, query and trailing slash are ignored. The method is recorded but not matched.
 - Findings with the same key count once. Precision is true-positive findings over unique findings; recall is matched entries over entries. True-positive rate equals recall (DASTestBed naming).
