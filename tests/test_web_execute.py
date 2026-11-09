@@ -94,7 +94,7 @@ def test_execute_scan_wires_the_runner_and_persists_the_session(
     assert record is not None
     assert (record["template_id"], record["profile_name"]) == (template, "standard")
     assert list(env.settings.reports_dir.glob(f"report_app.example.com_{scan_id}.json"))
-    assert job_status(env, scan_id) is JobStatus.COMPLETED
+    wait_for(lambda: job_status(env, scan_id) is JobStatus.COMPLETED)
 
 
 def test_execute_scan_checkpoints_keep_owner_and_profile(
@@ -132,7 +132,7 @@ def test_cancelling_a_running_scan_stops_the_runner(
     assert cancel(env, env.alice, scan_id).status_code == 202
     wait_for(lambda: status(env, scan_id) == "cancelled")
     assert real_execute.instances[0].cancelled.is_set()
-    assert job_status(env, scan_id) is JobStatus.CANCELLED
+    wait_for(lambda: job_status(env, scan_id) is JobStatus.CANCELLED)
 
 
 def test_scanner_failure_marks_the_scan_failed(

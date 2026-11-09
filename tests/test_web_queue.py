@@ -82,7 +82,7 @@ def test_cancel_running_job_frees_the_slot(tmp_path: Path, runner: FakeRunner) -
     runner.wait_started()
     assert cancel(env, env.alice, running).status_code == 202
     wait_for(lambda: status(env, running) == "cancelled")
-    assert job_status(env, running) is JobStatus.CANCELLED
+    wait_for(lambda: job_status(env, running) is JobStatus.CANCELLED)
     runner.wait_started(2)
     assert runner.started == [running, waiting]
     assert status(env, waiting) == "running"
