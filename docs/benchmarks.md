@@ -6,9 +6,9 @@ The harness in `bench/` measures how many of HARIS's findings are real (precisio
 
 | Target | Kind | Ground truth |
 |---|---|---|
-| OWASP Juice Shop `v20.4.0` | external | seed set from the [companion guide](https://pwning.owasp-juice.shop/) |
-| DVWA (digest of `latest`) | external | seed set from the [module list](https://github.com/digininja/DVWA), security level low |
-| WebGoat `v2026.5` | external | seed set of lesson endpoints from the [WebGoat repository](https://github.com/WebGoat/WebGoat) |
+| OWASP Juice Shop `v20.4.0` | external | seed set of 3 entries from the [companion guide](https://pwning.owasp-juice.shop/); 1 known gap |
+| DVWA (digest of `latest`) | external | seed set of 5 entries from the [module list](https://github.com/digininja/DVWA), security level low; 3 known gaps |
+| WebGoat `v2026.5` | external | seed set of 3 lesson endpoints from the [WebGoat repository](https://github.com/WebGoat/WebGoat) |
 | `spa_catchall` | fixture | the fixture's real properties: plain HTTP, `Server` banner, five missing security headers; any path or debug finding is a false positive |
 | `vuln_ai_app` | fixture | 7 deliberate weaknesses (prompt injection, system-prompt leak, unauthenticated inference, verbose error, output XSS, unauthenticated MCP `tools/list`, poisoned MCP tool description) plus 4 real properties (plain HTTP, `Server` banner, no rate limit, ignored `max_tokens`); the `/health` path and `ai_endpoint_discovered` records are ignored |
 
@@ -19,6 +19,10 @@ The harness in `bench/` measures how many of HARIS's findings are real (precisio
 ## Ground truth
 
 `bench/ground_truth/<target>.yaml`, validated by `haris.bench.truth.GroundTruth`. Each entry is one request instance: `method`, `url` (path glob), `parameter`, `vuln_class`, `cwe`, `expected: true_positive`. Entries for external targets carry a `source` URL. An optional `ignore` list holds findings that are neither true nor false positives: `vuln_class`, `url` (path glob), optional `parameter` (any when omitted) and a required `reason`. The seed sets are small and are not a claim of completeness: a real finding outside them counts as a false positive.
+
+- `vuln_class` is an `id` in `src/haris/resources/config/vuln_classes.yaml` (or an `unclassified:` token HARIS emits); `tests/test_bench_ground_truth.py` enforces it.
+- A weakness HARIS has no class or detector for is not an entry; it is listed as a known gap in the header of the target's YAML file (1 in `juice_shop.yaml`, 3 in `dvwa.yaml`).
+- The three external files each ignore 6 target properties: plain HTTP, missing headers, `Server` banner, and the `robots.txt`, `sitemap.xml` and `security.txt` records.
 
 ## Scoring
 
@@ -57,6 +61,6 @@ The runner starts the targets, waits for health, runs `haris` for each run, stor
 
 - No published scores yet; this page holds methodology only. Numbers appear after a recorded run, with the artifacts attached.
 - Recall on Juice Shop, DVWA and WebGoat is against a seed set, not their full vulnerability lists.
-- DVWA modules and WebGoat lessons need a logged-in session; the runner does not configure authentication, so an unauthenticated run cannot reach them.
+- The runner logs in before every DVWA run (`admin`/`password`, security level `low`) and WebGoat run (registers `haris-bench`, then logs in) and hands the session to `haris` through a generated `--config` (`auth.method: header`, `Cookie`) and `HARIS_AUTH_HEADER`; the session is not written to argv, `stdout.log` or the results directory.
 - Third-party results (DASTestBed, XBOW) are not ours and are not compared here.
 - Scanners that are not installed on the runner are recorded as scanner errors, so results reflect the tools present.

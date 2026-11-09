@@ -28,3 +28,22 @@ entries:
     expected: true_positive
     source: https://github.com/WebGoat/WebGoat
     notes: Cross Site Scripting lesson.
+ignore:
+  - vuln_class: no_https
+    url: /*
+    reason: The target is served over plain HTTP by the compose file.
+  - vuln_class: missing_header
+    url: /*
+    reason: Header set is a property of the target image, not a seeded weakness.
+  - vuln_class: banner_disclosure
+    url: /*
+    reason: Version banner is a property of the target image, not a seeded weakness.
+  - vuln_class: sensitive_file
+    url: /robots.txt
+    reason: Info-level discovery record, not a weakness.
+  - vuln_class: sensitive_file
+    url: /sitemap.xml
+    reason: Info-level discovery record, not a weakness.
+  - vuln_class: sensitive_file
+    url: /.well-known/security.txt
+    reason: Info-level discovery record, not a weakness.

@@ -63,6 +63,19 @@ def test_fixture_truth_classes_exist_with_their_primary_cwe(path: Path) -> None:
     )
 
 
+@pytest.mark.parametrize("path", TRUTH_FILES, ids=lambda p: p.stem)
+def test_truth_class_ids_are_emitted_by_haris(path: Path) -> None:
+    truth = load_ground_truth(path)
+    tokens = [entry.vuln_class for entry in truth.entries]
+    tokens += [entry.vuln_class for entry in truth.ignore]
+    unknown = [
+        t
+        for t in tokens
+        if not t.startswith("unclassified:") and t not in get_registry().classes
+    ]
+    assert not unknown, f"{path.name}: not in vuln_classes.yaml: {unknown}"
+
+
 def test_ignore_entry_loads_with_optional_parameter() -> None:
     truth = GroundTruth.model_validate(
         {
