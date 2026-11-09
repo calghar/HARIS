@@ -30,11 +30,6 @@ def add_ai_arguments(parser: argparse.ArgumentParser) -> None:
         help="Send prompts to AI endpoints (needs --i-have-authorization)",
     )
     parser.add_argument(
-        "--i-have-authorization",
-        action="store_true",
-        help="Confirm written authorisation to test the target's AI systems",
-    )
-    parser.add_argument(
         "--ai-system-prompt-marker",
         action="append",
         metavar="TEXT",
