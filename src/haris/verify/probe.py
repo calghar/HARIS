@@ -1,4 +1,6 @@
 import secrets
+from collections.abc import Iterator
+from contextlib import contextmanager
 from urllib.parse import parse_qsl, quote, urlencode, urljoin, urlsplit, urlunsplit
 
 from ..models import EvidenceExchange, Finding
@@ -44,10 +46,25 @@ def build_request(
 class Prober:
     """Sends replay requests through the scan's ScopedClient within a request cap."""
 
-    def __init__(self, client: ScopedClient, limit: int) -> None:
+    def __init__(
+        self, client: ScopedClient, limit: int, timeout_s: float | None = None
+    ) -> None:
         self.client = client
         self._limit = limit
+        self._timeout_s = timeout_s
         self._start = client.requests_sent
+
+    @contextmanager
+    def bounded(self) -> Iterator[None]:
+        """Cap the client's per-request timeout for the block (replay is sequential)."""
+        policy = self.client.policy
+        saved = policy.timeout_s
+        if self._timeout_s is not None:
+            policy.timeout_s = min(saved, self._timeout_s)
+        try:
+            yield
+        finally:
+            policy.timeout_s = saved
 
     @property
     def used(self) -> int:

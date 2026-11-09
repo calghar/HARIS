@@ -78,7 +78,7 @@ classes:
   - id: sensitive_file
     primary_cwe: CWE-538
     granularity: path
-    oracle: content_validator
+    oracle: soft404, content_validator
     aliases:
       builtin: ["Accessible sensitive path: .*", "Exposed debug endpoint: .*"]
       wapiti: ["Backup file"]
@@ -205,4 +205,97 @@ classes:
 
   - id: missing_sri
     primary_cwe: CWE-353
+    granularity: parameter
+
+  # AI findings verify themselves in haris.ai_security, so they have no replay oracle.
+  - id: ai_endpoint_discovered
+    primary_cwe: CWE-NONE
+    granularity: parameter
+
+  - id: ai_ai_widget
+    primary_cwe: CWE-NONE
+    granularity: parameter
+
+  - id: ai_unauthenticated_inference
+    primary_cwe: CWE-306
+    granularity: parameter
+
+  - id: ai_unauthenticated_admin
+    primary_cwe: CWE-306
+    granularity: parameter
+
+  - id: ai_mcp_unauthenticated
+    primary_cwe: CWE-306
+    granularity: parameter
+
+  - id: ai_plaintext_mcp_transport
+    primary_cwe: CWE-319
+    granularity: parameter
+
+  - id: ai_provider_key_in_bundle
+    primary_cwe: CWE-798
+    granularity: parameter
+
+  - id: ai_system_prompt_in_bundle
+    primary_cwe: CWE-200
+    granularity: parameter
+
+  - id: ai_model_config_in_bundle
+    primary_cwe: CWE-200
+    granularity: parameter
+
+  - id: ai_verbose_provider_error
+    primary_cwe: CWE-209
+    granularity: parameter
+
+  - id: ai_chat_cors
+    primary_cwe: CWE-942
+    granularity: parameter
+
+  - id: ai_tool_description_injection
+    primary_cwe: CWE-1427
+    granularity: parameter
+
+  - id: ai_hidden_unicode
+    primary_cwe: CWE-1427
+    granularity: parameter
+
+  - id: ai_excessive_agency_schema
+    primary_cwe: CWE-NONE
+    granularity: parameter
+
+  - id: ai_toxic_flow
+    primary_cwe: CWE-NONE
+    granularity: parameter
+
+  - id: ai_prompt_injection_canary
+    primary_cwe: CWE-1427
+    granularity: parameter
+
+  - id: ai_jailbreak_canary
+    primary_cwe: CWE-1427
+    granularity: parameter
+
+  - id: ai_system_prompt_leak
+    primary_cwe: CWE-200
+    granularity: parameter
+
+  - id: ai_output_handling_xss
+    primary_cwe: CWE-79
+    granularity: parameter
+
+  - id: ai_missing_rate_limit
+    primary_cwe: CWE-770
+    granularity: parameter
+
+  - id: ai_ignored_token_cap
+    primary_cwe: CWE-770
+    granularity: parameter
+
+  - id: ai_garak
+    primary_cwe: CWE-1427
+    granularity: parameter
+
+  - id: ai_promptfoo
+    primary_cwe: CWE-1427
     granularity: parameter
