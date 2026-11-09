@@ -53,13 +53,13 @@ Neither tool is vendored; install them yourself. A missing binary is a scanner e
 
 ## OWASP mapping
 
-LLM Top 10 2025 ids (genai.owasp.org) and Agentic Top 10 ASI01-ASI10 (genai.owasp.org/download/52117) were
+LLM Top 10 2026 ids (genai.owasp.org, checked 2026-11-09) and Agentic Top 10 ASI01-ASI10 (genai.owasp.org/download/52117) were
 checked against the sources on 2026-11-08. CWE-1427 and CWE-770 were checked at cwe.mitre.org.
 
 - [UNVERIFIED] MCP Top 10 (`MCP01:2025` to `MCP10:2025`): titles match owasp.org/www-project-mcp-top-10, a beta
   whose project level and final ids may change.
-- OWASP published a 2026 LLM Top 10 that renumbers some entries (for example Excessive Agency and hidden context
-  exposure). HARIS keeps the 2025 ids the spec pins.
+- The 2026 LLM Top 10 renumbers the 2025 list: Excessive Agency is `LLM03:2026`, System Prompt Leakage became Hidden
+  Context Exposure (`LLM08:2026`), Unbounded Consumption is `LLM06:2026` and Improper Output Handling is `LLM10:2026`.
 - The garak and promptfoo to OWASP tables in `ai_mappings.yaml` are HARIS's own classification, not the tools'.
 
 ## Limits

@@ -86,7 +86,7 @@ class TestCanaryVerdict:
         assert len(found) == 1
         assert found[0].verification.tier is VerificationTier.REPLAY_VERIFIED
         assert found[0].verification.oracle.value == "canary"
-        assert found[0].tags[1] == "LLM01:2025"
+        assert found[0].tags[1] == "LLM01:2026"
 
     def test_a_canary_that_is_not_the_requested_one_is_ignored(self) -> None:
         wrong = FakeChat(lambda _p: "HARIS-CANARY-0000000000000000")

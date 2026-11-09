@@ -20,7 +20,7 @@ def _prefix(risk_id: str) -> str:
 
 
 def risk_label(risk_id: str) -> str:
-    """``LLM01:2025`` -> ``LLM01:2025 - Prompt Injection`` (web ids included)."""
+    """``LLM01:2026`` -> ``LLM01:2026 - Prompt Injection`` (web ids included)."""
     known = AI_RISKS.get(risk_id)
     return known.value if known else WEB_RISKS[risk_id]
 
