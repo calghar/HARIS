@@ -5,7 +5,7 @@ import threading
 from collections.abc import Callable
 from io import BufferedIOBase
 from typing import Literal
-from urllib.parse import urlsplit
+from urllib.parse import unquote_plus, urlsplit
 
 from ..models import Scope, Target
 from ..net import NetworkError, NetworkPolicy, ScopedClient
@@ -18,6 +18,7 @@ logger = logging.getLogger(__name__)
 
 SAFE_METHODS = frozenset({"GET", "HEAD", "OPTIONS"})
 MAX_SLEEP_S = 10
+DECODE_ROUNDS = 3
 MAX_LINE = 8192
 MAX_BODY = 64 * 1024
 _SLEEP = re.compile(
@@ -40,7 +41,15 @@ def sleep_too_long(text: str) -> bool:
 
 
 def destructive(text: str) -> bool:
-    return bool(_SQL.search(text)) or sleep_too_long(text)
+    """Test the raw text and its percent-decoded forms (up to ``DECODE_ROUNDS``)."""
+    for _ in range(DECODE_ROUNDS + 1):
+        if _SQL.search(text) or sleep_too_long(text):
+            return True
+        decoded = unquote_plus(text)
+        if decoded == text:
+            return False
+        text = decoded
+    return False
 
 
 def classify_request(

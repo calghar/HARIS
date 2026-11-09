@@ -92,6 +92,7 @@
 - Fixed duplicate and unrelated cookie findings from `header_checks` and `cookie_checks`; only session cookies are judged, once, in `cookie_checks` (SameSite maps to CWE-1275, not session fixation)
 - Fixed `info_disclosure` matching "Express 2024", "Caused by: user" and "hackathon"; framework names need a version, `Caused by:` needs an exception class and comment markers are case-sensitive words
 - Fixed `tls_checks` expiry and hostname checks that never ran; the certificate is read without verification, then verified separately, and TLSv1 and TLSv1.1 are probed independently
+- Fixed the agent validator never confirming a reflected XSS first seen on `POST`; re-execution now sends the form body with a fresh `{marker}` under the proxy's destructive-content rules, also applied to percent-encoded text
 - Fixed `outdated_server` CWE mapping on version endpoints and `X-Powered-By` context extraction (`raw_data` now carries the technology headers)
 
 ### Changed
