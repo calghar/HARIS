@@ -102,7 +102,7 @@ class TestStaticMatrix:
         server = McpServer([tool("run", command={"type": "string"})])
         found = hits(scan(server), "ai_excessive_agency_schema")
         assert [f.parameter for f in found] == ["run.command"]
-        assert found[0].tags[1:] == ["LLM06:2025", "MCP05:2025", "ASI05"]
+        assert found[0].tags[1:] == ["LLM03:2026", "MCP05:2025", "ASI05"]
 
     def test_constrained_parameter_is_not_flagged(self) -> None:
         server = McpServer([tool("a", mode={"type": "string", "enum": ["a", "b"]})])

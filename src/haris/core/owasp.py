@@ -213,7 +213,7 @@ def map_cwe_to_owasp(cwe_id: str) -> OwaspMapping | None:
 
 
 def map_ai_risk(risk_id: str) -> AiRisk | None:
-    """Look up an OWASP LLM, Agentic or MCP risk by id (``LLM01:2025``, ``ASI03``)."""
+    """Look up an OWASP LLM, Agentic or MCP risk by id (``LLM01:2026``, ``ASI03``)."""
     return AI_RISKS.get(risk_id)
 
 

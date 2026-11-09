@@ -24,17 +24,39 @@ NEW_CHECKS = {
 
 # (check kind, OWASP ids, CWE) — the "Passive check mapping" scenario outline.
 PASSIVE_MAPPING = [
-    ("unauthenticated_inference", ["LLM10:2025", "ASI03"], "CWE-306"),
+    ("unauthenticated_inference", ["LLM06:2026", "ASI03"], "CWE-306"),
     ("mcp_unauthenticated", ["MCP07:2025", "MCP09:2025"], "CWE-306"),
-    ("provider_key_in_bundle", ["LLM02:2025"], "CWE-798"),
-    ("system_prompt_in_bundle", ["LLM07:2025"], "CWE-200"),
-    ("verbose_provider_error", ["LLM02:2025"], "CWE-209"),
+    ("provider_key_in_bundle", ["LLM02:2026"], "CWE-798"),
+    ("system_prompt_in_bundle", ["LLM08:2026"], "CWE-200"),
+    ("verbose_provider_error", ["LLM02:2026"], "CWE-209"),
     ("plaintext_mcp_transport", ["MCP07:2025"], "CWE-319"),
+]
+LLM_2026 = {
+    "LLM01:2026 - Prompt Injection",
+    "LLM02:2026 - Sensitive Information Disclosure",
+    "LLM03:2026 - Excessive Agency",
+    "LLM04:2026 - Supply Chain",
+    "LLM05:2026 - Data and Model Poisoning",
+    "LLM06:2026 - Unbounded Consumption",
+    "LLM07:2026 - Misinformation",
+    "LLM08:2026 - Hidden Context Exposure",
+    "LLM09:2026 - Vector and Embedding Weaknesses",
+    "LLM10:2026 - Improper Output Handling",
+}
+# Check kind -> (2025 number, 2026 id) for the checks whose LLM id moved.
+RENUMBERED = [
+    ("unauthenticated_inference", "LLM10", "LLM06:2026"),
+    ("provider_key_in_bundle", "LLM02", "LLM02:2026"),
+    ("system_prompt_in_bundle", "LLM07", "LLM08:2026"),
+    ("verbose_provider_error", "LLM02", "LLM02:2026"),
+    ("prompt_injection_canary", "LLM01", "LLM01:2026"),
+    ("output_handling_xss", "LLM05", "LLM10:2026"),
+    ("excessive_agency_schema", "LLM06", "LLM03:2026"),
 ]
 STATIC_MAPPING = [
     ("tool_description_injection", ["MCP03:2025", "MCP06:2025", "ASI04"]),
     ("hidden_unicode", ["MCP03:2025", "ASI04"]),
-    ("excessive_agency_schema", ["LLM06:2025", "MCP05:2025", "ASI05"]),
+    ("excessive_agency_schema", ["LLM03:2026", "MCP05:2025", "ASI05"]),
     ("toxic_flow", ["ASI02", "MCP10:2025"]),
 ]
 
@@ -45,10 +67,15 @@ class TestRiskTables:
         assert len(AI_RISKS) == 30
 
     def test_lookup_returns_the_named_risk(self) -> None:
-        assert map_ai_risk("LLM01:2025") is LlmRisk.LLM01
+        assert map_ai_risk("LLM01:2026") is LlmRisk.LLM01
         assert map_ai_risk("ASI10") is AgenticRisk.ASI10
         assert map_ai_risk("MCP03:2025") is McpRisk.MCP03
         assert map_ai_risk("LLM01") is None
+        assert map_ai_risk(f"LLM01:{2025}") is None
+
+    def test_llm_list_is_the_2026_edition(self) -> None:
+        assert {r.value for r in LlmRisk} == LLM_2026
+        assert all(map_ai_risk(r.value.split(" - ")[0]) is r for r in LlmRisk)
 
     def test_unverified_note_is_present_in_the_mcp_table(self) -> None:
         assert "[UNVERIFIED]" in (SRC / "models" / "owasp.py").read_text()
@@ -66,6 +93,13 @@ class TestMappingTable:
     def test_static_heuristic_mapping(self, kind, owasp) -> None:
         finding = ai_finding(kind, url="https://x.test/")
         assert [t for t in finding.tags if t != "ai"] == owasp
+
+    @pytest.mark.parametrize(("kind", "old", "new"), RENUMBERED)
+    def test_llm_ids_moved_from_2025_to_2026(self, kind, old, new) -> None:
+        finding = ai_finding(kind, url="https://x.test/")
+        assert new in finding.tags
+        assert f"{old}:2025" not in finding.tags
+        assert finding.owasp_category.startswith(new)
 
     def test_unknown_owasp_id_is_rejected(self) -> None:
         raw = load_mappings().model_dump(mode="json")

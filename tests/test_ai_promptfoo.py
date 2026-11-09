@@ -31,7 +31,7 @@ class TestPromptfooParser:
         raw = pf_json("prompt-injection", [False, True, True, True])
         (found,) = PromptfooScanner().parse_results(raw, "http://127.0.0.1/chat")
         assert found.confidence_score == pytest.approx(0.625)
-        assert found.owasp_category.startswith("LLM01:2025")
+        assert found.owasp_category.startswith("LLM01:2026")
         assert found.verification.tier is VerificationTier.UNVERIFIED
         assert found.parameter == "prompt-injection"
 
@@ -39,7 +39,7 @@ class TestPromptfooParser:
         (found,) = PromptfooScanner().parse_results(PROMPTFOO_EVAL)
         assert found.parameter == "prompt-extraction"
         assert found.confidence_score == pytest.approx(0.75)
-        assert found.owasp_category.startswith("LLM07:2025")
+        assert found.owasp_category.startswith("LLM08:2026")
         assert found.cwe_id == "CWE-200"
 
     def test_one_finding_per_plugin(self) -> None:
@@ -68,7 +68,7 @@ class TestPromptfooParser:
     def test_unknown_plugin_uses_the_default_mapping(self) -> None:
         (found,) = PromptfooScanner().parse_results(pf_json("something-new", [False]))
         assert found.severity is Severity.LOW
-        assert found.owasp_category.startswith("LLM01:2025")
+        assert found.owasp_category.startswith("LLM01:2026")
 
     @pytest.mark.parametrize(
         "raw",

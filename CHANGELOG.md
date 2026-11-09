@@ -28,8 +28,9 @@
 - Added `ai_security` check (`haris.ai_security`): finds OpenAI-compatible, Ollama, vLLM, TGI, Triton, LangServe, Flowise, Open WebUI, Gradio, MLflow, Ray, ComfyUI and Jupyter endpoints, chat widgets and MCP servers behind the soft-404 baseline; passive checks cover unauthenticated inference and admin APIs, provider keys, system prompts and model settings in bundles, verbose provider errors, CORS on chat APIs and plaintext MCP
 - Added read-only MCP analysis (`initialize`, `tools/list`, and `resources/list` or `prompts/list` when advertised) with static checks for injected tool text, hidden Unicode, free-form parameters and toxic capability pairs; `tools/call`, `resources/read` and `prompts/get` are never sent
 - Added active AI probes behind `--ai-active` and `--i-have-authorization` (exit 3 without the second flag): canary injection, system prompt leak, output-handling XSS marker, a small jailbreak set, a rate-limit burst and a `max_tokens` check; payloads come only from `ai_probes.yaml`, limited by `ai.max_prompts` (50) and `ai.max_tokens_per_prompt` (256), and a finding reaches `replay_verified` only after a repeat with a fresh canary
-- Added `garak` and `promptfoo` scanners (not vendored; Apache-2.0 and MIT) that run under the same flags and map failures to OWASP LLM Top 10 2025 ids; added OWASP LLM Top 10 2025, Agentic Top 10 and MCP Top 10 (`[UNVERIFIED]`, beta) tables and the `ai-security` profile; see `docs/ai_security.md`
+- Added `garak` and `promptfoo` scanners (not vendored; Apache-2.0 and MIT) that run under the same flags and map failures to OWASP LLM Top 10 2026 ids; added OWASP LLM Top 10 2026, Agentic Top 10 and MCP Top 10 (`[UNVERIFIED]`, beta) tables and the `ai-security` profile; see `docs/ai_security.md`
 - Added the `sri_checks`, `cache_checks`, `method_checks`, `redirect_checks`, `graphql_checks`, `openapi_checks`, `listing_checks` and `dns_checks` checks to the `quick`, `pre-launch` and `full` profiles
+- Changed OWASP LLM Top 10 ids to the 2026 list (renumbered; System Prompt Leakage became Hidden Context Exposure, LLM08:2026)
 
 ### Changed (packaging)
 

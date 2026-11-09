@@ -47,7 +47,7 @@ class TestGarakParser:
             "promptinject.HijackLongPrompt:promptinject.AttackRogueString",
             "latentinjection.LatentInjectionTranslationEnFr:base.TriggerListDetector",
         }
-        assert {f.owasp_category for f in findings} == {"LLM01:2025 - Prompt Injection"}
+        assert {f.owasp_category for f in findings} == {"LLM01:2026 - Prompt Injection"}
         assert {f.confidence_score for f in findings} == {0.95}
         assert {f.scanner for f in findings} == {"garak"}
 

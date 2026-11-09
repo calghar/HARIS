@@ -15,20 +15,20 @@ class OwaspMapping(BaseModel):
     typical_cwes: tuple[str, ...]
 
 
-# Checked at genai.owasp.org/llm-top-10 on 2026-11-08; a 2026 edition renumbers it.
+# Checked at genai.owasp.org/resource/owasp-genai-llm-top-10-2026/ on 2026-11-09.
 class LlmRisk(StrEnum):
-    """OWASP Top 10 for LLM Applications 2025."""
+    """OWASP Top 10 for LLM Applications 2026."""
 
-    LLM01 = "LLM01:2025 - Prompt Injection"
-    LLM02 = "LLM02:2025 - Sensitive Information Disclosure"
-    LLM03 = "LLM03:2025 - Supply Chain"
-    LLM04 = "LLM04:2025 - Data and Model Poisoning"
-    LLM05 = "LLM05:2025 - Improper Output Handling"
-    LLM06 = "LLM06:2025 - Excessive Agency"
-    LLM07 = "LLM07:2025 - System Prompt Leakage"
-    LLM08 = "LLM08:2025 - Vector and Embedding Weaknesses"
-    LLM09 = "LLM09:2025 - Misinformation"
-    LLM10 = "LLM10:2025 - Unbounded Consumption"
+    LLM01 = "LLM01:2026 - Prompt Injection"
+    LLM02 = "LLM02:2026 - Sensitive Information Disclosure"
+    LLM03 = "LLM03:2026 - Excessive Agency"
+    LLM04 = "LLM04:2026 - Supply Chain"
+    LLM05 = "LLM05:2026 - Data and Model Poisoning"
+    LLM06 = "LLM06:2026 - Unbounded Consumption"
+    LLM07 = "LLM07:2026 - Misinformation"
+    LLM08 = "LLM08:2026 - Hidden Context Exposure"
+    LLM09 = "LLM09:2026 - Vector and Embedding Weaknesses"
+    LLM10 = "LLM10:2026 - Improper Output Handling"
 
 
 # Checked in the official PDF, genai.owasp.org/download/52117 (December 2025).

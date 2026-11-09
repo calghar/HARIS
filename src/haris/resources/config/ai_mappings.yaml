@@ -31,7 +31,7 @@ checks:
     title: "{label} reachable without authentication"
     description: "{label} answered a model listing request with no credentials, so its chat route is probably open to anyone. Cost abuse, data exposure and prompt injection against the backend follow. HARIS did not send a prompt to confirm."
     severity: medium
-    owasp: ["LLM10:2025", "ASI03"]
+    owasp: ["LLM06:2026", "ASI03"]
     cwe: CWE-306
     confidence: 0.75
     oracle: content_validator
@@ -40,7 +40,7 @@ checks:
     title: "{label} management API reachable without authentication"
     description: "{label} answered a management API request with no credentials. These APIs can read or change models, experiments, workflows or code execution."
     severity: high
-    owasp: ["LLM10:2025", "ASI03"]
+    owasp: ["LLM06:2026", "ASI03"]
     cwe: CWE-306
     confidence: 0.85
     oracle: content_validator
@@ -67,7 +67,7 @@ checks:
     title: "{label} exposed in a client bundle"
     description: "A script served to browsers contains what looks like a {label}; anyone can use it at the owner's expense."
     severity: high
-    owasp: ["LLM02:2025"]
+    owasp: ["LLM02:2026"]
     cwe: CWE-798
     confidence: 0.85
     oracle: content_validator
@@ -76,7 +76,7 @@ checks:
     title: "System prompt text in a client bundle"
     description: "A script served to browsers contains what looks like a system prompt, which discloses the application's instructions and guardrails."
     severity: medium
-    owasp: ["LLM07:2025"]
+    owasp: ["LLM08:2026"]
     cwe: CWE-200
     confidence: 0.7
     oracle: content_validator
@@ -85,7 +85,7 @@ checks:
     title: "Model configuration in a client bundle"
     description: "A script served to browsers sets the model name together with sampling parameters, which discloses the backend choice and tuning."
     severity: low
-    owasp: ["LLM07:2025"]
+    owasp: ["LLM08:2026"]
     cwe: CWE-200
     confidence: 0.6
     oracle: content_validator
@@ -94,7 +94,7 @@ checks:
     title: "Verbose error from an AI endpoint"
     description: "A malformed request to the chat route returned a stack trace or provider internals."
     severity: medium
-    owasp: ["LLM02:2025"]
+    owasp: ["LLM02:2026"]
     cwe: CWE-209
     confidence: 0.85
     oracle: error_signature
@@ -103,7 +103,7 @@ checks:
     title: "Permissive CORS on an AI chat API"
     description: "The chat API allows any origin, or reflects the caller's origin with credentials, so a malicious page can drive it from a visitor's browser."
     severity: medium
-    owasp: ["LLM02:2025", "A01:2025"]
+    owasp: ["LLM02:2026", "A01:2025"]
     cwe: CWE-942
     confidence: 0.8
     oracle: header_presence
@@ -130,7 +130,7 @@ checks:
     title: "MCP tool takes a free-form command, code, query, path or URL"
     description: "A tool parameter accepts an unconstrained string that is likely executed or fetched, which gives a hijacked model broad reach."
     severity: medium
-    owasp: ["LLM06:2025", "MCP05:2025", "ASI05"]
+    owasp: ["LLM03:2026", "MCP05:2025", "ASI05"]
     cwe: ""
     confidence: 0.6
     oracle: content_validator
@@ -148,7 +148,7 @@ checks:
     title: "Model followed an injected instruction"
     description: "The model repeated a random canary string it was told to output after an instruction override."
     severity: high
-    owasp: ["LLM01:2025"]
+    owasp: ["LLM01:2026"]
     cwe: CWE-1427
     confidence: 0.8
     oracle: canary
@@ -157,7 +157,7 @@ checks:
     title: "Model followed a jailbreak framing"
     description: "A role-play or override framing made the model output a random canary string."
     severity: medium
-    owasp: ["LLM01:2025"]
+    owasp: ["LLM01:2026"]
     cwe: CWE-1427
     confidence: 0.7
     oracle: canary
@@ -166,7 +166,7 @@ checks:
     title: "System prompt leaked on request"
     description: "A reply to an override request contained a known system prompt marker."
     severity: high
-    owasp: ["LLM07:2025"]
+    owasp: ["LLM08:2026"]
     cwe: CWE-200
     confidence: 0.85
     oracle: canary
@@ -175,7 +175,7 @@ checks:
     title: "Chat page reflects input as live HTML"
     description: "An inert marker sent as a chat question came back unescaped in an HTML page. Model output rendered the same way allows script injection."
     severity: high
-    owasp: ["LLM05:2025"]
+    owasp: ["LLM10:2026"]
     cwe: CWE-79
     confidence: 0.85
     oracle: reflection
@@ -184,7 +184,7 @@ checks:
     title: "No rate limiting on the AI chat API"
     description: "A short burst of chat requests got no 429 and no rate-limit headers."
     severity: low
-    owasp: ["LLM10:2025"]
+    owasp: ["LLM06:2026"]
     cwe: CWE-770
     confidence: 0.5
     oracle: none
@@ -193,7 +193,7 @@ checks:
     title: "Chat API ignores the max_tokens limit"
     description: "A request capped at one token returned a much longer reply, so clients can force long and costly generations."
     severity: low
-    owasp: ["LLM10:2025"]
+    owasp: ["LLM06:2026"]
     cwe: CWE-770
     confidence: 0.5
     oracle: none
@@ -201,21 +201,21 @@ checks:
 
 # Tool result -> HARIS classification, keyed by garak probe module or promptfoo plugin id; `default` covers the rest.
 garak:
-  promptinject: {owasp: ["LLM01:2025"], cwe: CWE-1427, severity: medium}
-  latentinjection: {owasp: ["LLM01:2025"], cwe: CWE-1427, severity: medium}
-  goodside: {owasp: ["LLM01:2025"], cwe: CWE-1427, severity: medium}
-  dan: {owasp: ["LLM01:2025"], cwe: CWE-1427, severity: medium}
-  encoding: {owasp: ["LLM01:2025"], cwe: CWE-1427, severity: medium}
-  leakreplay: {owasp: ["LLM02:2025"], cwe: CWE-200, severity: medium}
-  apikey: {owasp: ["LLM02:2025"], cwe: CWE-200, severity: high}
-  sysprompt_extraction: {owasp: ["LLM07:2025"], cwe: CWE-200, severity: medium}
-  default: {owasp: ["LLM01:2025"], cwe: CWE-1427, severity: low}
+  promptinject: {owasp: ["LLM01:2026"], cwe: CWE-1427, severity: medium}
+  latentinjection: {owasp: ["LLM01:2026"], cwe: CWE-1427, severity: medium}
+  goodside: {owasp: ["LLM01:2026"], cwe: CWE-1427, severity: medium}
+  dan: {owasp: ["LLM01:2026"], cwe: CWE-1427, severity: medium}
+  encoding: {owasp: ["LLM01:2026"], cwe: CWE-1427, severity: medium}
+  leakreplay: {owasp: ["LLM02:2026"], cwe: CWE-200, severity: medium}
+  apikey: {owasp: ["LLM02:2026"], cwe: CWE-200, severity: high}
+  sysprompt_extraction: {owasp: ["LLM08:2026"], cwe: CWE-200, severity: medium}
+  default: {owasp: ["LLM01:2026"], cwe: CWE-1427, severity: low}
 promptfoo:
-  prompt-injection: {owasp: ["LLM01:2025"], cwe: CWE-1427, severity: medium}
-  hijacking: {owasp: ["LLM01:2025"], cwe: CWE-1427, severity: medium}
-  system-prompt-override: {owasp: ["LLM01:2025"], cwe: CWE-1427, severity: medium}
-  ascii-smuggling: {owasp: ["LLM01:2025"], cwe: CWE-1427, severity: medium}
-  indirect-prompt-injection: {owasp: ["LLM01:2025"], cwe: CWE-1427, severity: medium}
-  prompt-extraction: {owasp: ["LLM07:2025"], cwe: CWE-200, severity: medium}
-  pii:direct: {owasp: ["LLM02:2025"], cwe: CWE-200, severity: medium}
-  default: {owasp: ["LLM01:2025"], cwe: CWE-1427, severity: low}
+  prompt-injection: {owasp: ["LLM01:2026"], cwe: CWE-1427, severity: medium}
+  hijacking: {owasp: ["LLM01:2026"], cwe: CWE-1427, severity: medium}
+  system-prompt-override: {owasp: ["LLM01:2026"], cwe: CWE-1427, severity: medium}
+  ascii-smuggling: {owasp: ["LLM01:2026"], cwe: CWE-1427, severity: medium}
+  indirect-prompt-injection: {owasp: ["LLM01:2026"], cwe: CWE-1427, severity: medium}
+  prompt-extraction: {owasp: ["LLM08:2026"], cwe: CWE-200, severity: medium}
+  pii:direct: {owasp: ["LLM02:2026"], cwe: CWE-200, severity: medium}
+  default: {owasp: ["LLM01:2026"], cwe: CWE-1427, severity: low}

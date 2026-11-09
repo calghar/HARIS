@@ -249,17 +249,17 @@ Adapters (`BaseScanner` subclasses):
 - promptfoo: generate `promptfooconfig.yaml` with an `http` provider for the endpoint and the chosen red-team plugins; run `promptfoo redteam run -c <cfg> -o <out.json>` (or `promptfoo eval`); parse `results.results[*]` with `success == false` into findings; confidence from per-plugin fail rate as for garak. Flags verified at implementation time.
 - Licence of each tool checked before documenting redistribution; both are external CLIs, not vendored.
 
-OWASP Top 10 for LLM Applications 2025 (verified at genai.owasp.org/llm-top-10, 2025-11-08 search):
-- LLM01:2025 Prompt Injection
-- LLM02:2025 Sensitive Information Disclosure
-- LLM03:2025 Supply Chain
-- LLM04:2025 Data and Model Poisoning
-- LLM05:2025 Improper Output Handling
-- LLM06:2025 Excessive Agency
-- LLM07:2025 System Prompt Leakage
-- LLM08:2025 Vector and Embedding Weaknesses
-- LLM09:2025 Misinformation
-- LLM10:2025 Unbounded Consumption
+OWASP Top 10 for LLM Applications 2026 (verified at genai.owasp.org/resource/owasp-genai-llm-top-10-2026/ and the GenAI-LLM-Top10 repository, published 2026-08-04):
+- LLM01:2026 Prompt Injection
+- LLM02:2026 Sensitive Information Disclosure
+- LLM03:2026 Excessive Agency
+- LLM04:2026 Supply Chain
+- LLM05:2026 Data and Model Poisoning
+- LLM06:2026 Unbounded Consumption
+- LLM07:2026 Misinformation
+- LLM08:2026 Hidden Context Exposure (replaces System Prompt Leakage)
+- LLM09:2026 Vector and Embedding Weaknesses
+- LLM10:2026 Improper Output Handling
 
 OWASP Top 10 for Agentic Applications 2026 (verified at genai.owasp.org, document version 2026, December 2025):
 - ASI01 Agent Goal Hijack
@@ -286,16 +286,16 @@ OWASP MCP Top 10 (verified at owasp.org/projects/mcp-top-10 and github.com/OWASP
 - MCP10:2025 Context Injection & Over-Sharing
 
 Check → category mapping (`owasp_ai.py`; a finding may carry several):
-- Unauthenticated inference endpoint → LLM10, ASI03; for MCP → MCP07.
+- Unauthenticated inference endpoint → LLM06, ASI03; for MCP → MCP07.
 - Provider key in bundle → LLM02; MCP token in bundle → MCP01.
-- System prompt or model config in bundle, or leakage probe hit → LLM07.
+- System prompt or model config in bundle, or leakage probe hit → LLM08.
 - Verbose provider error → LLM02.
 - CORS on chat API → LLM02 plus web A01/A02 as today.
-- Missing rate limit / max_tokens cap → LLM10.
+- Missing rate limit / max_tokens cap → LLM06.
 - Prompt-injection canary followed → LLM01; through tool or retrieved content → ASI01.
-- Output-handling XSS → LLM05 (+ CWE-79).
+- Output-handling XSS → LLM10 (+ CWE-79).
 - MCP instruction text or hidden Unicode in tool definitions → MCP03, MCP06, ASI04.
-- MCP excessive-agency schema → LLM06, MCP02, ASI02; free-form command/code parameter → MCP05, ASI05.
+- MCP excessive-agency schema → LLM03, MCP02, ASI02; free-form command/code parameter → MCP05, ASI05.
 - MCP toxic flow → ASI02, MCP10.
 - Unauthenticated `initialize`/`tools/list` → MCP07, MCP09.
 - Plaintext MCP SSE → MCP07 (+ CWE-319).
@@ -366,4 +366,5 @@ Resolved by the maintainer's delegate on 2026-11-08:
 - Exit-code precedence `3 > 2 > 1 > 0` stands; an incomplete scan returns 2 even when findings exceed `--fail-on`.
 - External tools use rate and concurrency flags only; no scope proxy for them. Exact flags are verified against each tool's `--help` in the adapter task, and the pre-flight fails with exit 3 on an unsupported flag.
 - OWASP MCP Top 10 maturity stays [UNVERIFIED]; the mapping uses the 2025 ids listed.
+- LLM ids move to the 2026 list on 2026-11-09 (maintainer decision), reversing the 2025 pin; the spec examples and the check mapping carry the new ids.
 - With `--agent-allow-unsafe-methods`, `POST` is allowed only to replay a finding originally observed on a `POST` request to the same URL; no other unsafe methods.
