@@ -12,6 +12,7 @@ from ..db.jobs import Job, JobStatus
 from ..models import AuthConfig, ScanSession, ScanState, Scope, Target
 from ..net import NetworkPolicy
 from ..reporting import REPORTER_REGISTRY
+from ..verify.settings import VerifyMode
 from .access import Access, require_scan_access
 from .job_queue import CancelToken
 from .state import AppState
@@ -37,6 +38,7 @@ class ScanJobParams(BaseModel):
     auth_method: str = "none"
     llm_enrich: bool = False
     llm_backend_name: str | None = None
+    verify: VerifyMode | None = None  # None: use the server default
     template_id: str = ""
     scanner_options: dict[str, dict[str, Any]] = Field(default_factory=dict)
 
@@ -81,6 +83,9 @@ def execute_scan(state: AppState, job: Job, token: CancelToken) -> JobStatus:
         session_id=job.scan_id,
         llm_enrich=params.llm_enrich,
         llm_backend_name=params.llm_backend_name,
+        verify=state.settings.verify_default
+        if params.verify is None
+        else params.verify,
         scanner_options=params.scanner_options,
         network_policy=NetworkPolicy.from_env(),
         checkpoint=checkpoint,
