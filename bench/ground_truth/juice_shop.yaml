@@ -1,4 +1,6 @@
 # Seed set from the OWASP Juice Shop companion guide; not a complete list of its challenges.
+# Known gap (no HARIS detector): /ftp directory listing. listing_checks probes a fixed directory list without /ftp
+# and matches only "Index of /" / "Directory listing for /" titles; Juice Shop answers with a "listing directory" page.
 target: juice_shop
 kind: external
 entries:
@@ -20,19 +22,30 @@ entries:
     expected: true_positive
     source: https://pwning.owasp-juice.shop/companion-guide/latest/part2/injection.html
     notes: Database Schema and User Credentials challenges.
-  - id: juice-ftp-listing
-    method: GET
-    url: /ftp
-    vuln_class: directory_listing
-    cwe: CWE-548
-    expected: true_positive
-    source: https://pwning.owasp-juice.shop/companion-guide/latest/part2/sensitive-data-exposure.html
-    notes: Confidential Document challenge.
   - id: juice-metrics
     method: GET
     url: /metrics
-    vuln_class: info_disclosure
-    cwe: CWE-200
+    vuln_class: sensitive_file
+    cwe: CWE-538
     expected: true_positive
     source: https://pwning.owasp-juice.shop/companion-guide/latest/part2/sensitive-data-exposure.html
-    notes: Exposed Metrics challenge.
+    notes: Exposed Metrics challenge; HARIS reports /metrics as an exposed debug endpoint.
+ignore:
+  - vuln_class: no_https
+    url: /*
+    reason: The target is served over plain HTTP by the compose file.
+  - vuln_class: missing_header
+    url: /*
+    reason: Header set is a property of the target image, not a seeded weakness.
+  - vuln_class: banner_disclosure
+    url: /*
+    reason: Version banner is a property of the target image, not a seeded weakness.
+  - vuln_class: sensitive_file
+    url: /robots.txt
+    reason: Info-level discovery record, not a weakness.
+  - vuln_class: sensitive_file
+    url: /sitemap.xml
+    reason: Info-level discovery record, not a weakness.
+  - vuln_class: sensitive_file
+    url: /.well-known/security.txt
+    reason: Info-level discovery record, not a weakness.

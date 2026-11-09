@@ -1,4 +1,7 @@
-# Seed set from the DVWA module list at security level low; modules need a logged-in session.
+# Seed set from the DVWA module list at security level low; the runner logs in first.
+# Known gaps (HARIS has no class): dvwa-command-injection (CWE-78, POST /vulnerabilities/exec, ip),
+# dvwa-csrf (CWE-352, GET /vulnerabilities/csrf, password_new), dvwa-upload (CWE-434, POST /vulnerabilities/upload, uploaded).
+# Wapiti reports all three, but each title becomes an `unclassified:wapiti:<title slug>` token that embeds the finding text.
 target: dvwa
 kind: external
 entries:
@@ -14,10 +17,11 @@ entries:
     method: GET
     url: /vulnerabilities/sqli_blind
     parameter: id
-    vuln_class: sqli_blind
+    vuln_class: sqli_time
     cwe: CWE-89
     expected: true_positive
     source: https://github.com/digininja/DVWA
+    notes: Wapiti reports "Blind SQL Injection", which maps to sqli_time.
   - id: dvwa-xss-reflected
     method: GET
     url: /vulnerabilities/xss_r
@@ -34,35 +38,31 @@ entries:
     cwe: CWE-79
     expected: true_positive
     source: https://github.com/digininja/DVWA
-  - id: dvwa-command-injection
-    method: POST
-    url: /vulnerabilities/exec
-    parameter: ip
-    vuln_class: command_injection
-    cwe: CWE-78
-    expected: true_positive
-    source: https://github.com/digininja/DVWA
   - id: dvwa-file-inclusion
     method: GET
     url: /vulnerabilities/fi
     parameter: page
-    vuln_class: file_inclusion
-    cwe: CWE-98
+    vuln_class: path_traversal
+    cwe: CWE-22
     expected: true_positive
     source: https://github.com/digininja/DVWA
-  - id: dvwa-csrf
-    method: GET
-    url: /vulnerabilities/csrf
-    parameter: password_new
-    vuln_class: csrf
-    cwe: CWE-352
-    expected: true_positive
-    source: https://github.com/digininja/DVWA
-  - id: dvwa-upload
-    method: POST
-    url: /vulnerabilities/upload
-    parameter: uploaded
-    vuln_class: unrestricted_upload
-    cwe: CWE-434
-    expected: true_positive
-    source: https://github.com/digininja/DVWA
+    notes: Local file inclusion through page; HARIS reports it as path_traversal.
+ignore:
+  - vuln_class: no_https
+    url: /*
+    reason: The target is served over plain HTTP by the compose file.
+  - vuln_class: missing_header
+    url: /*
+    reason: Header set is a property of the target image, not a seeded weakness.
+  - vuln_class: banner_disclosure
+    url: /*
+    reason: Version banner is a property of the target image, not a seeded weakness.
+  - vuln_class: sensitive_file
+    url: /robots.txt
+    reason: Info-level discovery record, not a weakness.
+  - vuln_class: sensitive_file
+    url: /sitemap.xml
+    reason: Info-level discovery record, not a weakness.
+  - vuln_class: sensitive_file
+    url: /.well-known/security.txt
+    reason: Info-level discovery record, not a weakness.

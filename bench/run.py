@@ -1,16 +1,21 @@
 import argparse
 import logging
+import os
 import re
 import shlex
 import shutil
 import subprocess
 import sys
+import tempfile
 import time
 from datetime import UTC, datetime
 from pathlib import Path
 
 import httpx
+import yaml
 from pydantic import BaseModel, ConfigDict
+
+from haris.config.loader import default_config_path
 
 BENCH_DIR = Path(__file__).resolve().parent
 COMPOSE_FILE = BENCH_DIR / "compose.yaml"
@@ -19,6 +24,21 @@ RESULTS_DIR = BENCH_DIR / "results"
 HEALTH_POLL_SECONDS = 3.0
 DEFAULT_PROFILE = "quick"
 DVWA_SETUP_PATH = "/setup.php"
+DVWA_LOGIN_PATH = "/login.php"
+DVWA_SECURITY_PATH = "/security.php"
+DVWA_USER = "admin"
+DVWA_PASSWORD = "password"
+DVWA_SECURITY_LEVEL = "low"
+DVWA_TOKEN = re.compile(r"name=['\"]user_token['\"] value=['\"]([0-9a-f]+)")
+WEBGOAT_REGISTER_PATH = "/WebGoat/register.mvc"
+WEBGOAT_LOGIN_PATH = "/WebGoat/login"
+WEBGOAT_HOME_PATH = "/WebGoat/welcome.mvc"
+WEBGOAT_USER = "haris-bench"
+WEBGOAT_PASSWORD = "harisbench"
+LOGIN_TIMEOUT_SECONDS = 30
+COOKIE_HEADER = "Cookie"
+AUTH_HEADER_ENV = "HARIS_AUTH_HEADER"
+REDACTED = "<redacted>"
 PARTIAL_REPORT = "session.partial.json"
 
 logger = logging.getLogger("bench")
@@ -89,23 +109,110 @@ def wait_healthy(base_url: str, health_path: str, timeout: float) -> None:
         time.sleep(HEALTH_POLL_SECONDS)
 
 
+def dvwa_form(client: httpx.Client, path: str, **fields: str) -> dict[str, str]:
+    """`fields` plus the `user_token` CSRF value found on the page at `path`."""
+    token = DVWA_TOKEN.search(client.get(path).text)
+    return {**fields, "user_token": token.group(1)} if token else dict(fields)
+
+
 def prepare_dvwa(base_url: str) -> None:
     """Create the DVWA database; its pages need it before any scan."""
     with httpx.Client(base_url=base_url, timeout=30, follow_redirects=True) as client:
-        page = client.get(DVWA_SETUP_PATH).text
-        token = re.search(r"name=['\"]user_token['\"] value=['\"]([0-9a-f]+)", page)
-        form = {"create_db": "Create / Reset Database"}
-        if token:
-            form["user_token"] = token.group(1)
+        form = dvwa_form(client, DVWA_SETUP_PATH, create_db="Create / Reset Database")
         client.post(DVWA_SETUP_PATH, data=form).raise_for_status()
 
 
 PREPARE = {"dvwa": prepare_dvwa}
 
 
+def cookie_header(client: httpx.Client) -> str:
+    """The client's cookies as one `Cookie` header value."""
+    cookies = {cookie.name: cookie.value for cookie in client.cookies.jar}
+    return "; ".join(f"{name}={value}" for name, value in cookies.items())
+
+
+def login_dvwa(base_url: str, transport: httpx.BaseTransport | None = None) -> str:
+    """Log in as the default admin, set the security level; returns the cookies."""
+    with httpx.Client(
+        base_url=base_url,
+        timeout=LOGIN_TIMEOUT_SECONDS,
+        follow_redirects=True,
+        transport=transport,
+    ) as client:
+        form = dvwa_form(
+            client,
+            DVWA_LOGIN_PATH,
+            username=DVWA_USER,
+            password=DVWA_PASSWORD,
+            Login="Login",
+        )
+        done = client.post(DVWA_LOGIN_PATH, data=form)
+        done.raise_for_status()
+        if done.url.path == DVWA_LOGIN_PATH:
+            raise RuntimeError(f"{base_url}: DVWA login was rejected")
+        form = dvwa_form(
+            client,
+            DVWA_SECURITY_PATH,
+            security=DVWA_SECURITY_LEVEL,
+            seclev_submit="Submit",
+        )
+        client.post(DVWA_SECURITY_PATH, data=form).raise_for_status()
+        return cookie_header(client)
+
+
+def login_webgoat(base_url: str, transport: httpx.BaseTransport | None = None) -> str:
+    """Register the bench user (a repeat is harmless), log in; returns the cookies."""
+    credentials = {"username": WEBGOAT_USER, "password": WEBGOAT_PASSWORD}
+    with httpx.Client(
+        base_url=base_url,
+        timeout=LOGIN_TIMEOUT_SECONDS,
+        follow_redirects=True,
+        transport=transport,
+    ) as client:
+        client.post(
+            WEBGOAT_REGISTER_PATH,
+            data={
+                **credentials,
+                "matchingPassword": WEBGOAT_PASSWORD,
+                "agree": "agree",
+            },
+        )
+        client.post(WEBGOAT_LOGIN_PATH, data=credentials).raise_for_status()
+        home = client.get(WEBGOAT_HOME_PATH)
+        if home.status_code != httpx.codes.OK or home.url.path == WEBGOAT_LOGIN_PATH:
+            raise RuntimeError(f"{base_url}: WebGoat login was rejected")
+        return cookie_header(client)
+
+
+LOGIN = {"dvwa": login_dvwa, "webgoat": login_webgoat}
+
+
 def resolve_profile(target: Target, override: str | None) -> str:
     """`--profile` wins over the target's own profile, which wins over the default."""
     return override or target.profile or DEFAULT_PROFILE
+
+
+def run_command(
+    cmd: list[str], session_cookie: str | None
+) -> subprocess.CompletedProcess[str]:
+    """Run `cmd`; a session cookie travels in the environment, never in argv."""
+    if session_cookie is None:
+        return subprocess.run(cmd, capture_output=True, text=True, check=False)
+    with tempfile.TemporaryDirectory() as tmp:
+        config = Path(tmp) / "auth.yaml"
+        raw = yaml.safe_load(default_config_path().read_text()) or {}
+        raw.setdefault("target", {})["auth"] = {
+            "method": "header",
+            "header_name": COOKIE_HEADER,
+        }
+        config.write_text(yaml.safe_dump(raw))
+        return subprocess.run(
+            [*cmd, "--config", str(config)],
+            capture_output=True,
+            text=True,
+            check=False,
+            env={**os.environ, AUTH_HEADER_ENV: session_cookie},
+        )
 
 
 def run_haris(
@@ -115,6 +222,7 @@ def run_haris(
     out_dir: Path,
     report: Path,
     extra_args: tuple[str, ...] = (),
+    session_cookie: str | None = None,
 ) -> None:
     """One scan; the JSON report is copied to `report` for the scorer."""
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -133,9 +241,12 @@ def run_haris(
         "--allow-private",
         *extra_args,
     ]
-    done = subprocess.run(cmd, capture_output=True, text=True, check=False)
-    (out_dir / "stdout.log").write_text(done.stdout)
-    (out_dir / "stderr.log").write_text(done.stderr)
+    done = run_command(cmd, session_cookie)
+    streams = {"stdout.log": done.stdout, "stderr.log": done.stderr}
+    for name, text in streams.items():
+        (out_dir / name).write_text(
+            text.replace(session_cookie, REDACTED) if session_cookie else text
+        )
     (out_dir / "wall_time_s.txt").write_text(f"{time.monotonic() - started:.3f}\n")
     reports = sorted(p for p in out_dir.glob("*.json") if p.name != PARTIAL_REPORT)
     if len(reports) != 1:
@@ -170,6 +281,7 @@ def bench_target(name: str, args: argparse.Namespace, results: Path) -> None:
         if not profile:
             continue
         for run in range(1, args.runs + 1):
+            session_cookie = LOGIN[name](base_url) if name in LOGIN else None
             run_haris(
                 shlex.split(args.haris),
                 scan_url,
@@ -177,6 +289,7 @@ def bench_target(name: str, args: argparse.Namespace, results: Path) -> None:
                 results / name / "raw" / label / f"run{run}",
                 results / name / label / f"run{run}.json",
                 target.haris_args if label == "runs" else (),
+                session_cookie,
             )
     baseline_dir = results / name / "baseline" if args.baseline_profile else None
     score(results / name / "runs", TRUTH_DIR / f"{name}.yaml", baseline_dir)
@@ -213,7 +326,12 @@ def main(argv: list[str] | None = None) -> int:
         for name in names:
             try:
                 bench_target(name, args, results)
-            except (RuntimeError, TimeoutError, subprocess.CalledProcessError) as exc:
+            except (
+                RuntimeError,
+                TimeoutError,
+                subprocess.CalledProcessError,
+                httpx.HTTPError,
+            ) as exc:
                 failures += 1
                 logger.error(
                     "%s failed: %s %s", name, exc, getattr(exc, "stderr", "") or ""

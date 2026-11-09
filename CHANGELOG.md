@@ -36,6 +36,7 @@
 - Added `soft404` and `content_validator` verification oracles; `sensitive_file` findings can now reach `replay_verified` or `refuted`
 - Added `haris bench score REPORTS TRUTH.yaml [--baseline DIR] [--out DIR]`, the same scorer as `python -m haris.bench score` (exit 3 on a missing path)
 - Added `verify` to web scan requests and `HARIS_WEB_VERIFY_DEFAULT` (default `replay`)
+- Added a login step to `bench/run.py` for DVWA and WebGoat (session passed to `haris` through `--config` and `HARIS_AUTH_HEADER`) and moved the external ground-truth class ids to ids HARIS emits; entries without a HARIS class are documented as known gaps
 - Added an `ignore` list to benchmark ground truth (reported as an ignored count in `score.md`) and a per-target profile and extra `haris` args in `bench/run.py`; `--profile` is now optional
 
 ### Changed (packaging)
