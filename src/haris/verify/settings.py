@@ -40,6 +40,7 @@ class LLMVerdictSettings(BaseModel):
 
 class VerifySettings(BaseModel):
     max_requests: int = Field(default=500, ge=1)
+    request_timeout_s: float = Field(default=10.0, gt=0)
     timing: TimingSettings
     error_probe: str = Field(min_length=1)
     error_signatures: list[str] = Field(min_length=1)

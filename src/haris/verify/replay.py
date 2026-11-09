@@ -6,12 +6,13 @@ from ..core.confidence import rescore
 from ..core.vuln_class import get_registry
 from ..models import (
     CorrelatedFinding,
+    Finding,
     VerificationMethod,
     VerificationOracle,
     VerificationTier,
 )
-from ..net import NetworkError, RequestBudgetExceeded, ScopedClient
-from . import timing  # noqa: F401  # importing registers the timing oracle
+from ..net import NetworkError, RequestBudgetExceeded, ScopedClient, TransportError
+from . import oracles_baseline, timing  # noqa: F401  # importing registers the oracles
 from .oracles import ORACLES, OracleResult
 from .probe import NotReplayable, Prober, VerifyBudgetExhausted
 from .settings import VerifySettings
@@ -29,9 +30,11 @@ class ReplayReport(BaseModel):
     requests: int = 0
 
 
-def oracle_name(case: CorrelatedFinding) -> str:
+def oracle_names(case: CorrelatedFinding) -> list[str]:
+    """The class's oracle chain (``oracle:`` is comma separated), in run order."""
     cls = get_registry().classes.get(case.canonical.vuln_class)
-    return cls.oracle if cls else NO_ORACLE
+    names = [n.strip() for n in cls.oracle.split(",")] if cls else []
+    return [n for n in names if n != NO_ORACLE]
 
 
 def replayable(case: CorrelatedFinding, allowed_methods: set[str]) -> bool:
@@ -40,7 +43,7 @@ def replayable(case: CorrelatedFinding, allowed_methods: set[str]) -> bool:
         finding.verification.tier == VerificationTier.UNVERIFIED
         and finding.suppression is None
         and finding.method.upper() in allowed_methods
-        and oracle_name(case) != NO_ORACLE
+        and bool(oracle_names(case))
     )
 
 
@@ -61,28 +64,48 @@ def apply_result(case: CorrelatedFinding, name: str, result: OracleResult) -> No
     rescore(case)
 
 
+def run_chain(
+    finding: Finding, names: list[str], prober: Prober, settings: VerifySettings
+) -> tuple[str, OracleResult]:
+    """Run oracles until one decides; an unreachable target is inconclusive."""
+    for name in names:
+        try:
+            with prober.bounded():
+                result = ORACLES[name].run(finding, prober, settings)
+        except TransportError as exc:
+            logger.warning(
+                "Replay of %s could not reach the target: %s", finding.url, exc
+            )
+            return name, OracleResult(outcome="inconclusive", exchanges=[])
+        if result.outcome != "inconclusive":
+            break
+    return name, result
+
+
 def replay(
     cases: list[CorrelatedFinding], client: ScopedClient, settings: VerifySettings
 ) -> ReplayReport:
     """Replay each eligible finding; stop at the request cap, leaving the rest as is."""
     report = ReplayReport()
-    prober = Prober(client, settings.max_requests)
+    prober = Prober(client, settings.max_requests, settings.request_timeout_s)
     allowed = {m.upper() for m in client.target.scope.allowed_methods}
     pending = [c for c in cases if replayable(c, allowed)]
     for index, case in enumerate(pending):
         finding_id = case.canonical.finding_id
-        name = oracle_name(case)
-        spec = ORACLES.get(name)
-        if spec is None:
-            report.skipped[finding_id] = f"oracle {name} is not available"
+        names = oracle_names(case)
+        missing = [n for n in names if n not in ORACLES]
+        if missing:
+            report.skipped[finding_id] = f"oracle {missing[0]} is not available"
             continue
-        if prober.used + spec.cost(settings) > settings.max_requests:
+        if prober.used + sum(ORACLES[n].cost(settings) for n in names) > (
+            settings.max_requests
+        ):
             report.skipped.update(
                 {c.canonical.finding_id: CAP_REASON for c in pending[index:]}
             )
             break
         try:
-            result = spec.run(case.canonical, prober, settings)
+            name, result = run_chain(case.canonical, names, prober, settings)
         except (VerifyBudgetExhausted, RequestBudgetExceeded) as exc:
             report.skipped.update(
                 {c.canonical.finding_id: str(exc) for c in pending[index:]}

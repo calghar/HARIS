@@ -1,6 +1,9 @@
 # Verification stage: replay oracles and the LLM case verdict.
 max_requests: 500
 
+# Seconds one replay request may take (caps the scan's NetworkPolicy.timeout_s).
+request_timeout_s: 10.0
+
 # Payload templates; {d} is the delay in seconds. Each is read-only SQL.
 timing:
   delay_s: 5.0

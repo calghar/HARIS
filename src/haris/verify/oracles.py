@@ -33,8 +33,6 @@ class OracleSpec(NamedTuple):
 ORACLES: dict[str, OracleSpec] = {}
 
 
-# Slots for `content_validator` and `soft404` stay empty until
-# haris.checks.baseline and haris.checks.validators land (tasks.md 2.6).
 def register(
     name: str, cost: Callable[[VerifySettings], int] = lambda _s: 2
 ) -> Callable[[OracleFn], OracleFn]:

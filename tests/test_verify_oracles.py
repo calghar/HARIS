@@ -22,7 +22,6 @@ from tests.verify_server import case, fast_settings, make_client, serve
 XSS = "Cross Site Scripting"
 HEADER = "Missing X-Frame-Options header"
 T = VerificationTier
-DEFERRED = {"content_validator", "soft404"}
 
 
 def run(
@@ -222,20 +221,6 @@ def test_findings_that_are_settled_or_suppressed_are_not_replayed(state):
     assert fx.seen == []
 
 
-def test_deferred_oracles_leave_the_finding_alone_with_a_reason():
-    with serve() as fx:
-        env = case(
-            "Accessible sensitive path: /.env",
-            f"{fx.url}/.env",
-            scanner="misc_checks",
-            parameter="",
-        )
-        report, _ = run(fx.url, env)
-    assert fx.seen == []
-    assert env.canonical.verification.method == VerificationMethod.NONE
-    assert "content_validator" in report.skipped[env.canonical.finding_id]
-
-
 def test_finding_without_a_parameter_is_skipped_for_injection_oracles():
     with serve() as fx:
         xss = case(XSS, f"{fx.url}/search", parameter="")
@@ -284,11 +269,14 @@ def test_verify_config_loads_with_spec_defaults_and_known_oracles():
     assert settings.llm.abstain_below == 0.7
     assert settings.llm.max_cases == 50
     named = {c.oracle for c in get_registry().classes.values()} - {"none"}
-    assert named - set(ORACLES) <= DEFERRED
+    chain = {n.strip() for c in named for n in c.split(",")}
+    assert chain <= set(ORACLES)
     assert set(ORACLES) == {
         "reflection",
         "error_signature",
         "timing",
         "header_presence",
         "canary",
+        "soft404",
+        "content_validator",
     }
