@@ -220,3 +220,39 @@ class TestSessionHandover:
 
     def test_dvwa_and_webgoat_are_the_logged_in_targets(self) -> None:
         assert set(runner.LOGIN) == {"dvwa", "webgoat"}
+
+
+class TestDvwaPrepare:
+    def test_setup_is_retried_until_login_stops_redirecting_to_setup(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        creates: list[str] = []
+        database_ready_after = 3
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            path = request.url.path
+            if request.method == "GET":
+                return httpx.Response(200, text=TOKEN_PAGE.format(LOGIN_TOKEN))
+            if path == "/setup.php":
+                creates.append(path)
+                return httpx.Response(200, text="setup")
+            ready = len(creates) >= database_ready_after
+            return httpx.Response(
+                302, headers={"Location": "index.php" if ready else "setup.php"}
+            )
+
+        monkeypatch.setattr(runner.time, "sleep", lambda seconds: None)
+        runner.prepare_dvwa(BASE_URL, httpx.MockTransport(handler))
+        assert len(creates) == database_ready_after
+
+    def test_setup_that_never_succeeds_times_out(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        def handler(request: httpx.Request) -> httpx.Response:
+            if request.method == "GET":
+                return httpx.Response(200, text=TOKEN_PAGE.format(LOGIN_TOKEN))
+            return httpx.Response(302, headers={"Location": "setup.php"})
+
+        monkeypatch.setattr(runner.time, "sleep", lambda seconds: None)
+        with pytest.raises(TimeoutError):
+            runner.prepare_dvwa(BASE_URL, httpx.MockTransport(handler), timeout=0)

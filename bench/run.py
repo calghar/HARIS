@@ -24,6 +24,7 @@ RESULTS_DIR = BENCH_DIR / "results"
 HEALTH_POLL_SECONDS = 3.0
 DEFAULT_PROFILE = "quick"
 DVWA_SETUP_PATH = "/setup.php"
+DVWA_PREPARE_TIMEOUT_SECONDS = 120.0
 DVWA_LOGIN_PATH = "/login.php"
 DVWA_SECURITY_PATH = "/security.php"
 DVWA_USER = "admin"
@@ -115,11 +116,38 @@ def dvwa_form(client: httpx.Client, path: str, **fields: str) -> dict[str, str]:
     return {**fields, "user_token": token.group(1)} if token else dict(fields)
 
 
-def prepare_dvwa(base_url: str) -> None:
-    """Create the DVWA database; its pages need it before any scan."""
-    with httpx.Client(base_url=base_url, timeout=30, follow_redirects=True) as client:
-        form = dvwa_form(client, DVWA_SETUP_PATH, create_db="Create / Reset Database")
-        client.post(DVWA_SETUP_PATH, data=form).raise_for_status()
+def prepare_dvwa(
+    base_url: str,
+    transport: httpx.BaseTransport | None = None,
+    timeout: float = DVWA_PREPARE_TIMEOUT_SECONDS,
+) -> None:
+    """Create the DVWA database, retrying until MariaDB accepts it."""
+    deadline = time.monotonic() + timeout
+    with httpx.Client(base_url=base_url, timeout=30, transport=transport) as client:
+        while True:
+            form = dvwa_form(
+                client, DVWA_SETUP_PATH, create_db="Create / Reset Database"
+            )
+            client.post(
+                DVWA_SETUP_PATH, data=form, follow_redirects=True
+            ).raise_for_status()
+            probe = dvwa_form(
+                client,
+                DVWA_LOGIN_PATH,
+                username=DVWA_USER,
+                password=DVWA_PASSWORD,
+                Login="Login",
+            )
+            login = client.post(DVWA_LOGIN_PATH, data=probe)
+            if not login.headers.get("location", "").endswith(
+                DVWA_SETUP_PATH.lstrip("/")
+            ):
+                return
+            if time.monotonic() > deadline:
+                raise TimeoutError(
+                    f"{base_url}: DVWA database was not created in {timeout}s"
+                )
+            time.sleep(HEALTH_POLL_SECONDS)
 
 
 PREPARE = {"dvwa": prepare_dvwa}
