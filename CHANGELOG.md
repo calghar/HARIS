@@ -23,6 +23,7 @@
 - Added built-in checks `sri_checks`, `cache_checks`, `method_checks` (OPTIONS and TRACE), `redirect_checks` (open redirect), `graphql_checks` (introspection), `openapi_checks`, `listing_checks` (directory listing) and `dns_checks` (CAA, SPF, DMARC), each with a class in `vuln_classes.yaml` and a prior in `confidence.yaml`
 - Added CSP and HSTS quality findings (`unsafe-inline`, `unsafe-eval`, wildcard sources, missing `object-src` or `base-uri`, short `max-age`, missing `includeSubDomains`)
 - Added a ruff `TID251` rule that bans `requests`, `httpx` and `urllib3` outside `haris/net`; `llm/providers.py`, `bench/` and `tests/` are ignored per file
+- Added vulnerability classes `command_injection` (CWE-78), `csrf` (CWE-352) and `unrestricted_upload` (CWE-434) for Wapiti findings, and restored the DVWA command-injection, CSRF and upload entries and the Juice Shop `/ftp` listing entry in the benchmark ground truth
 - Added a verification stage (`haris.verify`) that replays each finding's request through `ScopedClient` with a control, applies per-class oracles (`reflection`, `error_signature`, `timing`, `header_presence`, `canary`) and moves the tier only to `replay_verified` or `refuted`
 - Added `--verify {off,replay,llm}` (default `replay`); `llm` adds a case-level LLM verdict whose quoted spans are checked against the evidence and which changes the score, never the tier
 - Added `verify.yaml` for the request cap, timing delay, error signatures, valid header values and LLM abstain threshold
@@ -36,7 +37,7 @@
 - Added `soft404` and `content_validator` verification oracles; `sensitive_file` findings can now reach `replay_verified` or `refuted`
 - Added `haris bench score REPORTS TRUTH.yaml [--baseline DIR] [--out DIR]`, the same scorer as `python -m haris.bench score` (exit 3 on a missing path)
 - Added `verify` to web scan requests and `HARIS_WEB_VERIFY_DEFAULT` (default `replay`)
-- Added a login step to `bench/run.py` for DVWA and WebGoat (session passed to `haris` through `--config` and `HARIS_AUTH_HEADER`) and moved the external ground-truth class ids to ids HARIS emits; entries without a HARIS class are documented as known gaps
+- Added a login step to `bench/run.py` for DVWA and WebGoat (session passed to `haris` through `--config` and `HARIS_AUTH_HEADER`) and moved the external ground-truth class ids to ids HARIS emits; every seeded weakness is an entry, so recall shows what HARIS misses
 - Added an `ignore` list to benchmark ground truth (reported as an ignored count in `score.md`) and a per-target profile and extra `haris` args in `bench/run.py`; `--profile` is now optional
 
 ### Changed (packaging)

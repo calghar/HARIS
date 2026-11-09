@@ -1,6 +1,4 @@
 # Seed set from the OWASP Juice Shop companion guide; not a complete list of its challenges.
-# Known gap (no HARIS detector): /ftp directory listing. listing_checks probes a fixed directory list without /ftp
-# and matches only "Index of /" / "Directory listing for /" titles; Juice Shop answers with a "listing directory" page.
 target: juice_shop
 kind: external
 entries:
@@ -22,6 +20,14 @@ entries:
     expected: true_positive
     source: https://pwning.owasp-juice.shop/companion-guide/latest/part2/injection.html
     notes: Database Schema and User Credentials challenges.
+  - id: juice-ftp-listing
+    method: GET
+    url: /ftp
+    vuln_class: directory_listing
+    cwe: CWE-548
+    expected: true_positive
+    source: https://pwning.owasp-juice.shop/companion-guide/latest/part2/sensitive-data-exposure.html
+    notes: Confidential Document challenge. HARIS misses it; listing_checks has no /ftp probe and does not match Juice Shop's listing page.
   - id: juice-metrics
     method: GET
     url: /metrics
