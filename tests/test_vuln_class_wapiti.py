@@ -16,6 +16,7 @@ VULNS = {
     "Reflected Cross Site Scripting": ("q", "XSS vulnerability in the parameter q"),
     "Blind SQL Injection": ("id", "Blind SQL vulnerability in the parameter id"),
     "Weak credentials": ("", "Credentials found: admin / admin"),
+    "Stack Trace Disclosure": ("", "Stack trace found in the response"),
 }
 
 
@@ -42,6 +43,7 @@ def classes_by_category() -> dict[str, str]:
         ("Path Traversal", "path_traversal"),
         ("Reflected Cross Site Scripting", "xss_reflected"),
         ("Blind SQL Injection", "sqli_time"),
+        ("Stack Trace Disclosure", "verbose_error"),
         (
             "Weak credentials",
             "unclassified:wapiti:weak-credentials-credentials-found-admin-admin",

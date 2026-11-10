@@ -74,15 +74,15 @@ def _timeout_message(timeout: int, findings: int, from_session: bool) -> str:
 
 @register_scanner
 class WapitiScanner(ExternalToolScanner):
-    """Adapter for the Wapiti web vulnerability scanner (3.2.x).
+    """Adapter for Wapiti 3.3.2.
 
-    Requires `wapiti3` on PATH (``pip install wapiti3``). Header, cookie,
-    redirect and TLS modules are dropped, plus ``information_disclosure``
-    (ReDoS in Wapiti 3.2.10).
+    Requires ``wapiti3`` on PATH. Drops header, cookie, redirect and TLS
+    modules, and ``information_disclosure`` until a live run shows the
+    3.3.2 path regex is safe.
     """
 
     name = "wapiti"
-    version = "3.x"
+    version = "3.3"
     description = "Black-box web application vulnerability scanner"
 
     def __init__(self, options: dict[str, Any] | None = None) -> None:
