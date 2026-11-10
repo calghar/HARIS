@@ -51,6 +51,29 @@ Neither tool is vendored; install them yourself. A missing binary is a scanner e
 - [UNVERIFIED] The `redteam generate` output was not captured: it needs a remote model. The promptfoo fixture is
   real `eval` output with hand-written test cases (`tests/fixtures/scanners/README.md`).
 
+## Subprocess traffic
+
+`garak` and `promptfoo` run as subprocesses. Before either process starts, HARIS runs the scheme, scope,
+method and SSRF checks from `ScopedClient` on the discovered chat URL, for method `POST`. The check requires:
+
+- The scheme is `http` or `https`.
+- `Scope.is_url_in_scope` accepts the URL, and `POST` is in `Scope.allowed_methods`.
+- Every address from that resolution passes the SSRF guard. Private and loopback addresses pass only when
+  `NetworkPolicy.allow_private` is set (`--allow-private`). `169.254.169.254`, `fd00:ec2::254`, `100.100.100.200`
+  and `metadata.google.internal` remain blocked with that override.
+
+A failed check returns a scanner error and no findings. The process is not started.
+
+The process then sends its own requests. HARIS does not enforce any of the following on that traffic:
+
+- scope on each request
+- `Scope.rate_limit_rps`
+- `Scope.max_requests`
+- a scope or SSRF check on a redirect
+- use of the address the pre-flight resolved (the config contains the chat URL)
+
+Run `garak` and `promptfoo` only against targets you are authorised to test.
+
 ## OWASP mapping
 
 LLM Top 10 2026 ids (genai.owasp.org, checked 2026-11-09) and Agentic Top 10 ASI01-ASI10 (genai.owasp.org/download/52117) were

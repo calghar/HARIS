@@ -41,6 +41,7 @@
 - Added an `ignore` list to benchmark ground truth (reported as an ignored count in `score.md`) and a per-target profile and extra `haris` args in `bench/run.py`; `--profile` is now optional
 - Added `ScopedClient.stream()` (bounded read with a `truncated` flag) and a per-call `timeout_s`; replay no longer swaps `NetworkPolicy.timeout_s`, and the AI module probes `/sse` with GET instead of HEAD
 - Added scanner options `external_endpoint` and `internal_endpoint` so Wapiti's out-of-band checks can use a local callback receiver; the benchmark runs a `callback` fixture service and no longer contacts `wapiti3.ovh` (`log4shell` is always dropped)
+- Added a scope and SSRF pre-flight on the discovered chat URL before `garak` or `promptfoo` starts; a failure is a scanner error and the tool is not started, and `docs/ai_security.md` lists what is not enforced on their own requests
 
 ### Changed (packaging)
 

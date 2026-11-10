@@ -13,6 +13,7 @@ from ..ai_security.adapters import (
     SKIP_NO_ENDPOINT,
     chat_body,
     chat_endpoint,
+    preflight_endpoint,
     selection,
     skipped,
     tool_config,
@@ -85,6 +86,9 @@ class PromptfooScanner(ExternalToolScanner):
         endpoint = chat_endpoint(target, context)
         if endpoint is None:
             return skipped(self.name, SKIP_NO_ENDPOINT)
+        blocked = preflight_endpoint(self.name, context, endpoint.chat_url)
+        if blocked is not None:
+            return blocked
         self._begin(target)
 
         timeout = self.options["timeout"]

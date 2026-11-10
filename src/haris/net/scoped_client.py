@@ -106,9 +106,9 @@ class ScopedClient:
     ) -> ScopedResponse:
         return self.request("HEAD", url, headers=headers)
 
-    def preflight(self, url: str) -> str:
+    def preflight(self, url: str, method: str = "GET") -> str:
         """Run scheme, scope and SSRF checks without sending; return the vetted IP."""
-        return self._vet(url, "GET")[2]
+        return self._vet(url, method)[2]
 
     def request(
         self,
