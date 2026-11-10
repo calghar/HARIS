@@ -107,6 +107,7 @@
 - Fixed a Wapiti timeout or crash without a JSON report dropping all its findings; HARIS now recovers them from Wapiti's session database
 - Fixed unset Wapiti endpoints falling back to `wapiti3.ovh`; SSRF and XXE run only when both endpoints are set, `log4shell` is always skipped, and unset endpoints use the target URL (internal) and `http://127.0.0.1:9/` (external)
 - Fixed nikto crashing the Juice Shop benchmark target; the runner now bounds that run with `-maxtime 40s` through the generated `--config`, and the product default is unchanged
+- Fixed the excluded-path labels on the new-scan form and the template form, which claimed `regex supported`; they now say one entry per line, a plain path or a trailing `.*`
 
 ### Changed
 
