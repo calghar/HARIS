@@ -23,6 +23,7 @@ BENCH_DIR = Path(__file__).resolve().parent
 COMPOSE_FILE = BENCH_DIR / "compose.yaml"
 TRUTH_DIR = BENCH_DIR / "ground_truth"
 RESULTS_DIR = BENCH_DIR / "results"
+RESULTS_STAMP = "%Y-%m-%d-%H%M%S"
 HEALTH_POLL_SECONDS = 3.0
 DEFAULT_PROFILE = "quick"
 DVWA_SETUP_PATH = "/setup.php"
@@ -60,7 +61,7 @@ def load_sibling(name: str) -> ModuleType:
 
 
 callback = load_sibling("callback")
-# Wapiti options of the running callback service; set per target in bench_target.
+# Wapiti options of the running callback service; set per target in scan_target.
 WAPITI_ENDPOINTS: dict[str, str] = {}
 
 
@@ -73,6 +74,7 @@ class Target(BaseModel):
     scan_path: str = ""
     profile: str | None = None
     haris_args: tuple[str, ...] = ()
+    companions: tuple[str, ...] = ()
 
 
 TARGETS = {
@@ -81,7 +83,12 @@ TARGETS = {
         container_port=3000,
         health_path="/rest/admin/application-version",
     ),
-    "dvwa": Target(service="dvwa", container_port=80, health_path="/login.php"),
+    "dvwa": Target(
+        service="dvwa",
+        container_port=80,
+        health_path="/login.php",
+        companions=("dvwa_db",),
+    ),
     "webgoat": Target(
         service="webgoat",
         container_port=8080,
@@ -321,7 +328,7 @@ def score(reports: Path, truth: Path, baseline: Path | None) -> None:
     subprocess.run(cmd, check=True, capture_output=True, text=True)
 
 
-def bench_target(name: str, args: argparse.Namespace, results: Path) -> None:
+def scan_target(name: str, args: argparse.Namespace, results: Path) -> None:
     target = TARGETS[name]
     compose("up", "--detach", "--build", target.service)
     base_url = resolve_base_url(target)
@@ -355,6 +362,17 @@ def bench_target(name: str, args: argparse.Namespace, results: Path) -> None:
     score(results / name / "runs", TRUTH_DIR / f"{name}.yaml", baseline_dir)
 
 
+def bench_target(name: str, args: argparse.Namespace, results: Path) -> None:
+    """Scan one target, then remove it so the next one has the VM's memory."""
+    target = TARGETS[name]
+    try:
+        scan_target(name, args, results)
+    finally:
+        compose(
+            "rm", "--stop", "--force", "--volumes", target.service, *target.companions
+        )
+
+
 def parse_args(argv: list[str] | None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Run the HARIS benchmark")
     parser.add_argument("--targets", default=",".join(TARGETS), help="Comma list")
@@ -378,8 +396,8 @@ def main(argv: list[str] | None = None) -> int:
     unknown = [name for name in names if name not in TARGETS]
     if unknown:
         raise SystemExit(f"unknown targets: {unknown}")
-    results = args.results_dir / datetime.now(UTC).strftime("%Y-%m-%d")
-    results.mkdir(parents=True, exist_ok=True)
+    results = args.results_dir / datetime.now(UTC).strftime(RESULTS_STAMP)
+    results.mkdir(parents=True)
     (results / "compose.resolved.yaml").write_text(compose("config").stdout)
     failures = 0
     try:

@@ -69,3 +69,49 @@ def test_haris_command_carries_profile_and_extra_args(
     assert cmd[cmd.index("--profile") + 1] == "ai-security"
     assert cmd[-2:] == ["--ai-active", "--i-have-authorization"]
     assert (tmp_path / "run1.json").exists()
+
+
+def test_target_and_its_database_are_removed_even_when_the_scan_fails(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    calls: list[tuple[str, ...]] = []
+
+    def fake_compose(*args: str) -> None:
+        calls.append(args)
+        if args[0] == "up":
+            raise subprocess.CalledProcessError(1, "docker")
+
+    monkeypatch.setattr(runner, "compose", fake_compose)
+    with pytest.raises(subprocess.CalledProcessError):
+        runner.bench_target("dvwa", runner.parse_args([]), tmp_path)
+    assert calls[-1] == ("rm", "--stop", "--force", "--volumes", "dvwa", "dvwa_db")
+
+
+def test_each_invocation_writes_to_a_new_results_directory(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    stamps = iter(["2026-11-10-100000", "2026-11-10-100001"])
+
+    class FixedClock:
+        @staticmethod
+        def now(tz: object) -> Any:
+            class Stamp:
+                @staticmethod
+                def strftime(fmt: str) -> str:
+                    assert fmt == runner.RESULTS_STAMP
+                    return next(stamps)
+
+            return Stamp()
+
+    monkeypatch.setattr(runner, "datetime", FixedClock)
+    monkeypatch.setattr(
+        runner, "compose", lambda *a: subprocess.CompletedProcess(a, 0, "", "")
+    )
+    argv = ["--targets", "spa_catchall", "--results-dir", str(tmp_path)]
+    monkeypatch.setattr(runner, "bench_target", lambda *a: None)
+    assert runner.main(argv) == 0
+    assert runner.main(argv) == 0
+    assert sorted(p.name for p in tmp_path.iterdir()) == [
+        "2026-11-10-100000",
+        "2026-11-10-100001",
+    ]

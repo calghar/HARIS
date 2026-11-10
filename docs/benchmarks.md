@@ -53,7 +53,7 @@ Each target has its own profile: `quick` by default, `ai-security` with `--ai-ac
 
 `garak` and `promptfoo` may be absent on the runner. The `vuln_ai_app` run then ends `incomplete` (exit code 2); the runner accepts a non-zero `haris` exit when exactly one JSON report exists.
 
-The runner starts the targets, waits for health, runs `haris` for each run, stores artifacts under `bench/results/<date>/` and tears the targets down. It scans only the `127.0.0.1` targets from the compose file. WebGoat takes about a minute to start.
+The runner starts the targets, waits for health, runs `haris` for each run, stores artifacts under a new `bench/results/<date>-<time>/` per invocation, removes each target (and its database) after its runs, and tears the project down at the end. It scans only the `127.0.0.1` targets from the compose file. WebGoat takes about a minute to start.
 
 The `callback` service (`bench/fixtures/callback`, published on `127.0.0.1:${BENCH_CALLBACK_PORT:-19090}`) is the out-of-band receiver for Wapiti's blind SSRF and XXE checks, so no run contacts `wapiti3.ovh`. The runner sets the Wapiti scanner options `external_endpoint` (`http://callback:9090/`, used by the target) and `internal_endpoint` (the published host URL, used by Wapiti) in the generated `--config`; with them set, `log4shell` is dropped (it needs a DNS endpoint). Unset, Wapiti uses its public default `wapiti3.ovh`.
 

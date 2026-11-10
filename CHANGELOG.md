@@ -57,6 +57,7 @@
 
 ### Fixed
 
+- Fixed the benchmark runner failing a re-run with "expected one JSON report" and leaving earlier targets running; each invocation writes to a new `bench/results/<date>-<time>/` directory and each target is removed after its runs
 - Fixed `haris --url HOST` failing every scanner pre-flight with "outside the authorised scope" for any host but `example.com`; the packaged config no longer sets `allowed_domains`, so scope defaults to the target host
 - Fixed the profile page rendering a blank id for each session and failing to revoke it; sessions are now listed and revoked by token hash
 - Fixed `haris --web` binding to every interface by default; `--host` now defaults to `127.0.0.1`
