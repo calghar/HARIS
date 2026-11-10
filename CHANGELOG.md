@@ -42,6 +42,7 @@
 - Added `ScopedClient.stream()` (bounded read with a `truncated` flag) and a per-call `timeout_s`; replay no longer swaps `NetworkPolicy.timeout_s`, and the AI module probes `/sse` with GET instead of HEAD
 - Added scanner options `external_endpoint` and `internal_endpoint` so Wapiti's out-of-band checks can use a local callback receiver; the benchmark runs a `callback` fixture service and no longer contacts `wapiti3.ovh` (`log4shell` is always dropped)
 - Added a scope and SSRF pre-flight on the discovered chat URL before `garak` or `promptfoo` starts; a failure is a scanner error and the tool is not started, and `docs/ai_security.md` lists what is not enforced on their own requests
+- Added one `agent.refused` audit row for each refused web agent request, with the user id, target host and a reason code (`not_admin`, `no_verified_proof`, `agent_disabled`, `verify_off`)
 
 ### Changed (packaging)
 
@@ -109,6 +110,7 @@
 - Fixed unset Wapiti endpoints falling back to `wapiti3.ovh`; SSRF and XXE run only when both endpoints are set, `log4shell` is always skipped, and unset endpoints use the target URL (internal) and `http://127.0.0.1:9/` (external)
 - Fixed nikto crashing the Juice Shop benchmark target; the runner now bounds that run with `-maxtime 40s` through the generated `--config`, and the product default is unchanged
 - Fixed the excluded-path labels on the new-scan form and the template form, which claimed `regex supported`; they now say one entry per line, a plain path or a trailing `.*`
+- Fixed a web scan that requests the agent failing silently when Docker or the sandbox image is missing; the scan is accepted without that stage and records `[agent] skipped: docker unavailable` at submit and again at run time
 
 ### Changed
 

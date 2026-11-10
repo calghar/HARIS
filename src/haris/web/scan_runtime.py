@@ -14,7 +14,12 @@ from ..net import NetworkPolicy
 from ..reporting import REPORTER_REGISTRY
 from ..verify.settings import VerifyMode
 from .access import Access, require_scan_access
-from .agent_gate import agent_policy
+from .agent_gate import (
+    DOCKER_SKIP_NOTE,
+    DOCKER_SKIP_REASON,
+    agent_policy,
+    docker_blocks_agent,
+)
 from .job_queue import CancelToken
 from .state import AppState
 
@@ -41,6 +46,7 @@ class ScanJobParams(BaseModel):
     llm_backend_name: str | None = None
     verify: VerifyMode | None = None  # None: use the server default
     agent: bool = False
+    agent_skip: str = ""
     template_id: str = ""
     scanner_options: dict[str, dict[str, Any]] = Field(default_factory=dict)
 
@@ -69,9 +75,17 @@ def execute_scan(state: AppState, job: Job, token: CancelToken) -> JobStatus:
     if params.auth_method != "none" and not header_value:
         raise RuntimeError(AUTH_LOST_ERROR)
 
+    docker_down = params.agent_skip == DOCKER_SKIP_REASON or docker_blocks_agent(
+        params.agent
+    )
+
     def stamp(session: ScanSession) -> ScanSession:
         session.template_id = params.template_id
         session.profile_name = session.profile_name or params.profile_name
+        if docker_down and DOCKER_SKIP_NOTE not in session.errors:
+            session.errors.append(DOCKER_SKIP_NOTE)
+        if docker_down and DOCKER_SKIP_NOTE not in session.stage_log:
+            session.stage_log.append(DOCKER_SKIP_NOTE)
         return session
 
     def checkpoint(session: ScanSession) -> None:
@@ -95,7 +109,9 @@ def execute_scan(state: AppState, job: Job, token: CancelToken) -> JobStatus:
     token.on_cancel(runner.cancel)
     if token.cancelled:
         return JobStatus.CANCELLED
-    with agent_policy(state, job, params.agent, params.verify) as skipped:
+    with agent_policy(
+        state, job, params.agent and not docker_down, params.verify
+    ) as skipped:
         session = stamp(runner.run())
     if skipped:
         session.errors.append(f"[agent] skipped: {skipped}")

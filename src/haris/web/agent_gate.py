@@ -1,10 +1,12 @@
 import shutil
 from collections.abc import Iterator
 from contextlib import contextmanager
+from enum import StrEnum
 from pathlib import Path
 
 from fastapi import HTTPException
 
+from ..agent import docker_runtime
 from ..agent.policy import (
     DISABLED_ENV,
     bind_policy,
@@ -12,13 +14,22 @@ from ..agent.policy import (
     policy_for_web,
     reset_policy,
 )
-from ..auth.models import User
+from ..auth.models import AuditAction, AuditEvent, User
 from ..db.jobs import Job
 from ..verify.settings import VerifyMode
 from .state import AppState
 from .targets import url_host
 
 AGENT_RUNS_DIR = "agent-runs"
+DOCKER_SKIP_REASON = "docker unavailable"
+DOCKER_SKIP_NOTE = f"[agent] skipped: {DOCKER_SKIP_REASON}"
+
+
+class AgentRefusal(StrEnum):
+    NOT_ADMIN = "not_admin"
+    NO_PROOF = "no_verified_proof"
+    DISABLED = "agent_disabled"
+    VERIFY_OFF = "verify_off"
 
 
 def agent_run_dir(state: AppState, scan_id: str) -> Path:
@@ -33,24 +44,70 @@ def effective_verify(state: AppState, verify: VerifyMode | None) -> VerifyMode:
     return state.settings.verify_default if verify is None else verify
 
 
+def docker_blocks_agent(requested: bool) -> bool:
+    """Whether a requested agent stage must be dropped for a missing sandbox."""
+    return requested and not docker_runtime.sandbox_available()
+
+
+def _refuse(
+    state: AppState,
+    user: User,
+    host: str,
+    reason: AgentRefusal,
+    status: int,
+    detail: str,
+) -> None:
+    state.auth.log_audit(
+        AuditEvent(
+            user_id=user.user_id,
+            user_email=user.email,
+            action=AuditAction.AGENT_REFUSED,
+            resource_type="agent",
+            details={"host": host, "reason": reason.value},
+        )
+    )
+    raise HTTPException(status_code=status, detail=detail)
+
+
 def require_agent_allowed(
     state: AppState, user: User, host: str, verify: VerifyMode | None
 ) -> None:
     """403 unless admin, agent enabled and host proven; 422 when verify is off."""
     if not user.is_admin:
-        raise HTTPException(status_code=403, detail="The agent requires the admin role")
+        _refuse(
+            state,
+            user,
+            host,
+            AgentRefusal.NOT_ADMIN,
+            403,
+            "The agent requires the admin role",
+        )
     if disabled():
-        raise HTTPException(
-            status_code=403, detail=f"The agent is disabled ({DISABLED_ENV}=1)"
+        _refuse(
+            state,
+            user,
+            host,
+            AgentRefusal.DISABLED,
+            403,
+            f"The agent is disabled ({DISABLED_ENV}=1)",
         )
     if not state.targets.has_verified_proof(user.user_id, host):
-        raise HTTPException(
-            status_code=403,
-            detail="The agent needs a verified ownership proof for this host",
+        _refuse(
+            state,
+            user,
+            host,
+            AgentRefusal.NO_PROOF,
+            403,
+            "The agent needs a verified ownership proof for this host",
         )
     if effective_verify(state, verify) is VerifyMode.OFF:
-        raise HTTPException(
-            status_code=422, detail="The agent runs inside verification; verify is off"
+        _refuse(
+            state,
+            user,
+            host,
+            AgentRefusal.VERIFY_OFF,
+            422,
+            "The agent runs inside verification; verify is off",
         )
 
 
