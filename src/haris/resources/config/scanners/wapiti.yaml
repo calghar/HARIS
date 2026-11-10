@@ -7,7 +7,8 @@ severity_map:
   1: LOW
   0: INFO
 
-# Module names from wapitiCore/attack/modules/core.py (3.2.10).
+# Module names from wapitiCore/attack/modules/core.py (3.3.2).
+# common adds stacktrace_disclosure; all adds printer.
 excluded_modules:
   # Covered by built-in header, cookie, redirect and TLS checks.
   - cookieflags
@@ -15,10 +16,10 @@ excluded_modules:
   - http_headers
   - https_redirect
   - ssl
-  # ReDoS in Wapiti 3.2.10.
+  # 3.2.10 ReDoS regex; 3.3.1 drops slash from the repeated class. Kept out until a live run.
   - information_disclosure
 
-# Category names as emitted by Wapiti 3.2.x (wapitiCore/definitions) -> OWASP tags.
+# Category names as emitted by Wapiti 3.3.2 (wapitiCore/definitions) -> OWASP tags.
 category_tags:
   "Reflected Cross Site Scripting": [xss]
   "Stored Cross Site Scripting": [xss]
@@ -63,6 +64,8 @@ category_tags:
   "Subdomain takeover": [security_misconfiguration]
   "HTTP Methods": [security_misconfiguration]
   "Review Webserver Metafiles for Information Leakage": [sensitive_data_exposure]
+  "Stack Trace Disclosure": [verbose_errors]
+  "CVE-2024-55591": [outdated_component]
 
 # Flags accepted from scanner_options.extra_args: flag -> number of values.
 extra_args_allowlist:

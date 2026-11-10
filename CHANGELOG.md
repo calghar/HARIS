@@ -56,6 +56,8 @@
 - Removed the redundant `llm-openai`/`llm-anthropic` extras (both SDKs are core dependencies); dev tools moved from the `dev` extra to the `dev` dependency group (`uv sync` installs it)
 - Documented minimum external tool versions in the README
 - Dependabot uses the `uv` ecosystem and groups minor/patch updates
+- Raised the documented Wapiti minimum to 3.3.2 and mapped its new categories `Stack Trace Disclosure` (`verbose_error`) and `CVE-2024-55591`; the flags, module names and session database that HARIS uses are unchanged, and `stacktrace_disclosure` now runs in the default module set
+- Wapiti 3.3.2 sends one extra probe request per crawled directory to detect soft 404 pages, so the crawl can drop catch-all pages; `information_disclosure` stays excluded until a live run shows its 3.3 regex is safe
 
 ### Fixed
 

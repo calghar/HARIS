@@ -10,7 +10,7 @@ pyyaml>=6.0
 
 # External scanner packages (optional)
 # sslyze>=6.0.0
-# wapiti3>=3.1.0
+# wapiti3>=3.3.2
 
 # Enhanced HTML reports (optional)
 # markdown>=3.5

@@ -23,7 +23,7 @@ Orchestrates multiple security scanners, correlates findings, and produces a sin
 
 | Scanner | What It Tests | Install | Min. version |
 | ------- | ------------- | ------- | ------------ |
-| Wapiti | SQLi, XSS, SSRF, command injection, CRLF, XXE | `pipx install wapiti3` | 3.2 |
+| Wapiti | SQLi, XSS, SSRF, command injection, CRLF, XXE | `pipx install wapiti3` | 3.3.2 |
 | SSLyze | TLS protocols, cipher suites, certificate chain, Heartbleed/ROBOT | `pipx install sslyze` | 6.0 |
 | Nmap | Open ports, service versions, exposed databases | system package manager | 7.90 |
 | Nikto | Web server misconfigurations, outdated software, dangerous files | `brew install nikto` | 2.6 |
