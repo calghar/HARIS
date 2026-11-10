@@ -7,7 +7,7 @@ from threading import Lock
 from typing import Any
 from urllib.parse import parse_qs, urlsplit
 
-# Wapiti 3.2.10 target side: /ssrf/<session>/<path_id>/<hex_param>/ and
+# Wapiti 3.3.2 target side: /ssrf/<session>/<path_id>/<hex_param>/ and
 # /dtd/<session>/<path_id>/<hex_param>/<payload>.dtd; read side: /get_<ssrf|xxe>.php.
 CALLBACK = re.compile(
     r"^/(?P<kind>ssrf|dtd)/(?P<session>[0-9a-z]+)/(?P<path_id>\d+)"

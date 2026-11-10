@@ -41,6 +41,8 @@
 - Added an `ignore` list to benchmark ground truth (reported as an ignored count in `score.md`) and a per-target profile and extra `haris` args in `bench/run.py`; `--profile` is now optional
 - Added `ScopedClient.stream()` (bounded read with a `truncated` flag) and a per-call `timeout_s`; replay no longer swaps `NetworkPolicy.timeout_s`, and the AI module probes `/sse` with GET instead of HEAD
 - Added scanner options `external_endpoint` and `internal_endpoint` so Wapiti's out-of-band checks can use a local callback receiver; the benchmark runs a `callback` fixture service and no longer contacts `wapiti3.ovh` (`log4shell` is always dropped)
+- Added a scope and SSRF pre-flight on the discovered chat URL before `garak` or `promptfoo` starts; a failure is a scanner error and the tool is not started, and `docs/ai_security.md` lists what is not enforced on their own requests
+- Added one `agent.refused` audit row for each refused web agent request, with the user id, target host and a reason code (`not_admin`, `no_verified_proof`, `agent_disabled`, `verify_off`)
 - Added an optional `zap` scanner that runs the ZAP Automation Framework (spider, passive wait, active scan, report) and reads the `traditional-json` report; it is disabled by default, is in no profile, and runs with `--scanners zap`. Not yet checked against a live ZAP
 - Mapped common ZAP plugin ids to vulnerability classes and set the `zap` confidence prior to 0.6
 
@@ -56,6 +58,8 @@
 - Removed the redundant `llm-openai`/`llm-anthropic` extras (both SDKs are core dependencies); dev tools moved from the `dev` extra to the `dev` dependency group (`uv sync` installs it)
 - Documented minimum external tool versions in the README
 - Dependabot uses the `uv` ecosystem and groups minor/patch updates
+- Raised the documented Wapiti minimum to 3.3.2 and mapped its new categories `Stack Trace Disclosure` (`verbose_error`) and `CVE-2024-55591`; the flags, module names and session database that HARIS uses are unchanged, and `stacktrace_disclosure` now runs in the default module set
+- Wapiti 3.3.2 sends one extra probe request per crawled directory to detect soft 404 pages, so the crawl can drop catch-all pages; `information_disclosure` stays excluded until a live run shows its 3.3 regex is safe
 
 ### Fixed
 
@@ -109,6 +113,8 @@
 - Fixed a Wapiti timeout or crash without a JSON report dropping all its findings; HARIS now recovers them from Wapiti's session database
 - Fixed unset Wapiti endpoints falling back to `wapiti3.ovh`; SSRF and XXE run only when both endpoints are set, `log4shell` is always skipped, and unset endpoints use the target URL (internal) and `http://127.0.0.1:9/` (external)
 - Fixed nikto crashing the Juice Shop benchmark target; the runner now bounds that run with `-maxtime 40s` through the generated `--config`, and the product default is unchanged
+- Fixed the excluded-path labels on the new-scan form and the template form, which claimed `regex supported`; they now say one entry per line, a plain path or a trailing `.*`
+- Fixed a web scan that requests the agent failing silently when Docker or the sandbox image is missing; the scan is accepted without that stage and records `[agent] skipped: docker unavailable` at submit and again at run time
 
 ### Changed
 

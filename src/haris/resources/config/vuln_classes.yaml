@@ -231,6 +231,8 @@ classes:
   - id: verbose_error
     primary_cwe: CWE-209
     granularity: parameter
+    aliases:
+      wapiti: ["Stack Trace Disclosure"]
 
   - id: html_comment_leak
     primary_cwe: CWE-615

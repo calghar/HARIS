@@ -54,7 +54,7 @@
   </div>
 
   <div class="form-group">
-    <label for="excluded_paths">Excluded Paths (one per line, regex supported)</label>
+    <label for="excluded_paths">Excluded Paths (one per line, plain path or a trailing .*)</label>
     <textarea id="excluded_paths" name="excluded_paths" rows="3"
               placeholder="/logout&#10;/admin/.*">{{ prefill.excluded_paths or '' }}</textarea>
   </div>
