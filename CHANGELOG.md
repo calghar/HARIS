@@ -41,6 +41,8 @@
 - Added an `ignore` list to benchmark ground truth (reported as an ignored count in `score.md`) and a per-target profile and extra `haris` args in `bench/run.py`; `--profile` is now optional
 - Added `ScopedClient.stream()` (bounded read with a `truncated` flag) and a per-call `timeout_s`; replay no longer swaps `NetworkPolicy.timeout_s`, and the AI module probes `/sse` with GET instead of HEAD
 - Added scanner options `external_endpoint` and `internal_endpoint` so Wapiti's out-of-band checks can use a local callback receiver; the benchmark runs a `callback` fixture service and no longer contacts `wapiti3.ovh` (`log4shell` is always dropped)
+- Added an optional `zap` scanner that runs the ZAP Automation Framework (spider, passive wait, active scan, report) and reads the `traditional-json` report; it is disabled by default, is in no profile, and runs with `--scanners zap`. Not yet checked against a live ZAP
+- Mapped common ZAP plugin ids to vulnerability classes and set the `zap` confidence prior to 0.6
 
 ### Changed (packaging)
 

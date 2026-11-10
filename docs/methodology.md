@@ -83,6 +83,7 @@ Findings are mapped to the OWASP Top 10 2025 categories:
 | Nmap | Port scanning, service detection, recon | CLI adapter (subprocess) |
 | Nikto | Web server misconfigurations, outdated software | CLI adapter (subprocess) |
 | Nuclei | CVE detection, default credentials, exposed panels, tech fingerprinting | CLI adapter (subprocess, multi-phase) |
+| ZAP | Active and passive web scan | CLI adapter, off by default, not in any profile |
 | Built-in header_checks | HTTP security headers | Python requests |
 | Built-in tls_checks | Certificate and TLS basics | Python ssl |
 | Built-in misc_checks | CORS, redirects, sensitive paths | Python requests |

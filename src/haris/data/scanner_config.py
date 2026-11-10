@@ -261,6 +261,11 @@ def get_nuclei_remediation_map() -> dict[str, str]:
     )
 
 
+def get_zap_config() -> dict[str, Any]:
+    """Severity map, confidence map, instance cap, and extra-args allow-list."""
+    return _load_scanner_config("zap")
+
+
 # ---------------------------------------------------------------------------
 # Cross-scanner shared data (from config/scanner_data.yaml)
 # ---------------------------------------------------------------------------

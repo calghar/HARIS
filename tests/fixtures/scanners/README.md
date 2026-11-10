@@ -11,9 +11,10 @@ other host). Parser tests read these files. Re-capture after a tool upgrade.
 | wapiti | 3.2.10 | `wapiti/all_modules.json`, `default_modules.json`, `auth_headers.json` | real; `all_modules.json` trimmed (vulnerable-software and anomaly lists) |
 | garak | 0.17.1 | `garak/vuln_ai_app_pass.report.jsonl`, `garak/echo_fail.report.jsonl` | real, paths anonymised, `plugin_cache` and `payload_init` entries dropped, attempts trimmed to two |
 | promptfoo | 0.125.1 | `promptfoo/eval_results.json` | partly synthetic: real `eval` output, but the test cases and their `metadata.pluginId` were written by hand |
+| zap | — | `zap/traditional.json` | hand-built from the traditional-json docs, not captured from ZAP |
 | sslyze | 6.3.0 | `sslyze/modern_tls.json`, `legacy_tls.json`, `no_connectivity.json` | real, lists trimmed to two entries, paths anonymised |
 
-`promptfoo/eval_results.json` is the only partly synthetic fixture (see Notes). Every other fixture is real tool output.
+`promptfoo/eval_results.json` is partly synthetic (see Notes). `zap/traditional.json` is hand-built from the documented schema, not captured from ZAP. Every other fixture is real tool output.
 
 ## Notes
 

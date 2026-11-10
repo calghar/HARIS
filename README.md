@@ -28,6 +28,7 @@ Orchestrates multiple security scanners, correlates findings, and produces a sin
 | Nmap | Open ports, service versions, exposed databases | system package manager | 7.90 |
 | Nikto | Web server misconfigurations, outdated software, dangerous files | `brew install nikto` | 2.6 |
 | Nuclei | CVE detection, default credentials, exposed panels, tech fingerprinting (multi-phase) | `brew install nuclei` | 3.7 |
+| ZAP | Active and passive web scan. Off by default and in no profile; `--scanners zap` | [ZAP download](https://www.zaproxy.org/download/) | 2.16 |
 
 Install Wapiti and SSLyze as isolated tools (`pipx`), not into the HARIS environment: they pin `cryptography<47` and `tornado<6.6`, which carry known CVEs. The `scanners` extra exists for convenience but conflicts with `web` and is excluded from `all`. Versions are documented, not checked at runtime.
 
@@ -49,7 +50,7 @@ uv venv .venv && source .venv/bin/activate
 uv pip install -e ".[all]"
 ```
 
-External tools (Nmap, Nikto, Nuclei, SSLyze, Wapiti) need separate installation — invoked as CLI commands. For LLM features, set `ANTHROPIC_API_KEY` or `OPENAI_API_KEY`.
+External tools (Nmap, Nikto, Nuclei, SSLyze, Wapiti, and optional ZAP) need separate installation — invoked as CLI commands. For LLM features, set `ANTHROPIC_API_KEY` or `OPENAI_API_KEY`.
 
 ## Authentication
 
@@ -103,7 +104,7 @@ haris update-templates --scanner nuclei --list
 | ------- | -------- | -------- |
 | `quick` | Built-in checks only | First look, ~1-3 min |
 | `pre-launch` | Built-in + Nmap, SSLyze, Wapiti | Before production deploy, ~10-30 min |
-| `full` | Everything including Nikto, Nuclei | Full audit, ~20-30 min |
+| `full` | Built-in checks, Nmap, SSLyze, Wapiti, Nikto, Nuclei | Full audit, ~20-30 min |
 | `regression` | header_checks, tls_checks, misc_checks | CI gate, ~30-60s |
 | `compliance` | Built-in + Nmap, SSLyze | SOC 2 / PCI-DSS prep, ~5-15 min |
 

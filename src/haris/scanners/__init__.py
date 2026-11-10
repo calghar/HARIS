@@ -7,6 +7,7 @@ from .nuclei_scanner import NucleiScanner
 from .promptfoo_scanner import PromptfooScanner
 from .sslyze_scanner import SSLyzeScanner
 from .wapiti_scanner import WapitiScanner
+from .zap_scanner import ZapScanner
 
 SCANNER_REGISTRY: dict[str, type] = {
     "wapiti": WapitiScanner,
@@ -16,6 +17,7 @@ SCANNER_REGISTRY: dict[str, type] = {
     "nuclei": NucleiScanner,
     "garak": GarakScanner,
     "promptfoo": PromptfooScanner,
+    "zap": ZapScanner,
 }
 
 
@@ -36,6 +38,7 @@ __all__ = [
     "NucleiScanner",
     "GarakScanner",
     "PromptfooScanner",
+    "ZapScanner",
     "SCANNER_REGISTRY",
     "get_scanner",
 ]

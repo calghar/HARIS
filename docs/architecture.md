@@ -187,7 +187,7 @@ Reusable presets that bundle a scan profile with per-scanner option overrides. F
 | -------- | ------- | ----------- |
 | Quick Surface Scan | `quick` | Built-in checks only |
 | Pre-Launch Audit | `pre-launch` | Nmap common ports, Wapiti folder scope, LLM enrichment |
-| Full OWASP Top 10 | `full` | All scanners, Nuclei template_dirs (8 categories), Nikto tuning |
+| Full OWASP Top 10 | `full` | Built-in checks plus Nmap, SSLyze, Wapiti, Nikto, Nuclei. ZAP is not included |
 | Regression Check | `regression` | Headers + TLS + misc only |
 | Compliance Audit | `compliance` | Nmap + TLS + info disclosure, LLM enrichment |
 
