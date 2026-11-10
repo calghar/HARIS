@@ -27,6 +27,7 @@ RESULTS_STAMP = "%Y-%m-%d-%H%M%S"
 HEALTH_POLL_SECONDS = 3.0
 DEFAULT_PROFILE = "quick"
 DVWA_SETUP_PATH = "/setup.php"
+DVWA_LOGOUT_PATH = "/logout.php"
 DVWA_HOME_PATH = "index.php"
 DVWA_PREPARE_TIMEOUT_SECONDS = 120.0
 DVWA_LOGIN_PATH = "/login.php"
@@ -63,6 +64,8 @@ def load_sibling(name: str) -> ModuleType:
 callback = load_sibling("callback")
 # Wapiti options of the running callback service; set per target in scan_target.
 WAPITI_ENDPOINTS: dict[str, str] = {}
+# Excluded paths of the running target; set per target in scan_target.
+TARGET_EXCLUDED_PATHS: list[str] = []
 
 
 class Target(BaseModel):
@@ -75,6 +78,7 @@ class Target(BaseModel):
     profile: str | None = None
     haris_args: tuple[str, ...] = ()
     companions: tuple[str, ...] = ()
+    excluded_paths: tuple[str, ...] = ()
 
 
 TARGETS = {
@@ -88,6 +92,7 @@ TARGETS = {
         container_port=80,
         health_path="/login.php",
         companions=("dvwa_db",),
+        excluded_paths=(DVWA_LOGOUT_PATH, DVWA_SETUP_PATH),
     ),
     "webgoat": Target(
         service="webgoat",
@@ -253,7 +258,7 @@ def run_command(
     cmd: list[str], session_cookie: str | None
 ) -> subprocess.CompletedProcess[str]:
     """Run `cmd`; a session cookie travels in the environment, never in argv."""
-    if session_cookie is None and not WAPITI_ENDPOINTS:
+    if session_cookie is None and not (WAPITI_ENDPOINTS or TARGET_EXCLUDED_PATHS):
         return subprocess.run(cmd, capture_output=True, text=True, check=False)
     with tempfile.TemporaryDirectory() as tmp:
         config = Path(tmp) / "auth.yaml"
@@ -264,6 +269,10 @@ def run_command(
                 "header_name": COOKIE_HEADER,
             }
         callback.apply_wapiti_endpoints(raw, WAPITI_ENDPOINTS)
+        scope = raw.setdefault("target", {}).setdefault("scope", {})
+        scope["excluded_paths"] = list(
+            dict.fromkeys([*scope.get("excluded_paths", []), *TARGET_EXCLUDED_PATHS])
+        )
         config.write_text(yaml.safe_dump(raw))
         return subprocess.run(
             [*cmd, "--config", str(config)],
@@ -337,6 +346,7 @@ def scan_target(name: str, args: argparse.Namespace, results: Path) -> None:
     callback_url = resolve_base_url(CALLBACK_TARGET)
     wait_healthy(callback_url, CALLBACK_TARGET.health_path, args.health_timeout)
     WAPITI_ENDPOINTS.update(callback.wapiti_endpoints(callback_url))
+    TARGET_EXCLUDED_PATHS[:] = target.excluded_paths
     if name in PREPARE:
         PREPARE[name](base_url)
     scan_url = base_url + target.scan_path

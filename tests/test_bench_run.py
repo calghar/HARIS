@@ -5,6 +5,7 @@ from types import ModuleType
 from typing import Any
 
 import pytest
+import yaml
 
 RUN_PY = Path(__file__).resolve().parent.parent / "bench" / "run.py"
 
@@ -114,4 +115,102 @@ def test_each_invocation_writes_to_a_new_results_directory(
     assert sorted(p.name for p in tmp_path.iterdir()) == [
         "2026-11-10-100000",
         "2026-11-10-100001",
+    ]
+
+
+def capture_scan_config(
+    name: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> tuple[list[str], dict[str, Any] | None]:
+    seen: list[tuple[list[str], dict[str, Any] | None]] = []
+
+    def fake_run(cmd: list[str], **_: Any) -> subprocess.CompletedProcess[str]:
+        config = None
+        if "--config" in cmd:
+            config = yaml.safe_load(Path(cmd[cmd.index("--config") + 1]).read_text())
+        out = Path(cmd[cmd.index("--output") + 1])
+        (out / "report.json").write_text("{}")
+        seen.append((cmd, config))
+        return subprocess.CompletedProcess(cmd, 0, "", "")
+
+    monkeypatch.setattr(runner, "WAPITI_ENDPOINTS", {})
+    monkeypatch.setattr(runner, "TARGET_EXCLUDED_PATHS", [])
+    monkeypatch.setattr(runner, "compose", lambda *a: None)
+    monkeypatch.setattr(runner, "resolve_base_url", lambda t: "http://127.0.0.1:1")
+    monkeypatch.setattr(runner, "wait_healthy", lambda *a: None)
+    monkeypatch.setattr(runner, "score", lambda *a: None)
+    monkeypatch.setattr(runner.subprocess, "run", fake_run)
+    monkeypatch.setitem(runner.LOGIN, "dvwa", lambda url: None)
+    monkeypatch.setitem(runner.PREPARE, "dvwa", lambda url: None)
+    runner.scan_target(name, runner.parse_args(["--runs", "1"]), tmp_path)
+    return seen[0]
+
+
+def default_excluded_paths() -> list[str]:
+    raw = yaml.safe_load(runner.default_config_path().read_text())
+    return list(raw["target"]["scope"]["excluded_paths"])
+
+
+def test_only_dvwa_carries_excluded_paths() -> None:
+    carriers = {
+        n: t.excluded_paths for n, t in runner.TARGETS.items() if t.excluded_paths
+    }
+    assert carriers == {"dvwa": ("/logout.php", "/setup.php")}
+
+
+def test_dvwa_config_extends_the_default_excluded_paths_without_a_session(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    cmd, config = capture_scan_config("dvwa", tmp_path, monkeypatch)
+    assert config is not None
+    assert config["target"]["scope"]["excluded_paths"] == [
+        *default_excluded_paths(),
+        "/logout.php",
+        "/setup.php",
+    ]
+    assert "/logout.php" not in " ".join(cmd)
+
+
+def run_command_config(
+    monkeypatch: pytest.MonkeyPatch, excluded: list[str], cookie: str | None = None
+) -> tuple[list[str], dict[str, Any] | None]:
+    seen: list[tuple[list[str], dict[str, Any] | None]] = []
+
+    def fake_run(cmd: list[str], **_: Any) -> subprocess.CompletedProcess[str]:
+        config = None
+        if "--config" in cmd:
+            config = yaml.safe_load(Path(cmd[cmd.index("--config") + 1]).read_text())
+        seen.append((cmd, config))
+        return subprocess.CompletedProcess(cmd, 0, "", "")
+
+    monkeypatch.setattr(runner, "WAPITI_ENDPOINTS", {})
+    monkeypatch.setattr(runner, "TARGET_EXCLUDED_PATHS", excluded)
+    monkeypatch.setattr(runner.subprocess, "run", fake_run)
+    runner.run_command(["haris"], cookie)
+    return seen[0]
+
+
+def test_config_is_written_for_excludes_alone(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    cmd, config = run_command_config(monkeypatch, ["/setup.php"])
+    assert config is not None
+    assert config["target"]["scope"]["excluded_paths"][-1] == "/setup.php"
+
+
+def test_no_config_without_excludes_cookie_or_endpoints(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    cmd, config = run_command_config(monkeypatch, [])
+    assert cmd == ["haris"]
+    assert config is None
+
+
+def test_target_path_equal_to_a_default_entry_is_not_repeated(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _, config = run_command_config(monkeypatch, ["/logout", "/logout.php"], "s=1")
+    assert config is not None
+    assert config["target"]["scope"]["excluded_paths"] == [
+        *default_excluded_paths(),
+        "/logout.php",
     ]

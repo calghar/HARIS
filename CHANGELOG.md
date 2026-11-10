@@ -102,6 +102,7 @@
 - Fixed the agent validator never confirming a reflected XSS first seen on `POST`; re-execution now sends the form body with a fresh `{marker}` under the proxy's destructive-content rules, also applied to percent-encoded text
 - Fixed `outdated_server` CWE mapping on version endpoints and `X-Powered-By` context extraction (`raw_data` now carries the technology headers)
 - Fixed the Wapiti adapter passing excluded paths as bare paths, which made Wapiti exit with code 2 (`Invalid argument for option -x`); they are now absolute URLs (`.*` becomes `*`) and regex entries are skipped with a warning
+- Benchmark runner: Wapiti no longer scans DVWA's `/logout.php` and `/setup.php`; each benchmark target can carry its own excluded paths, added to the default exclusions in the generated `--config`.
 
 ### Changed
 
