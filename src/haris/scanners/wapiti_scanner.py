@@ -3,6 +3,7 @@ import logging
 import tempfile
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlsplit
 
 from ..core.decorators import handle_scanner_errors, register_scanner
 from ..data.scanner_config import (
@@ -18,6 +19,13 @@ logger = logging.getLogger(__name__)
 
 DEFAULT_MODULES = "common"
 FALLBACK_TAGS = ["security_misconfiguration"]
+# option -> Wapiti flag; unset keeps Wapiti's public default (wapiti3.ovh).
+ENDPOINT_FLAGS = {
+    "external_endpoint": "--external-endpoint",
+    "internal_endpoint": "--internal-endpoint",
+}
+# Log4Shell verifies over DNS, which a callback receiver cannot serve.
+DNS_MODULE = "log4shell"
 # Wapiti's usage banner and box-drawing logo are noise in stderr.
 _BANNER_PREFIXES = ("usage:", "[", "██", "╔", "╗", "║", "╚", "╝", "╠", "╣")
 
@@ -167,8 +175,22 @@ class WapitiScanner(ExternalToolScanner):
         # "all" predates Wapiti's own preset of that name; keep the default set.
         if modules in ("", "all"):
             modules = DEFAULT_MODULES
-        dropped = [f"-{name}" for name in get_wapiti_excluded_modules()]
-        return ",".join([modules, *dropped])
+        names = list(get_wapiti_excluded_modules())
+        if any(self.options.get(option) for option in ENDPOINT_FLAGS):
+            names.append(DNS_MODULE)
+        return ",".join([modules, *(f"-{name}" for name in names)])
+
+    def _endpoint_args(self) -> list[str]:
+        args: list[str] = []
+        for option, flag in ENDPOINT_FLAGS.items():
+            value = self.options.get(option)
+            if not value:
+                continue
+            parts = urlsplit(str(value))
+            if parts.scheme not in ("http", "https") or not parts.netloc:
+                raise ValueError(f"{option} must be an http(s) URL, got {value!r}")
+            args.extend([flag, str(value)])
+        return args
 
     def _build_command(self, target: Target, output_path: str) -> list[str]:
         """Construct the wapiti argv."""
@@ -200,5 +222,6 @@ class WapitiScanner(ExternalToolScanner):
         for name, value in target.auth.as_headers().items():
             cmd.extend(["--header", f"{name}: {value}"])
 
+        cmd.extend(self._endpoint_args())
         cmd.extend(self._extra_args())
         return cmd
