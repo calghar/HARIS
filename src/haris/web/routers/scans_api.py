@@ -2,6 +2,7 @@ import uuid
 from typing import Any
 
 from fastapi import Depends, HTTPException, Request, Response
+from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import HTMLResponse
 from starlette.datastructures import FormData
 
@@ -11,7 +12,13 @@ from ...auth.service import AuthService
 from ...models import ScanState
 from ...verify.settings import VerifyMode
 from ..access import Access, require_scan_access, require_template_access, visible_owner
-from ..agent_gate import remove_agent_run, require_agent_allowed
+from ..agent_gate import (
+    DOCKER_SKIP_NOTE,
+    DOCKER_SKIP_REASON,
+    docker_blocks_agent,
+    remove_agent_run,
+    require_agent_allowed,
+)
 from ..routing import api_router
 from ..scan_runtime import (
     FINISHED,
@@ -101,6 +108,7 @@ def _audit(
 @router.post(
     "",
     status_code=202,
+    response_model_exclude_defaults=True,
     responses={
         400: {"description": "Bad request or target rejected by the SSRF guard"},
         422: {"description": "Bad verify mode, or llm or agent without what it needs"},
@@ -143,8 +151,14 @@ async def start_scan(
         raise HTTPException(
             status_code=422, detail="verify=llm requires LLM enrichment (llm_enrich)"
         )
+    note = ""
     if params.agent:
         require_agent_allowed(state, user, host, params.verify)
+        if await run_in_threadpool(docker_blocks_agent, params.agent):
+            params = params.model_copy(
+                update={"agent": False, "agent_skip": DOCKER_SKIP_REASON}
+            )
+            note = DOCKER_SKIP_NOTE
     scan_id = uuid.uuid4().hex[:SCAN_ID_LENGTH]
     header_value = str(form.get("auth_header_value", ""))
     if params.auth_method != "none" and header_value:
@@ -166,10 +180,14 @@ async def start_scan(
         target_url=target_url,
         profile_name=params.profile_name,
         template_id=params.template_id,
+        note=note,
     )
-    return ScanStarted(
+    started = ScanStarted(
         scan_id=scan_id, status=ScanState.PENDING.value, redirect=f"/scan/{scan_id}"
     )
+    if note:
+        return started.model_copy(update={"notes": [note]})
+    return started
 
 
 @router.get("", response_model=None)

@@ -9,6 +9,7 @@ from .settings import AgentSettings, load_agent_settings
 
 PREFIX = "haris-agent-"
 EXEC_TIMEOUT_S = 30
+PROBE_TIMEOUT_S = 10  # a hung daemon must not block web submit
 
 
 class ExecResult(BaseModel):
@@ -26,11 +27,23 @@ def image_id(image: str) -> str:
     if image.startswith("sha256:"):
         return image
     out = subprocess.check_output(
-        ["docker", "image", "inspect", "-f", "{{.Id}}", image], text=True
+        ["docker", "image", "inspect", "-f", "{{.Id}}", image],
+        text=True,
+        timeout=PROBE_TIMEOUT_S,
     ).strip()
     if not out.startswith("sha256:"):
         raise RuntimeError(f"{image} has no image digest")
     return out
+
+
+def sandbox_available(image: str | None = None) -> bool:
+    """True when Docker returns a digest for the sandbox image."""
+    chosen = load_agent_settings().image if image is None else image
+    try:
+        image_id(chosen)
+    except (OSError, subprocess.SubprocessError, RuntimeError):
+        return False
+    return True
 
 
 def tunnel_argv(spec: RuntimeSpec, settings: AgentSettings) -> list[str]:

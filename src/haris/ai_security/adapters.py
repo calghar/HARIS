@@ -8,6 +8,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from ..config.paths import resolve_config_file
 from ..models import Finding, ScanContext, ScannerResult, Target
+from ..net import NetworkError, ScopedClient
 from .discovery import Endpoint, discovery_for
 from .findings import AI_TAG, CLASS_PREFIX
 from .owasp_ai import load_mappings, risk_label
@@ -58,6 +59,26 @@ def selection(tool: str, requested: Any) -> list[str]:
 def skipped(scanner: str, reason: str) -> ScannerResult:
     """An empty result that records why the scanner did nothing."""
     return ScannerResult(scanner_name=scanner, metadata={"skipped": [reason]})
+
+
+def preflight_endpoint(
+    scanner: str, context: ScanContext | None, url: str
+) -> ScannerResult | None:
+    """Scheme, scope, POST and SSRF on *url*. ``None`` means the tool may start."""
+    client = context.http if context is not None else None
+    if not isinstance(client, ScopedClient):
+        return ScannerResult(
+            scanner_name=scanner,
+            errors=["not started, pre-flight failed: no scan HTTP client"],
+        )
+    try:
+        client.preflight(url, "POST")
+    except NetworkError as exc:
+        return ScannerResult(
+            scanner_name=scanner,
+            errors=[f"not started, pre-flight failed: {exc}"],
+        )
+    return None
 
 
 def fail_confidence(fails: int, total: int) -> float:

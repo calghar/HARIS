@@ -31,9 +31,14 @@ class PolicyRunner(RecordingRunner):
         return super().run()
 
 
+def _docker_up() -> bool:
+    return True
+
+
 @pytest.fixture(autouse=True)
 def agent_enabled(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("HARIS_AGENT_DISABLED", raising=False)
+    monkeypatch.setattr("haris.agent.docker_runtime.sandbox_available", _docker_up)
 
 
 @pytest.fixture()
