@@ -33,6 +33,7 @@ class AuditAction(enum.Enum):
     USER_LOGIN = "user.login"
     USER_LOGIN_FAILED = "user.login_failed"
     USER_LOGOUT = "user.logout"
+    AGENT_REFUSED = "agent.refused"
 
 
 class User(BaseModel):

@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class ScanSummary(BaseModel):
@@ -28,6 +28,7 @@ class ScanStarted(BaseModel):
     scan_id: str
     status: str
     redirect: str
+    notes: list[str] = Field(default_factory=list)
 
 
 class ScanStatus(BaseModel):
