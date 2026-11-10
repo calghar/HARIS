@@ -1,3 +1,4 @@
+from collections.abc import Mapping
 from typing import Any
 
 CALLBACK_SERVICE = "callback"
@@ -19,3 +20,18 @@ def apply_wapiti_endpoints(config: dict[str, Any], options: dict[str, str]) -> N
     for scanner in config.get("scanners", []):
         if scanner.get("name") == WAPITI_SCANNER:
             scanner.setdefault("options", {}).update(options)
+
+
+def apply_scanner_extra_args(
+    config: dict[str, Any], extra_args: Mapping[str, tuple[str, ...]]
+) -> None:
+    """Append `extra_args` to the `options.extra_args` of each named scanner entry."""
+    for scanner in config.get("scanners", []):
+        wanted = list(extra_args.get(scanner.get("name"), ()))
+        if not wanted:
+            continue
+        options = scanner.setdefault("options", {})
+        current: list[str] = options.get("extra_args", [])
+        span = len(wanted)
+        if all(current[i : i + span] != wanted for i in range(len(current))):
+            options["extra_args"] = [*current, *wanted]

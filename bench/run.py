@@ -46,6 +46,8 @@ COOKIE_HEADER = "Cookie"
 AUTH_HEADER_ENV = "HARIS_AUTH_HEADER"
 REDACTED = "<redacted>"
 PARTIAL_REPORT = "session.partial.json"
+# Juice Shop's per-request query fan-out aborts its heap near 5500 GETs.
+JUICE_NIKTO_MAX_TIME = "40s"
 
 logger = logging.getLogger("bench")
 
@@ -66,6 +68,8 @@ callback = load_sibling("callback")
 WAPITI_ENDPOINTS: dict[str, str] = {}
 # Excluded paths of the running target; set per target in scan_target.
 TARGET_EXCLUDED_PATHS: list[str] = []
+# Per-scanner extra args of the running target; set per target in scan_target.
+TARGET_SCANNER_ARGS: dict[str, tuple[str, ...]] = {}
 
 
 class Target(BaseModel):
@@ -79,6 +83,7 @@ class Target(BaseModel):
     haris_args: tuple[str, ...] = ()
     companions: tuple[str, ...] = ()
     excluded_paths: tuple[str, ...] = ()
+    scanner_extra_args: dict[str, tuple[str, ...]] = {}
 
 
 TARGETS = {
@@ -86,6 +91,7 @@ TARGETS = {
         service="juice_shop",
         container_port=3000,
         health_path="/rest/admin/application-version",
+        scanner_extra_args={"nikto": ("-maxtime", JUICE_NIKTO_MAX_TIME)},
     ),
     "dvwa": Target(
         service="dvwa",
@@ -258,7 +264,8 @@ def run_command(
     cmd: list[str], session_cookie: str | None
 ) -> subprocess.CompletedProcess[str]:
     """Run `cmd`; a session cookie travels in the environment, never in argv."""
-    if session_cookie is None and not (WAPITI_ENDPOINTS or TARGET_EXCLUDED_PATHS):
+    tuned = WAPITI_ENDPOINTS or TARGET_EXCLUDED_PATHS or TARGET_SCANNER_ARGS
+    if session_cookie is None and not tuned:
         return subprocess.run(cmd, capture_output=True, text=True, check=False)
     with tempfile.TemporaryDirectory() as tmp:
         config = Path(tmp) / "auth.yaml"
@@ -269,6 +276,7 @@ def run_command(
                 "header_name": COOKIE_HEADER,
             }
         callback.apply_wapiti_endpoints(raw, WAPITI_ENDPOINTS)
+        callback.apply_scanner_extra_args(raw, TARGET_SCANNER_ARGS)
         scope = raw.setdefault("target", {}).setdefault("scope", {})
         scope["excluded_paths"] = list(
             dict.fromkeys([*scope.get("excluded_paths", []), *TARGET_EXCLUDED_PATHS])
@@ -347,6 +355,8 @@ def scan_target(name: str, args: argparse.Namespace, results: Path) -> None:
     wait_healthy(callback_url, CALLBACK_TARGET.health_path, args.health_timeout)
     WAPITI_ENDPOINTS.update(callback.wapiti_endpoints(callback_url))
     TARGET_EXCLUDED_PATHS[:] = target.excluded_paths
+    TARGET_SCANNER_ARGS.clear()
+    TARGET_SCANNER_ARGS.update(target.scanner_extra_args)
     if name in PREPARE:
         PREPARE[name](base_url)
     scan_url = base_url + target.scan_path
