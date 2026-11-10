@@ -1,9 +1,13 @@
+from collections.abc import Callable, Iterator
+
 import requests
 from pydantic import BaseModel, ConfigDict, Field
 from requests.adapters import HTTPAdapter
 from requests.structures import CaseInsensitiveDict
+from urllib3.exceptions import HTTPError, ReadTimeoutError
 
 READ_CHUNK_BYTES = 8192
+STREAM_MAX_BYTES = 65536
 
 
 class PinnedAdapter(HTTPAdapter):
@@ -31,6 +35,7 @@ class ScopedResponse(BaseModel):
     headers: CaseInsensitiveDict[str]
     set_cookies: list[str] = Field(default_factory=list)
     content: bytes = b""
+    truncated: bool = False
     request_id: str = ""
     elapsed_ms: float = 0.0
     redirect_blocked: bool = False
@@ -54,6 +59,44 @@ def read_capped(response: requests.Response, limit: int) -> bytes:
     finally:
         response.close()
     return b"".join(chunks)[:limit]
+
+
+def _chunks(response: requests.Response) -> Iterator[bytes]:
+    """``read1`` returns what has arrived; ``read`` would wait to fill the chunk."""
+    raw = response.raw
+    if raw is not None and hasattr(raw, "read1"):
+        return iter(lambda: raw.read1(READ_CHUNK_BYTES), b"")
+    return response.iter_content(READ_CHUNK_BYTES)
+
+
+def read_bounded(
+    response: requests.Response,
+    limit: int,
+    deadline: float,
+    clock: Callable[[], float],
+) -> tuple[bytes, bool]:
+    """Read up to *limit* bytes before *deadline*, then close; True when cut short.
+
+    A socket read timeout ends the read like the deadline does.
+    """
+    data = bytearray()
+    try:
+        for chunk in _chunks(response):
+            data += chunk
+            if len(data) > limit or clock() >= deadline:
+                break
+        else:
+            return bytes(data), False
+    except ReadTimeoutError:
+        pass
+    except HTTPError as exc:
+        raise requests.ConnectionError(exc) from exc
+    except requests.ConnectionError as exc:
+        if not any(isinstance(arg, ReadTimeoutError) for arg in exc.args):
+            raise
+    finally:
+        response.close()
+    return bytes(data[:limit]), True
 
 
 def set_cookie_values(response: requests.Response) -> list[str]:

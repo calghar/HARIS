@@ -64,8 +64,7 @@ checked against the sources on 2026-11-08. CWE-1427 and CWE-770 were checked at 
 
 ## Limits
 
-- `/sse` is probed with HEAD. `ScopedClient` reads whole bodies, so a GET would wait on the open event stream.
-  SSE-only servers are reported without a tool walk.
+- `/sse` is read with a bounded GET (4096 bytes or 3 s). SSE-only servers are reported without a tool walk.
 - Signatures were written from vendor documentation and the bench fixture, not live installs. Entries marked
   `[UNVERIFIED]` in `ai_signatures.yaml` need a live check.
 - Passive checks run twice for replay, so discovery costs about double the requests.

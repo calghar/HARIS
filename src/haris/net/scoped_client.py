@@ -1,10 +1,9 @@
 import http.cookiejar
 import ipaddress
 import logging
-import random
 import threading
 import time
-from collections.abc import Callable, Mapping
+from collections.abc import Callable
 from typing import Self
 from urllib.parse import urljoin, urlsplit, urlunsplit
 
@@ -22,20 +21,23 @@ from .errors import (
 from .policy import NetworkPolicy
 from .ratelimit import TokenBucket
 from .redact import redact_headers
-from .requestlog import LogEntry, RequestLog, excerpt
+from .requestlog import LogEntry, RequestLog, body_excerpt, excerpt, text_items
+from .retry import MAX_ATTEMPTS, RETRY_STATUSES, backoff, retry_after
 from .ssrf import Resolver, system_resolver, vet_addresses
-from .transport import PinnedAdapter, ScopedResponse, read_capped, set_cookie_values
+from .transport import (
+    STREAM_MAX_BYTES,
+    PinnedAdapter,
+    ScopedResponse,
+    read_bounded,
+    read_capped,
+    set_cookie_values,
+)
 
 logger = logging.getLogger(__name__)
 
 ALLOWED_SCHEMES = frozenset({"http", "https"})
 DEFAULT_PORTS = {"http": 80, "https": 443}
 REDIRECT_STATUSES = frozenset({301, 302, 303, 307, 308})
-RETRY_STATUSES = frozenset({502, 503, 504})
-MAX_ATTEMPTS = 3
-BACKOFF_BASE_S = 0.5
-BACKOFF_JITTER_S = 0.25
-RETRY_AFTER_CAP_S = 60.0
 
 
 class ScopedClient:
@@ -115,9 +117,35 @@ class ScopedClient:
         *,
         headers: dict[str, str] | None = None,
         body: bytes | str | None = None,
+        timeout_s: float | None = None,
     ) -> ScopedResponse:
-        method = method.upper()
-        response = self._fetch(method, url, headers, body)
+        """Send one request; *timeout_s* can only tighten ``policy.timeout_s``."""
+        return self._exchange(method.upper(), url, headers, body, timeout_s, None)
+
+    def stream(
+        self,
+        url: str,
+        *,
+        headers: dict[str, str] | None = None,
+        max_bytes: int = STREAM_MAX_BYTES,
+        timeout_s: float | None = None,
+    ) -> ScopedResponse:
+        """GET that reads at most *max_bytes* or until the timeout, for open streams."""
+        return self._exchange("GET", url, headers, None, timeout_s, max_bytes)
+
+    def _exchange(
+        self,
+        method: str,
+        url: str,
+        headers: dict[str, str] | None,
+        body: bytes | str | None,
+        timeout_s: float | None,
+        stream_bytes: int | None,
+    ) -> ScopedResponse:
+        timeout = self.policy.timeout_s
+        if timeout_s is not None:
+            timeout = min(timeout, timeout_s)
+        response = self._fetch(method, url, headers, body, timeout, stream_bytes)
         chain: list[str] = []
         while (
             self._scope.follow_redirects
@@ -133,7 +161,9 @@ class ScopedClient:
             ):
                 method, body = ("HEAD" if method == "HEAD" else "GET"), None
             try:
-                response = self._fetch(method, hop, headers, body)
+                response = self._fetch(
+                    method, hop, headers, body, timeout, stream_bytes
+                )
             except (ScopeViolation, SSRFBlocked, RequestBudgetExceeded) as exc:
                 logger.info("Redirect to %s blocked: %s", hop, exc)
                 response.redirect_blocked = True
@@ -202,54 +232,47 @@ class ScopedClient:
         url: str,
         headers: dict[str, str] | None,
         body: bytes | str | None,
+        timeout: float,
+        stream_bytes: int | None,
     ) -> ScopedResponse:
         """One hop: vet, then send with retries (every attempt is counted)."""
-        host, port, ip = self._vet(url, method)
+        vetted = self._vet(url, method)
         throttled = False
         for attempt in range(1, MAX_ATTEMPTS + 1):
             self._consume_budget()
             last = attempt == MAX_ATTEMPTS
             try:
-                response = self._send(method, url, host, port, ip, headers, body)
+                response = self._send(
+                    method, url, vetted, headers, body, timeout, stream_bytes
+                )
             except requests.RequestException as exc:
                 if last:
                     raise TransportError(f"{method} {url} failed: {exc}") from exc
-                self._sleep(self._backoff(attempt))
+                self._sleep(backoff(attempt))
                 continue
             status = response.status_code
             if status in RETRY_STATUSES and not last:
-                self._sleep(self._backoff(attempt))
+                self._sleep(backoff(attempt))
             elif status == 429 and not last:
                 if not throttled:
                     self._bucket.halve_rate()
                     throttled = True
-                self._sleep(self._retry_after(response, attempt))
+                self._sleep(retry_after(response.headers, attempt))
             else:
                 return response
         raise AssertionError("unreachable: the last attempt returns or raises")
-
-    @staticmethod
-    def _backoff(attempt: int) -> float:
-        return BACKOFF_BASE_S * 2.0 ** (attempt - 1) + random.uniform(
-            0, BACKOFF_JITTER_S
-        )
-
-    def _retry_after(self, response: ScopedResponse, attempt: int) -> float:
-        try:
-            return min(float(response.headers["retry-after"]), RETRY_AFTER_CAP_S)
-        except (KeyError, ValueError):
-            return self._backoff(attempt)
 
     def _send(
         self,
         method: str,
         url: str,
-        host: str,
-        port: int,
-        ip: str,
+        vetted: tuple[str, int, str],
         headers: dict[str, str] | None,
         body: bytes | str | None,
+        timeout: float,
+        stream_bytes: int | None,
     ) -> ScopedResponse:
+        host, port, ip = vetted
         parts = urlsplit(url)
         scheme = parts.scheme
         ip_netloc = f"[{ip}]:{port}" if ":" in ip else f"{ip}:{port}"
@@ -268,19 +291,26 @@ class ScopedClient:
             request_id=request_id,
             method=method,
             url=url,
-            request_headers=redact_headers(_text_items(prepared.headers)),
-            request_body_excerpt=_body_excerpt(prepared.body),
+            request_headers=redact_headers(text_items(prepared.headers)),
+            request_body_excerpt=body_excerpt(prepared.body),
         )
         started = self._clock()
+        truncated = False
         try:
             raw = self._session.send(
                 prepared,
-                timeout=self.policy.timeout_s,
+                timeout=timeout,
                 allow_redirects=False,
                 verify=self.policy.verify_tls,
                 stream=True,
             )
-            content = read_capped(raw, self.policy.max_body_bytes)
+            if stream_bytes is None:
+                content = read_capped(raw, self.policy.max_body_bytes)
+            else:
+                limit = min(stream_bytes, self.policy.max_body_bytes)
+                content, truncated = read_bounded(
+                    raw, limit, started + timeout, self._clock
+                )
         except requests.RequestException as exc:
             entry.error = type(exc).__name__
             entry.elapsed_ms = (self._clock() - started) * 1000
@@ -289,7 +319,7 @@ class ScopedClient:
         elapsed_ms = (self._clock() - started) * 1000
         entry.status = raw.status_code
         entry.elapsed_ms = elapsed_ms
-        entry.response_headers = redact_headers(_text_items(raw.headers))
+        entry.response_headers = redact_headers(text_items(raw.headers))
         entry.response_body_excerpt = excerpt(content)
         self.log.add(entry)
         logger.debug("%s %s -> %d", method, url, raw.status_code)
@@ -299,6 +329,7 @@ class ScopedClient:
             headers=CaseInsensitiveDict(raw.headers),
             set_cookies=set_cookie_values(raw),
             content=content,
+            truncated=truncated,
             request_id=request_id,
             elapsed_ms=elapsed_ms,
         )
@@ -311,16 +342,3 @@ class ScopedClient:
                     f"{scheme}://{ip_netloc}/", self._adapter_factory(host)
                 )
                 self._mounted.add(key)
-
-
-def _text_items(headers: Mapping[str, str | bytes]) -> dict[str, str]:
-    return {
-        k: v.decode("latin-1") if isinstance(v, bytes) else v
-        for k, v in headers.items()
-    }
-
-
-def _body_excerpt(body: bytes | str | None) -> str:
-    if body is None:
-        return ""
-    return excerpt(body.encode() if isinstance(body, str) else body)

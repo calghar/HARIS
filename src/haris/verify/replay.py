@@ -70,8 +70,7 @@ def run_chain(
     """Run oracles until one decides; an unreachable target is inconclusive."""
     for name in names:
         try:
-            with prober.bounded():
-                result = ORACLES[name].run(finding, prober, settings)
+            result = ORACLES[name].run(finding, prober, settings)
         except TransportError as exc:
             logger.warning(
                 "Replay of %s could not reach the target: %s", finding.url, exc

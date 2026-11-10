@@ -1,15 +1,21 @@
+import logging
 import threading
 import weakref
 from dataclasses import dataclass
 from urllib.parse import urlsplit
 
 from ..checks.baseline import fingerprint, get_baseline, matches
-from ..checks.requesting import try_request
+from ..checks.requesting import PROBE_ERRORS, try_request
 from ..models import Target
 from ..net import ScopedClient, ScopedResponse
 from .body_validators import VALIDATORS, model_names
 from .rpc import JSON_RPC_HEADERS, initialize_message
 from .signatures import Signature, load_signatures
+
+logger = logging.getLogger(__name__)
+
+STREAM_MAX_BYTES = 4096
+STREAM_TIMEOUT_S = 3.0
 
 
 @dataclass(frozen=True, eq=False)
@@ -39,6 +45,16 @@ def origin_of(url: str) -> str:
 
 
 def _ask(client: ScopedClient, origin: str, sig: Signature) -> ScopedResponse | None:
+    if sig.stream:
+        try:
+            return client.stream(
+                origin + sig.path,
+                max_bytes=STREAM_MAX_BYTES,
+                timeout_s=STREAM_TIMEOUT_S,
+            )
+        except PROBE_ERRORS as exc:
+            logger.debug("GET %s skipped: %s", sig.path, exc)
+            return None
     headers, body = (
         (JSON_RPC_HEADERS, initialize_message()) if sig.rpc else (None, None)
     )

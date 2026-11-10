@@ -39,6 +39,7 @@
 - Added `verify` to web scan requests and `HARIS_WEB_VERIFY_DEFAULT` (default `replay`)
 - Added a login step to `bench/run.py` for DVWA and WebGoat (session passed to `haris` through `--config` and `HARIS_AUTH_HEADER`) and moved the external ground-truth class ids to ids HARIS emits; every seeded weakness is an entry, so recall shows what HARIS misses
 - Added an `ignore` list to benchmark ground truth (reported as an ignored count in `score.md`) and a per-target profile and extra `haris` args in `bench/run.py`; `--profile` is now optional
+- Added `ScopedClient.stream()` (bounded read with a `truncated` flag) and a per-call `timeout_s`; replay no longer swaps `NetworkPolicy.timeout_s`, and the AI module probes `/sse` with GET instead of HEAD
 
 ### Changed (packaging)
 
