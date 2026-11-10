@@ -91,7 +91,7 @@ signatures:
     capability: mcp
   - id: mcp_sse
     label: MCP server (SSE transport)
-    method: HEAD  # a GET would hold the event stream open; ScopedClient reads whole bodies
+    stream: true  # bounded read: the event stream stays open
     path: /sse
     validator: mcp_sse_endpoint
     capability: mcp

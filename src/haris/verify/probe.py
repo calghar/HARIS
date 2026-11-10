@@ -1,6 +1,4 @@
 import secrets
-from collections.abc import Iterator
-from contextlib import contextmanager
 from urllib.parse import parse_qsl, quote, urlencode, urljoin, urlsplit, urlunsplit
 
 from ..models import EvidenceExchange, Finding
@@ -54,18 +52,6 @@ class Prober:
         self._timeout_s = timeout_s
         self._start = client.requests_sent
 
-    @contextmanager
-    def bounded(self) -> Iterator[None]:
-        """Cap the client's per-request timeout for the block (replay is sequential)."""
-        policy = self.client.policy
-        saved = policy.timeout_s
-        if self._timeout_s is not None:
-            policy.timeout_s = min(saved, self._timeout_s)
-        try:
-            yield
-        finally:
-            policy.timeout_s = saved
-
     @property
     def used(self) -> int:
         return self.client.requests_sent - self._start
@@ -92,7 +78,9 @@ class Prober:
     ) -> ScopedResponse:
         if self.used >= self._limit:
             raise VerifyBudgetExhausted(f"verify.max_requests={self._limit} reached")
-        return self.client.request(method, url, headers=headers, body=body)
+        return self.client.request(
+            method, url, headers=headers, body=body, timeout_s=self._timeout_s
+        )
 
     def exchange(
         self, response: ScopedResponse, role: str, span: str = ""

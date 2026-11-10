@@ -24,6 +24,7 @@ class Signature(BaseModel):
     chat_path: str = ""
     exposure_severity: Severity | None = None
     rpc: str = ""
+    stream: bool = False
 
 
 class Pattern(BaseModel):

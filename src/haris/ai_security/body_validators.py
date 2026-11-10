@@ -1,4 +1,5 @@
 import json
+import re
 from collections.abc import Callable
 from typing import Any, cast
 
@@ -7,6 +8,7 @@ from ..net import ScopedResponse
 from .rpc import EVENT_STREAM, parse_rpc
 
 VLLM_OWNER = "vllm"
+ENDPOINT_EVENT = re.compile(r"^event:\s*endpoint\s*$", re.MULTILINE)
 NAME_KEYS = ("id", "name", "model")
 
 type Validator = Callable[[ScopedResponse], bool]
@@ -123,7 +125,7 @@ def mcp_initialize(resp: ScopedResponse) -> bool:
 
 
 def mcp_sse_endpoint(resp: ScopedResponse) -> bool:
-    return media_type(resp) == EVENT_STREAM
+    return media_type(resp) == EVENT_STREAM and bool(ENDPOINT_EVENT.search(resp.text))
 
 
 def oauth_resource(resp: ScopedResponse) -> bool:

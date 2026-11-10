@@ -1,6 +1,7 @@
 import itertools
 import threading
 from collections import deque
+from collections.abc import Mapping
 
 from pydantic import BaseModel, Field
 
@@ -32,6 +33,19 @@ class LogEntry(BaseModel):
 def excerpt(body: bytes) -> str:
     """Decode the first 8 KiB of *body* for logging and evidence."""
     return body[:EXCERPT_LIMIT].decode("utf-8", errors="replace")[:EXCERPT_LIMIT]
+
+
+def body_excerpt(body: bytes | str | None) -> str:
+    if body is None:
+        return ""
+    return excerpt(body.encode() if isinstance(body, str) else body)
+
+
+def text_items(headers: Mapping[str, str | bytes]) -> dict[str, str]:
+    return {
+        k: v.decode("latin-1") if isinstance(v, bytes) else v
+        for k, v in headers.items()
+    }
 
 
 class RequestLog:
