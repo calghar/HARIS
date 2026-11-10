@@ -106,6 +106,7 @@
 - Fixed Wapiti scans hanging in the `information_disclosure` module (a ReDoS in Wapiti 3.2.10); the module is now excluded
 - Fixed a Wapiti timeout or crash without a JSON report dropping all its findings; HARIS now recovers them from Wapiti's session database
 - Fixed unset Wapiti endpoints falling back to `wapiti3.ovh`; SSRF and XXE run only when both endpoints are set, `log4shell` is always skipped, and unset endpoints use the target URL (internal) and `http://127.0.0.1:9/` (external)
+- Fixed nikto crashing the Juice Shop benchmark target; the runner now bounds that run with `-maxtime 40s` through the generated `--config`, and the product default is unchanged
 
 ### Changed
 
