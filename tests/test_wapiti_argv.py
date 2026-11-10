@@ -9,6 +9,7 @@ from haris.models.target import Scope, Target
 from haris.scanners.wapiti_scanner import WapitiScanner
 
 HTTP_BASE = "http://127.0.0.1:14280"
+SESSION_DIR = "/tmp/wapiti-session"
 DEFAULT_CONFIG = Path(haris.__file__).parent / "resources/config/default_config.yaml"
 
 
@@ -18,7 +19,7 @@ def exclude_values(cmd: list[str]) -> list[str]:
 
 def build(base_url: str, excluded: list[str]) -> list[str]:
     target = Target(base_url=base_url, scope=Scope(excluded_paths=excluded))
-    return WapitiScanner()._build_command(target, "/tmp/out.json")
+    return WapitiScanner()._build_command(target, "/tmp/out.json", SESSION_DIR)
 
 
 class TestWapitiExcludeArgv:
@@ -55,7 +56,9 @@ class TestWapitiExcludeArgv:
 
 
 def endpoint_cmd(options: dict[str, str]) -> list[str]:
-    return WapitiScanner(options)._build_command(Target(base_url=HTTP_BASE), "/tmp/o")
+    return WapitiScanner(options)._build_command(
+        Target(base_url=HTTP_BASE), "/tmp/o", SESSION_DIR
+    )
 
 
 class TestWapitiEndpointArgv:
@@ -83,3 +86,14 @@ class TestWapitiEndpointArgv:
     def test_non_http_url_is_rejected(self, value: str) -> None:
         with pytest.raises(ValueError, match="external_endpoint"):
             endpoint_cmd({"external_endpoint": value})
+
+
+class TestWapitiSessionArgv:
+    def test_information_disclosure_is_excluded(self) -> None:
+        modules = build(HTTP_BASE, [])
+        spec = modules[modules.index("--module") + 1].split(",")
+        assert "-information_disclosure" in spec
+
+    def test_store_session_uses_the_given_directory(self) -> None:
+        cmd = build(HTTP_BASE, [])
+        assert cmd[cmd.index("--store-session") + 1] == SESSION_DIR

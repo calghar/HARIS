@@ -7,14 +7,16 @@ severity_map:
   1: LOW
   0: INFO
 
-# Modules dropped because built-in checks already cover them (headers, cookies,
-# HTTPS redirect, TLS). Names from wapitiCore/attack/modules/core.py (3.2.10).
+# Module names from wapitiCore/attack/modules/core.py (3.2.10).
 excluded_modules:
+  # Covered by built-in header, cookie, redirect and TLS checks.
   - cookieflags
   - csp
   - http_headers
   - https_redirect
   - ssl
+  # ReDoS in Wapiti 3.2.10.
+  - information_disclosure
 
 # Category names as emitted by Wapiti 3.2.x (wapitiCore/definitions) -> OWASP tags.
 category_tags:

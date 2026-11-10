@@ -103,6 +103,8 @@
 - Fixed `outdated_server` CWE mapping on version endpoints and `X-Powered-By` context extraction (`raw_data` now carries the technology headers)
 - Fixed the Wapiti adapter passing excluded paths as bare paths, which made Wapiti exit with code 2 (`Invalid argument for option -x`); they are now absolute URLs (`.*` becomes `*`) and regex entries are skipped with a warning
 - Benchmark runner: Wapiti no longer scans DVWA's `/logout.php` and `/setup.php`; each benchmark target can carry its own excluded paths, added to the default exclusions in the generated `--config`.
+- Fixed Wapiti scans hanging in the `information_disclosure` module (a ReDoS in Wapiti 3.2.10); the module is now excluded
+- Fixed a Wapiti timeout or crash without a JSON report dropping all its findings; HARIS now recovers them from Wapiti's session database
 
 ### Changed
 
