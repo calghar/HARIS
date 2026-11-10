@@ -94,7 +94,7 @@ Findings are mapped to the OWASP Top 10 2025 categories:
 The framework enforces multiple safety mechanisms:
 
 1. **Scope enforcement**: Only domains in `allowed_domains` are scanned
-2. **Path exclusions**: Sensitive paths can be excluded via regex patterns
+2. **Path exclusions**: One entry per line, a plain path (`/logout`) or a path ending in `.*`. `Scope.is_url_in_scope` matches each entry with `re.search` on the URL path, so `/logout` also matches `/logout.php`. Built-in HTTP checks and `ai_security` send requests through `ScopedClient`, which calls that method. Wapiti (`wapiti_exclude_urls`) passes a plain path as `--exclude <origin><path>` and a trailing `.*` as `--exclude <origin><path>*`. Any other pattern is skipped with a warning. Nikto, Nuclei, Nmap and SSLyze leave `excluded_paths` unread. The agent proxy classifier and the guardrail host check match allowed domains only. The proxy's `ScopedClient` applies the target's excluded paths when it sends the request.
 3. **Rate limiting**: Configurable requests-per-second limit
 4. **Request cap**: Maximum total requests per scan
 5. **Authorisation prompt**: CLI requires explicit user confirmation
