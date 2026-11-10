@@ -12,6 +12,7 @@ from ..data.scanner_config import (
 )
 from ..models import Confidence, Finding, ScannerResult, Severity, Target
 from .base import ExternalToolScanner
+from .wapiti_exclude import wapiti_exclude_urls
 
 logger = logging.getLogger(__name__)
 
@@ -193,8 +194,8 @@ class WapitiScanner(ExternalToolScanner):
             self._module_spec(),
         ]
 
-        for path in target.scope.excluded_paths:
-            cmd.extend(["--exclude", path])
+        for url in wapiti_exclude_urls(target.base_url, target.scope.excluded_paths):
+            cmd.extend(["--exclude", url])
 
         for name, value in target.auth.as_headers().items():
             cmd.extend(["--header", f"{name}: {value}"])
