@@ -40,3 +40,8 @@ services:
     build: ./fixtures/vuln_ai_app
     ports:
       - "127.0.0.1:${BENCH_AI_APP_PORT:-18082}:8080"
+
+  callback:
+    build: ./fixtures/callback
+    ports:
+      - "127.0.0.1:${BENCH_CALLBACK_PORT:-19090}:9090"

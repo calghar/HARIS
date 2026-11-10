@@ -1,4 +1,5 @@
 import argparse
+import importlib.util
 import logging
 import os
 import re
@@ -10,6 +11,7 @@ import tempfile
 import time
 from datetime import UTC, datetime
 from pathlib import Path
+from types import ModuleType
 
 import httpx
 import yaml
@@ -44,6 +46,22 @@ REDACTED = "<redacted>"
 PARTIAL_REPORT = "session.partial.json"
 
 logger = logging.getLogger("bench")
+
+
+def load_sibling(name: str) -> ModuleType:
+    """Import `bench/<name>.py` whether run as a script or loaded by path."""
+    spec = importlib.util.spec_from_file_location(
+        f"bench_{name}", Path(__file__).resolve().parent / f"{name}.py"
+    )
+    assert spec and spec.loader
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+callback = load_sibling("callback")
+# Wapiti options of the running callback service; set per target in bench_target.
+WAPITI_ENDPOINTS: dict[str, str] = {}
 
 
 class Target(BaseModel):
@@ -81,6 +99,11 @@ TARGETS = {
         haris_args=("--ai-active", "--i-have-authorization"),
     ),
 }
+CALLBACK_TARGET = Target(
+    service=callback.CALLBACK_SERVICE,
+    container_port=callback.CALLBACK_CONTAINER_PORT,
+    health_path=callback.CALLBACK_HEALTH_PATH,
+)
 
 
 def compose(*args: str) -> subprocess.CompletedProcess[str]:
@@ -223,22 +246,28 @@ def run_command(
     cmd: list[str], session_cookie: str | None
 ) -> subprocess.CompletedProcess[str]:
     """Run `cmd`; a session cookie travels in the environment, never in argv."""
-    if session_cookie is None:
+    if session_cookie is None and not WAPITI_ENDPOINTS:
         return subprocess.run(cmd, capture_output=True, text=True, check=False)
     with tempfile.TemporaryDirectory() as tmp:
         config = Path(tmp) / "auth.yaml"
         raw = yaml.safe_load(default_config_path().read_text()) or {}
-        raw.setdefault("target", {})["auth"] = {
-            "method": "header",
-            "header_name": COOKIE_HEADER,
-        }
+        if session_cookie is not None:
+            raw.setdefault("target", {})["auth"] = {
+                "method": "header",
+                "header_name": COOKIE_HEADER,
+            }
+        callback.apply_wapiti_endpoints(raw, WAPITI_ENDPOINTS)
         config.write_text(yaml.safe_dump(raw))
         return subprocess.run(
             [*cmd, "--config", str(config)],
             capture_output=True,
             text=True,
             check=False,
-            env={**os.environ, AUTH_HEADER_ENV: session_cookie},
+            env=(
+                {**os.environ, AUTH_HEADER_ENV: session_cookie}
+                if session_cookie is not None
+                else None
+            ),
         )
 
 
@@ -297,6 +326,10 @@ def bench_target(name: str, args: argparse.Namespace, results: Path) -> None:
     compose("up", "--detach", "--build", target.service)
     base_url = resolve_base_url(target)
     wait_healthy(base_url, target.health_path, args.health_timeout)
+    compose("up", "--detach", "--build", CALLBACK_TARGET.service)
+    callback_url = resolve_base_url(CALLBACK_TARGET)
+    wait_healthy(callback_url, CALLBACK_TARGET.health_path, args.health_timeout)
+    WAPITI_ENDPOINTS.update(callback.wapiti_endpoints(callback_url))
     if name in PREPARE:
         PREPARE[name](base_url)
     scan_url = base_url + target.scan_path

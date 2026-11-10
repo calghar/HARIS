@@ -52,3 +52,34 @@ class TestWapitiExcludeArgv:
 
     def test_no_exclusions_adds_no_flag(self) -> None:
         assert "--exclude" not in build(HTTP_BASE, [])
+
+
+def endpoint_cmd(options: dict[str, str]) -> list[str]:
+    return WapitiScanner(options)._build_command(Target(base_url=HTTP_BASE), "/tmp/o")
+
+
+class TestWapitiEndpointArgv:
+    def test_endpoint_options_become_flags_and_drop_the_dns_module(self) -> None:
+        cmd = endpoint_cmd(
+            {
+                "external_endpoint": "http://callback:9090/",
+                "internal_endpoint": "http://127.0.0.1:19090/",
+            }
+        )
+        assert cmd[cmd.index("--external-endpoint") + 1] == "http://callback:9090/"
+        assert cmd[cmd.index("--internal-endpoint") + 1] == "http://127.0.0.1:19090/"
+        assert "-log4shell" in cmd[cmd.index("--module") + 1].split(",")
+
+    def test_unset_endpoints_keep_wapiti_defaults(self) -> None:
+        cmd = endpoint_cmd({})
+        assert not {"--endpoint", "--external-endpoint", "--internal-endpoint"} & set(
+            cmd
+        )
+        assert "-log4shell" not in cmd[cmd.index("--module") + 1].split(",")
+
+    @pytest.mark.parametrize(
+        "value", ["callback:9090", "ftp://callback/", "http://", "--evil"]
+    )
+    def test_non_http_url_is_rejected(self, value: str) -> None:
+        with pytest.raises(ValueError, match="external_endpoint"):
+            endpoint_cmd({"external_endpoint": value})

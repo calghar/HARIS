@@ -55,6 +55,8 @@ Each target has its own profile: `quick` by default, `ai-security` with `--ai-ac
 
 The runner starts the targets, waits for health, runs `haris` for each run, stores artifacts under `bench/results/<date>/` and tears the targets down. It scans only the `127.0.0.1` targets from the compose file. WebGoat takes about a minute to start.
 
+The `callback` service (`bench/fixtures/callback`, published on `127.0.0.1:${BENCH_CALLBACK_PORT:-19090}`) is the out-of-band receiver for Wapiti's blind SSRF and XXE checks, so no run contacts `wapiti3.ovh`. The runner sets the Wapiti scanner options `external_endpoint` (`http://callback:9090/`, used by the target) and `internal_endpoint` (the published host URL, used by Wapiti) in the generated `--config`; with them set, `log4shell` is dropped (it needs a DNS endpoint). Unset, Wapiti uses its public default `wapiti3.ovh`.
+
 `.github/workflows/bench.yml` runs nightly and on manual dispatch, publishes the raw artifacts and does not fail on score changes.
 
 ## Not claimed
