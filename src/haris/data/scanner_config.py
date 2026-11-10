@@ -172,7 +172,7 @@ def get_wapiti_severity_map() -> dict[int, str]:
 
 
 def get_wapiti_excluded_modules() -> list[str]:
-    """Get Wapiti modules dropped because built-in checks cover them."""
+    """Get Wapiti modules dropped: covered by built-in checks, or hanging."""
     return cast(list[str], _load_scanner_config("wapiti").get("excluded_modules", []))
 
 

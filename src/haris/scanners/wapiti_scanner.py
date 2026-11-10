@@ -14,11 +14,20 @@ from ..data.scanner_config import (
 from ..models import Confidence, Finding, ScannerResult, Severity, Target
 from .base import ExternalToolScanner
 from .wapiti_exclude import wapiti_exclude_urls
+from .wapiti_session import session_report
 
 logger = logging.getLogger(__name__)
 
 DEFAULT_MODULES = "common"
 FALLBACK_TAGS = ["security_misconfiguration"]
+SESSION_DIRNAME = "session"
+# Kill grace past --max-scan-time; a stuck module ignores that flag.
+SCAN_KILL_GRACE_SECONDS = 60
+_TIMEOUT_RECOVERED = (
+    "wapiti timed out after %ds; %d findings recovered from its session database"
+)
+_TIMEOUT_EMPTY = "wapiti timed out after %ds; no findings recovered"
+_TIMEOUT_REPORT = "wapiti timed out after %ds; its report was kept"
 # option -> Wapiti flag; unset keeps Wapiti's public default (wapiti3.ovh).
 ENDPOINT_FLAGS = {
     "external_endpoint": "--external-endpoint",
@@ -53,12 +62,21 @@ def _get_category_tags() -> dict[str, list[str]]:
     return _category_tags
 
 
+def _timeout_message(timeout: int, findings: int, from_session: bool) -> str:
+    if not from_session:
+        return _TIMEOUT_REPORT % timeout
+    if findings:
+        return _TIMEOUT_RECOVERED % (timeout, findings)
+    return _TIMEOUT_EMPTY % timeout
+
+
 @register_scanner
 class WapitiScanner(ExternalToolScanner):
     """Adapter for the Wapiti web vulnerability scanner (3.2.x).
 
-    Requires `wapiti3` on PATH (``pip install wapiti3``). Modules covered by the
-    built-in header, cookie, redirect and TLS checks are always dropped.
+    Requires `wapiti3` on PATH (``pip install wapiti3``). Header, cookie,
+    redirect and TLS modules are dropped, plus ``information_disclosure``
+    (ReDoS in Wapiti 3.2.10).
     """
 
     name = "wapiti"
@@ -84,14 +102,22 @@ class WapitiScanner(ExternalToolScanner):
         self._begin(target)
 
         with tempfile.TemporaryDirectory() as tmpdir:
-            output_file = Path(tmpdir) / "wapiti_report.json"
-            cmd = self._build_command(target, str(output_file))
-            timeout = self.options["max_scan_time"] + 60
+            root = Path(tmpdir)
+            output_file = root / "wapiti_report.json"
+            session_dir = root / SESSION_DIRNAME
+            session_dir.mkdir()
+            cmd = self._build_command(target, str(output_file), str(session_dir))
+            timeout = self.options["max_scan_time"] + SCAN_KILL_GRACE_SECONDS
             run = self._run_to_file(cmd, output_file, timeout)
+            raw = run.raw
+            from_session = not raw and (run.timed_out or run.returncode != 0)
+            if from_session:
+                raw = session_report(session_dir)
 
-        result = ScannerResult(scanner_name=self.name, raw_output=self._redact(run.raw))
+        result = ScannerResult(scanner_name=self.name, raw_output=self._redact(raw))
+        findings = self.parse_results(raw) if raw else []
         if run.timed_out:
-            result.errors.append(self._timeout_error(timeout))
+            result.errors.append(_timeout_message(timeout, len(findings), from_session))
         elif run.returncode != 0:
             err_lines = [
                 line
@@ -103,8 +129,7 @@ class WapitiScanner(ExternalToolScanner):
             err_msg = "\n".join(err_lines[:10]) or f"exit code {run.returncode}"
             result.errors.append(f"wapiti exited with code {run.returncode}: {err_msg}")
 
-        if run.raw:
-            result.findings = self.parse_results(run.raw)
+        result.findings = findings
         return result
 
     def _finding_from_vuln(self, category: str, vuln: dict[str, Any]) -> Finding:
@@ -192,7 +217,9 @@ class WapitiScanner(ExternalToolScanner):
             args.extend([flag, str(value)])
         return args
 
-    def _build_command(self, target: Target, output_path: str) -> list[str]:
+    def _build_command(
+        self, target: Target, output_path: str, session_dir: str
+    ) -> list[str]:
         """Construct the wapiti argv."""
         cmd = [
             "wapiti",
@@ -211,6 +238,8 @@ class WapitiScanner(ExternalToolScanner):
             "--max-links-per-page",
             str(self.options["max_links"]),
             "--flush-session",
+            "--store-session",
+            session_dir,
             "--no-bugreport",
             "--module",
             self._module_spec(),

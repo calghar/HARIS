@@ -22,7 +22,11 @@ from haris.scanners.nikto_scanner import NiktoScanner, _classify_finding
 from haris.scanners.nmap_scanner import NmapScanner
 from haris.scanners.process import ToolTimeoutError
 from haris.scanners.sslyze_scanner import SSLyzeScanner
-from haris.scanners.wapiti_scanner import FALLBACK_TAGS, WapitiScanner
+from haris.scanners.wapiti_scanner import (
+    FALLBACK_TAGS,
+    SCAN_KILL_GRACE_SECONDS,
+    WapitiScanner,
+)
 from haris.templates.adapters import NmapTemplateAdapter
 
 FIXTURES = Path(__file__).parent / "fixtures" / "scanners"
@@ -190,16 +194,29 @@ class TestWapitiGolden:
         assert result.errors == []
         assert len(result.findings) == 5
 
-    def test_timeout_keeps_partial_report(self, target: Target) -> None:
+    def test_timeout_keeps_a_written_report(self, target: Target) -> None:
         runner = tool_writing(fixture("wapiti/default_modules.json"), timeout=True)
         result = run_scan(WapitiScanner(), target, runner)
         assert len(result.findings) == 5
-        assert "partial results kept" in result.errors[0]
+        assert "its report was kept" in result.errors[0]
+
+    def test_timeout_without_a_session_recovers_nothing(self, target: Target) -> None:
+        runner = tool_writing("", timeout=True)
+        limit = 40
+        result = run_scan(WapitiScanner({"max_scan_time": limit}), target, runner)
+        waited = limit + SCAN_KILL_GRACE_SECONDS
+        assert result.findings == []
+        assert result.errors == [
+            f"wapiti timed out after {waited}s; no findings recovered"
+        ]
 
 
 class TestWapitiCommand:
     def test_overlapping_modules_dropped(self, target: Target) -> None:
-        cmd = WapitiScanner()._build_command(target, "/tmp/out.json")
+        cmd = WapitiScanner()._build_command(
+            target, "/tmp/out.json", "/tmp/wapiti-session"
+        )
+        assert cmd[cmd.index("--store-session") + 1] == "/tmp/wapiti-session"
         spec = cmd[cmd.index("--module") + 1]
         assert spec.startswith("common,")
         for name in get_wapiti_excluded_modules():
@@ -207,13 +224,15 @@ class TestWapitiCommand:
 
     def test_explicit_modules_keep_exclusions(self, target: Target) -> None:
         scanner = WapitiScanner({"modules": ["xss", "sql"]})
-        cmd = scanner._build_command(target, "/tmp/out.json")
+        cmd = scanner._build_command(target, "/tmp/out.json", "/tmp/wapiti-session")
         modules = cmd[cmd.index("--module") + 1].split(",")
         assert modules[:2] == ["xss", "sql"]
         assert "-ssl" in modules
 
     def test_bug_report_disabled(self, target: Target) -> None:
-        assert "--no-bugreport" in WapitiScanner()._build_command(target, "/tmp/o")
+        assert "--no-bugreport" in WapitiScanner()._build_command(
+            target, "/tmp/o", "/tmp/wapiti-session"
+        )
 
 
 class TestWapitiRedaction:

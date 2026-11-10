@@ -54,11 +54,13 @@ def target() -> Target:
 
 
 def _build(instance: Any, target: Target) -> list[str]:
-    cmd: list[str] = (
-        instance._build_command(target)
-        if isinstance(instance, NucleiScanner)
-        else instance._build_command(target, "/tmp/out")
-    )
+    cmd: list[str]
+    if isinstance(instance, NucleiScanner):
+        cmd = instance._build_command(target)
+    elif isinstance(instance, WapitiScanner):
+        cmd = instance._build_command(target, "/tmp/out", "/tmp/wapiti-session")
+    else:
+        cmd = instance._build_command(target, "/tmp/out")
     return cmd
 
 
