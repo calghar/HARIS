@@ -97,6 +97,16 @@ scanners:
       # (sends data to interact.sh — opt-in only)
       enable_interactsh: false
 
+  - name: zap
+    enabled: false
+    options:
+      timeout: 1800
+      spider_minutes: 5
+      passive_minutes: 2
+      active_minutes: 15
+      threads: 1
+      delay_ms: 0
+
 # Output configuration
 output_dir: "./reports"
 report_formats:

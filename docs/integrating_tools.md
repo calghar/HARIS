@@ -189,6 +189,15 @@ Add a docstring to the scanner module explaining:
 - **Output**: XML
 - **Key flags**: `-sV` (version detection), `-p` (ports), `--open`
 
+### ZAP (`src/haris/scanners/zap_scanner.py`)
+
+- **Focus**: Active and passive web scanning through the Automation Framework
+- **Output**: `traditional-json` (`site[].alerts[].instances[]`)
+- **Invocation**: `<launcher> -cmd -autorun plan.yaml -dir <home> -silent`
+- **Launchers on PATH**, in order: `zap.sh`, `zap.bat` (the documented scripts; `zap.exe` ignores these flags), then `zaproxy` and `zap`
+- **Plan**: context URL (no `:80` or `:443`), include and exclude regexes from scope, spider, `passiveScan-wait`, `activeScan` with a minute cap, then a report job. Auth headers are a `replacer` rule in the plan file (mode 0600), not command-line arguments.
+- **Default**: `enabled: false` in `default_config.yaml`, and absent from every profile. Run it with `--scanners zap`.
+
 ### Nuclei (`src/haris/scanners/nuclei_scanner.py`)
 
 - **Focus**: CVE detection, default credentials, exposed panels, technology fingerprinting

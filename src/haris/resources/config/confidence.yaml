@@ -2,6 +2,7 @@
 default: 0.5
 priors:
   wapiti: 0.6
+  zap: 0.6
   nuclei: 0.7
   nikto: 0.4
   nmap: 0.8

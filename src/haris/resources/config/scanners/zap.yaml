@@ -1,0 +1,22 @@
+# ZAP traditional-json riskcode (stringified int) -> Severity name.
+# https://www.zaproxy.org/docs/constants/ Alert Risk 0..3
+severity_map:
+  "0": INFO
+  "1": LOW
+  "2": MEDIUM
+  "3": HIGH
+
+# ZAP confidence code -> Confidence name.
+# https://www.zaproxy.org/docs/constants/ Alert Confidence 0..4
+confidence_map:
+  "0": TENTATIVE
+  "1": TENTATIVE
+  "2": FIRM
+  "3": FIRM
+  "4": CONFIRMED
+
+# One Finding per alert instance, then stop.
+max_instances: 200
+
+# Flags accepted from scanner_options.extra_args: flag -> number of values.
+extra_args_allowlist: {}

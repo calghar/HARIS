@@ -43,6 +43,8 @@
 - Added scanner options `external_endpoint` and `internal_endpoint` so Wapiti's out-of-band checks can use a local callback receiver; the benchmark runs a `callback` fixture service and no longer contacts `wapiti3.ovh` (`log4shell` is always dropped)
 - Added a scope and SSRF pre-flight on the discovered chat URL before `garak` or `promptfoo` starts; a failure is a scanner error and the tool is not started, and `docs/ai_security.md` lists what is not enforced on their own requests
 - Added one `agent.refused` audit row for each refused web agent request, with the user id, target host and a reason code (`not_admin`, `no_verified_proof`, `agent_disabled`, `verify_off`)
+- Added an optional `zap` scanner that runs the ZAP Automation Framework (spider, passive wait, active scan, report) and reads the `traditional-json` report; it is disabled by default, is in no profile, and runs with `--scanners zap`. Not yet checked against a live ZAP
+- Mapped common ZAP plugin ids to vulnerability classes and set the `zap` confidence prior to 0.6
 
 ### Changed (packaging)
 

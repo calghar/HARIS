@@ -1,6 +1,6 @@
 # aliases: per scanner, regexes matched (case-insensitive) against the title start, and against each tag and Nuclei template id in full.
 # Scanners not listed here are built-in checks and use the builtin aliases.
-external_scanners: [wapiti, nuclei, nikto, nmap, sslyze]
+external_scanners: [wapiti, nuclei, nikto, nmap, sslyze, zap]
 
 classes:
   - id: xss_stored
@@ -8,6 +8,7 @@ classes:
     granularity: parameter
     aliases:
       wapiti: ["Stored Cross Site Scripting"]
+      zap: ["^40014$"]
 
   - id: xss_reflected
     primary_cwe: CWE-79
@@ -16,6 +17,7 @@ classes:
     aliases:
       wapiti: ["(Reflected )?Cross Site Scripting"]
       nuclei: ["(Reflected )?XSS", "xss", "reflected-xss"]
+      zap: ["^40012$"]
 
   - id: sqli_time
     primary_cwe: CWE-89
@@ -24,6 +26,7 @@ classes:
     aliases:
       wapiti: ["Blind SQL Injection"]
       nuclei: ["(Time|Blind)[- ]based SQL Injection"]
+      zap: ["^40019$", "^40020$", "^40021$", "^40022$", "^40027$"]
 
   - id: sqli_error
     primary_cwe: CWE-89
@@ -32,6 +35,7 @@ classes:
     aliases:
       wapiti: ["SQL Injection"]
       nuclei: ["SQL Injection", "sqli"]
+      zap: ["^40018$"]
 
   - id: path_traversal
     primary_cwe: CWE-22
@@ -39,6 +43,7 @@ classes:
     aliases:
       wapiti: ["Path Traversal"]
       nuclei: ["lfi", "path-traversal"]
+      zap: ["^6$"]
 
   - id: open_redirect
     primary_cwe: CWE-601
@@ -46,6 +51,7 @@ classes:
     aliases:
       wapiti: ["Open Redirect"]
       nuclei: ["redirect", "open-redirect"]
+      zap: ["^20019$"]
 
   - id: ssrf
     primary_cwe: CWE-918
@@ -53,6 +59,7 @@ classes:
     aliases:
       wapiti: ["Server Side Request Forgery"]
       nuclei: ["ssrf"]
+      zap: ["^40046$"]
 
   - id: xxe
     primary_cwe: CWE-611
@@ -66,6 +73,7 @@ classes:
     granularity: parameter
     aliases:
       wapiti: ["Command execution"]
+      zap: ["^90020$", "^90037$"]
 
   - id: csrf
     primary_cwe: CWE-352
@@ -85,6 +93,7 @@ classes:
     oracle: header_presence
     aliases:
       builtin: ["Missing .* header"]
+      zap: ["^10020$", "^10021$", "^10035$", "^10038$"]
 
   - id: insecure_cookie
     primary_cwe: CWE-614
@@ -123,14 +132,20 @@ classes:
   - id: cookie_missing_secure
     primary_cwe: CWE-614
     granularity: host
+    aliases:
+      zap: ["^10011$"]
 
   - id: cookie_missing_httponly
     primary_cwe: CWE-1004
     granularity: host
+    aliases:
+      zap: ["^10010$"]
 
   - id: cookie_samesite
     primary_cwe: CWE-1275
     granularity: host
+    aliases:
+      zap: ["^10054$"]
 
   - id: cookie_scope
     primary_cwe: CWE-16
