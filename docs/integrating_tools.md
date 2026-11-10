@@ -175,6 +175,7 @@ Add a docstring to the scanner module explaining:
 - **Focus**: Web application vulnerability scanning (SQLi, XSS, injection, SSRF)
 - **Output**: JSON
 - **Key flags**: `--scope`, `--timeout`, `--max-scan-time`, `--module`
+- Without both `external_endpoint` and `internal_endpoint` set, the SSRF and XXE modules are skipped and `log4shell` is always skipped. The internal placeholder is the target's base URL and the external placeholder is `http://127.0.0.1:9/`.
 
 ### SSLyze (`src/haris/scanners/sslyze_scanner.py`)
 

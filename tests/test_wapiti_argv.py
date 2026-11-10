@@ -6,7 +6,7 @@ import pytest
 import haris
 from haris.config.loader import load_config
 from haris.models.target import Scope, Target
-from haris.scanners.wapiti_scanner import WapitiScanner
+from haris.scanners.wapiti_scanner import LOOPBACK_ENDPOINT, WapitiScanner
 
 HTTP_BASE = "http://127.0.0.1:14280"
 SESSION_DIR = "/tmp/wapiti-session"
@@ -55,30 +55,92 @@ class TestWapitiExcludeArgv:
         assert "--exclude" not in build(HTTP_BASE, [])
 
 
+EXTERNAL = "http://callback:9090/"
+INTERNAL = "http://127.0.0.1:19090/"
+PUBLIC_HOST = "wapiti3.ovh"
+
+
 def endpoint_cmd(options: dict[str, str]) -> list[str]:
     return WapitiScanner(options)._build_command(
         Target(base_url=HTTP_BASE), "/tmp/o", SESSION_DIR
     )
 
 
-class TestWapitiEndpointArgv:
-    def test_endpoint_options_become_flags_and_drop_the_dns_module(self) -> None:
-        cmd = endpoint_cmd(
-            {
-                "external_endpoint": "http://callback:9090/",
-                "internal_endpoint": "http://127.0.0.1:19090/",
-            }
-        )
-        assert cmd[cmd.index("--external-endpoint") + 1] == "http://callback:9090/"
-        assert cmd[cmd.index("--internal-endpoint") + 1] == "http://127.0.0.1:19090/"
-        assert "-log4shell" in cmd[cmd.index("--module") + 1].split(",")
+def module_names(cmd: list[str]) -> list[str]:
+    return cmd[cmd.index("--module") + 1].split(",")
 
-    def test_unset_endpoints_keep_wapiti_defaults(self) -> None:
-        cmd = endpoint_cmd({})
-        assert not {"--endpoint", "--external-endpoint", "--internal-endpoint"} & set(
-            cmd
+
+def flag_value(cmd: list[str], flag: str) -> str:
+    return cmd[cmd.index(flag) + 1]
+
+
+class TestWapitiEndpointArgv:
+    def test_both_endpoints_are_passed_and_callback_modules_run(self) -> None:
+        cmd = endpoint_cmd(
+            {"external_endpoint": EXTERNAL, "internal_endpoint": INTERNAL}
         )
-        assert "-log4shell" not in cmd[cmd.index("--module") + 1].split(",")
+        assert flag_value(cmd, "--external-endpoint") == EXTERNAL
+        assert flag_value(cmd, "--internal-endpoint") == INTERNAL
+        spec = module_names(cmd)
+        assert "-log4shell" in spec
+        assert "-ssrf" not in spec
+        assert "-xxe" not in spec
+
+    @pytest.mark.parametrize(
+        "options", [{}, {"external_endpoint": "", "internal_endpoint": ""}]
+    )
+    def test_unset_endpoints_use_the_target_and_skip_callback_modules(
+        self, options: dict[str, str]
+    ) -> None:
+        cmd = endpoint_cmd(options)
+        assert flag_value(cmd, "--external-endpoint") == LOOPBACK_ENDPOINT
+        assert flag_value(cmd, "--internal-endpoint") == HTTP_BASE
+        spec = module_names(cmd)
+        assert "-ssrf" in spec
+        assert "-xxe" in spec
+        assert "-log4shell" in spec
+        assert all(PUBLIC_HOST not in arg for arg in cmd)
+
+    @pytest.mark.parametrize(
+        ("options", "external", "internal"),
+        [
+            ({"external_endpoint": EXTERNAL}, EXTERNAL, HTTP_BASE),
+            ({"internal_endpoint": INTERNAL}, LOOPBACK_ENDPOINT, INTERNAL),
+            (
+                {"external_endpoint": EXTERNAL, "internal_endpoint": ""},
+                EXTERNAL,
+                HTTP_BASE,
+            ),
+            (
+                {"external_endpoint": "", "internal_endpoint": INTERNAL},
+                LOOPBACK_ENDPOINT,
+                INTERNAL,
+            ),
+        ],
+    )
+    def test_one_endpoint_uses_the_placeholder_and_skips_callbacks(
+        self, options: dict[str, str], external: str, internal: str
+    ) -> None:
+        cmd = endpoint_cmd(options)
+        assert flag_value(cmd, "--external-endpoint") == external
+        assert flag_value(cmd, "--internal-endpoint") == internal
+        spec = module_names(cmd)
+        assert "-ssrf" in spec
+        assert "-xxe" in spec
+
+    @pytest.mark.parametrize(
+        "options",
+        [
+            {},
+            {"external_endpoint": EXTERNAL},
+            {"internal_endpoint": INTERNAL},
+            {"external_endpoint": EXTERNAL, "internal_endpoint": INTERNAL},
+            {"external_endpoint": "", "internal_endpoint": ""},
+        ],
+    )
+    def test_argv_never_names_the_public_host(self, options: dict[str, str]) -> None:
+        cmd = endpoint_cmd(options)
+        assert all(PUBLIC_HOST not in arg for arg in cmd)
 
     @pytest.mark.parametrize(
         "value", ["callback:9090", "ftp://callback/", "http://", "--evil"]
