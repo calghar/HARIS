@@ -245,6 +245,31 @@ class TestDvwaPrepare:
         runner.prepare_dvwa(BASE_URL, httpx.MockTransport(handler))
         assert len(creates) == database_ready_after
 
+    def test_setup_is_retried_while_the_database_is_down(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        creates: list[str] = []
+        post_count = 0
+        posts_while_down = 4
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            nonlocal post_count
+            path = request.url.path
+            if request.method == "GET":
+                return httpx.Response(200, text=TOKEN_PAGE.format(LOGIN_TOKEN))
+            post_count += 1
+            if path == "/setup.php":
+                creates.append(path)
+            if post_count <= posts_while_down:
+                return httpx.Response(200, text="mysqli_connect error")
+            if path == "/setup.php":
+                return httpx.Response(200, text="setup")
+            return httpx.Response(302, headers={"Location": "index.php"})
+
+        monkeypatch.setattr(runner.time, "sleep", lambda seconds: None)
+        runner.prepare_dvwa(BASE_URL, httpx.MockTransport(handler))
+        assert len(creates) == posts_while_down // 2 + 1
+
     def test_setup_that_never_succeeds_times_out(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:

@@ -24,6 +24,7 @@ RESULTS_DIR = BENCH_DIR / "results"
 HEALTH_POLL_SECONDS = 3.0
 DEFAULT_PROFILE = "quick"
 DVWA_SETUP_PATH = "/setup.php"
+DVWA_HOME_PATH = "index.php"
 DVWA_PREPARE_TIMEOUT_SECONDS = 120.0
 DVWA_LOGIN_PATH = "/login.php"
 DVWA_SECURITY_PATH = "/security.php"
@@ -139,9 +140,7 @@ def prepare_dvwa(
                 Login="Login",
             )
             login = client.post(DVWA_LOGIN_PATH, data=probe)
-            if not login.headers.get("location", "").endswith(
-                DVWA_SETUP_PATH.lstrip("/")
-            ):
+            if login.headers.get("location", "").endswith(DVWA_HOME_PATH):
                 return
             if time.monotonic() > deadline:
                 raise TimeoutError(
