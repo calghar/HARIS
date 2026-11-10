@@ -9,7 +9,7 @@ HARIS uses a direct LLM integration layer (`src/haris/llm/`) for report analysis
 ```txt
 CLI user          Web UI user
     |                    |
-haris llm            FastAPI /api/
+haris llm            FastAPI /api/v1/
     |                    |
     +----+-------+-------+
          |               |
@@ -84,7 +84,7 @@ When a scan was started with a scan configuration template, the template context
 
 The "Compare Scans" preset button provides a quick way to ask the LLM to compare findings between the current scan and a previous scan of the same target.
 
-The backend auto-detection API (`GET /api/llm/backends`) checks each backend for:
+The backend auto-detection API (`GET /api/v1/llm/backends`) checks each backend for:
 
 1. Required Python package installed (via `importlib.util.find_spec()`)
 2. Required API key set in environment (e.g., `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`)

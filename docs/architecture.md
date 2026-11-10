@@ -102,22 +102,23 @@ Intelligence extraction sources:
 
 ### 9. Authentication Layer (`src/haris/auth/`)
 
-All web routes are protected by a session-based authentication system:
+All web routes except the public ones are protected by a session-based authentication system:
 
 - **`models.py`** — Pydantic models: `User`, `UserSession`, `AuditEvent`; enums: `UserRole` (`admin`/`user`), `AuthProvider` (`local`/`oidc`), `AuditAction`
 - **`service.py`** — `AuthService`: user CRUD, bcrypt password hashing, server-side session management, email verification tokens, audit logging
-- **`middleware.py`** — FastAPI dependencies: `get_current_user`, `require_admin`, CSRF double-submit cookie validation, IP-based login rate limiting (5 attempts / 60 s)
-- **`router.py`** — All `/auth/*` routes: login, logout, register, email verification, setup wizard, profile, user management (admin), audit log (admin), OIDC login/callback
+- **`middleware.py`** — FastAPI dependencies: `require_user`, `require_admin`, IP-based login rate limiting (5 attempts / 60 s)
+- **`csrf.py`** — CSRF token derived from the session cookie and the app-wide guard; Bearer calls on `/api/v1/*` are exempt
+- **`bearer.py`** — Resolves `Authorization: Bearer haris_pat_...` tokens on `/api/v1/*` only
 - **`security_headers.py`** — Starlette middleware injecting CSP, HSTS, `X-Frame-Options`, `X-Content-Type-Options`, `Referrer-Policy`, `Permissions-Policy` on every response
 - **`oidc.py`** — `OIDCClient` wrapping authlib with PKCE, auto-discovery via `/.well-known/openid-configuration`, role extraction from configurable claim
 - **`email.py`** — `EmailSender` using stdlib `smtplib`; sends verification and password-reset emails; falls back to logging the link when SMTP is disabled
 - **`bootstrap.py`** — Creates the first admin account from `HARIS_ADMIN_EMAIL` / `HARIS_ADMIN_PASSWORD` env vars on startup if the `users` table is empty
 
-Sessions use opaque `secrets.token_urlsafe(32)` tokens stored in the `user_sessions` table and delivered as `httponly` cookies. CSRF uses the double-submit cookie pattern (`haris_csrf` cookie + `X-CSRF-Token` request header injected by HTMX via `hx-headers` on `<body>`).
+Sessions use opaque `secrets.token_urlsafe(32)` tokens stored as SHA-256 hashes in the `user_sessions` table and delivered as `httponly` cookies. CSRF tokens are HMACs of the session cookie, sent in the `X-CSRF-Token` request header (injected by HTMX via `hx-headers` on `<body>`) or the `csrf_token` form field.
 
 ### 10. Web Dashboard (`src/haris/web/`)
 
-The FastAPI web application serves a multi-page dashboard. All routes require login (minimum `user` role):
+The FastAPI web application serves a multi-page dashboard. Every route except the public login, registration, OIDC and `/health` routes requires login (minimum `user` role). Bearer API tokens (`haris_pat_...`) are accepted only on `/api/v1/*`:
 
 - **Dashboard** (`/`): Paginated scan history with HTMX filters (website, severity), quick actions, and a recently scanned sidebar.
 - **Websites** (`/websites`): Per-target overview. Detail pages show a visual timeline of risk posture changes and finding deltas.
@@ -125,7 +126,7 @@ The FastAPI web application serves a multi-page dashboard. All routes require lo
 - **Templates** (`/templates`): Two-tab hub -- *Scan Configurations* (CRUD for saved presets) and *Scanner Templates* (manage external template sources, trigger updates).
 - **New Scan** (`/scan/new`): Template selector dropdown auto-fills the form; "Save as Template" persists current settings. Per-scanner advanced options are collapsible.
 - **Settings** (`/settings`): Read-only overview of LLM backends, available scanners, and database info. Requires `admin` role.
-- **Auth routes** (`/auth/*`): Login, logout, self-registration (domain-restricted), email verification, profile & session management, user management (admin), audit log (admin), OIDC login/callback.
+- **Auth routes** (`/login`, `/auth/*`): Login, logout, self-registration (domain-restricted), email verification, profile & session management, user management (admin), audit log (admin), OIDC login/callback.
 
 Web scans run the verification stage: `verify` (`off`, `replay` or `llm`, the last only with `llm_enrich`) on `POST /api/v1/scans` and the New Scan form overrides the server default `HARIS_WEB_VERIFY_DEFAULT` (default `replay`).
 
@@ -198,7 +199,7 @@ Per-scanner options per template:
 - **Nmap**: `ports`, `script_categories`, `timeout`
 - See `src/haris/models/scan_config_template.py` for the full option set.
 
-**API**: `GET/POST /api/scan-templates`, `PUT/DELETE /api/scan-templates/{id}`, `POST /api/scan-templates/{id}/set-default`
+**API**: `GET/POST /api/v1/scan-templates`, `GET/PUT/DELETE /api/v1/scan-templates/{id}`, `POST /api/v1/scan-templates/{id}/set-default`
 **Web UI**: `/templates` → *Scan Configurations* tab — create, edit, clone, delete, set default.
 
 ## Scanner Template Management
@@ -214,6 +215,6 @@ External scanner template files are stored in `./templates/{scanner}/{source_nam
 
 **CLI**: `haris update-templates [--scanner nuclei] [--force] [--list]`
 **Web UI**: `/templates` → *Scanner Templates* tab — per-source status and update trigger.
-**API**: `GET /api/templates/status`, `POST /api/templates/update`
+**API**: `GET /api/v1/templates/status`, `POST /api/v1/templates/update`
 
 The `./templates/` directory and the `nikto-data` Docker volume are both persisted so updates survive container rebuilds.

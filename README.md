@@ -63,11 +63,11 @@ HARIS_SECRET_KEY=<random-32-char-string>   # generate: python -c "import secrets
 
 If those variables are not set, visiting `/auth/setup` creates the first admin account interactively.
 
-**Self-registration** is domain-restricted: only emails matching `auth.allowed_email_domains` in `config/default_config.yaml` can register. New accounts require email verification (or manual admin activation if SMTP is not configured).
+**Self-registration** is domain-restricted: only emails matching `HARIS_ALLOWED_EMAIL_DOMAINS` can register. New accounts require email verification (or manual admin activation if SMTP is not configured).
 
-**Roles**: `admin` (full access including user management, settings, template deletion) and `user` (scan, view, Q&A).
+**Roles**: `admin` (full access including user management, settings, any user's scans and templates) and `user` (scan, view and delete own scans, Q&A).
 
-**OIDC / KeyCloak**: set `auth.oidc.enabled: true` and configure `issuer`, `client_id`, `HARIS_OIDC_CLIENT_SECRET` — see [`docs/authentication.md`](docs/authentication.md).
+**OIDC / KeyCloak**: set `HARIS_OIDC_ENABLED=true` and configure `HARIS_OIDC_ISSUER`, `HARIS_OIDC_CLIENT_ID`, `HARIS_OIDC_CLIENT_SECRET` — see [`docs/authentication.md`](docs/authentication.md).
 
 ## Usage
 
@@ -125,6 +125,25 @@ Copy `.env.example` to `.env`. See `src/haris/resources/config/default_config.ya
 | `HARIS_OIDC_CLIENT_SECRET` | OIDC client secret (KeyCloak / any OIDC provider) |
 | `HARIS_SMTP_USERNAME` | SMTP username for email verification |
 | `HARIS_SMTP_PASSWORD` | SMTP password |
+
+Web server variables (flags accept `1`, `true` or `yes`, except where noted):
+
+| Variable | Default | Effect |
+| -------- | ------- | ------ |
+| `HARIS_WEB_VERIFY_DEFAULT` | `replay` | Verification mode for web scans when the request sets none: `off`, `replay` or `llm` |
+| `HARIS_TARGET_ALLOWLIST` | empty | Comma-separated host globs that skip ownership proof |
+| `HARIS_ALLOW_PRIVATE_TARGETS` | `false` | Allow private and loopback target addresses; only the value `true` enables it |
+| `HARIS_SHARE_SCANS_ORG_WIDE` | `false` | Every user can read all scans; only owners and admins can change them |
+| `HARIS_AGENT_DISABLED` | unset | The value `1` stops the agent from running on any scan |
+| `HARIS_MAX_CONCURRENT_SCANS` | `2` | Scans that run at once; at least 1 |
+| `HARIS_FORCE_HTTPS` | `false` | Redirect `http://` requests to `https://` |
+| `HARIS_ALLOWED_EMAIL_DOMAINS` | `techforpalestine.org` | Comma-separated registration domains; empty allows any |
+| `HARIS_OIDC_ENABLED` | `false` | Turn on OIDC sign-in |
+| `HARIS_OIDC_ISSUER`, `HARIS_OIDC_CLIENT_ID` | empty | OIDC provider issuer URL and client ID |
+| `HARIS_SMTP_ENABLED` | `false` | Send verification email; otherwise the link is logged |
+| `HARIS_SMTP_HOST`, `HARIS_SMTP_PORT` | `localhost`, `587` | SMTP server |
+| `HARIS_SMTP_USE_TLS` | `true` | Any value other than `false` keeps TLS on |
+| `HARIS_SMTP_FROM`, `HARIS_SMTP_FROM_NAME` | `noreply@techforpalestine.org`, `HARIS Security Platform` | Sender address and name |
 
 ## Extending
 
