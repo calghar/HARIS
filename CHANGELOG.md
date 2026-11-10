@@ -40,7 +40,7 @@
 - Added a login step to `bench/run.py` for DVWA and WebGoat (session passed to `haris` through `--config` and `HARIS_AUTH_HEADER`) and moved the external ground-truth class ids to ids HARIS emits; every seeded weakness is an entry, so recall shows what HARIS misses
 - Added an `ignore` list to benchmark ground truth (reported as an ignored count in `score.md`) and a per-target profile and extra `haris` args in `bench/run.py`; `--profile` is now optional
 - Added `ScopedClient.stream()` (bounded read with a `truncated` flag) and a per-call `timeout_s`; replay no longer swaps `NetworkPolicy.timeout_s`, and the AI module probes `/sse` with GET instead of HEAD
-- Added scanner options `external_endpoint` and `internal_endpoint` so Wapiti's out-of-band checks can use a local callback receiver; the benchmark runs a `callback` fixture service and no longer contacts `wapiti3.ovh` (`log4shell` is dropped when an endpoint is set)
+- Added scanner options `external_endpoint` and `internal_endpoint` so Wapiti's out-of-band checks can use a local callback receiver; the benchmark runs a `callback` fixture service and no longer contacts `wapiti3.ovh` (`log4shell` is always dropped)
 
 ### Changed (packaging)
 
@@ -105,6 +105,7 @@
 - Benchmark runner: Wapiti no longer scans DVWA's `/logout.php` and `/setup.php`; each benchmark target can carry its own excluded paths, added to the default exclusions in the generated `--config`.
 - Fixed Wapiti scans hanging in the `information_disclosure` module (a ReDoS in Wapiti 3.2.10); the module is now excluded
 - Fixed a Wapiti timeout or crash without a JSON report dropping all its findings; HARIS now recovers them from Wapiti's session database
+- Fixed unset Wapiti endpoints falling back to `wapiti3.ovh`; SSRF and XXE run only when both endpoints are set, `log4shell` is always skipped, and unset endpoints use the target URL (internal) and `http://127.0.0.1:9/` (external)
 
 ### Changed
 

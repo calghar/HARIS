@@ -28,11 +28,13 @@ _TIMEOUT_RECOVERED = (
 )
 _TIMEOUT_EMPTY = "wapiti timed out after %ds; no findings recovered"
 _TIMEOUT_REPORT = "wapiti timed out after %ds; its report was kept"
-# option -> Wapiti flag; unset keeps Wapiti's public default (wapiti3.ovh).
+LOOPBACK_ENDPOINT = "http://127.0.0.1:9/"  # placeholder; nothing listens
+# Unset external is LOOPBACK_ENDPOINT; unset internal is the target URL (startup ping).
 ENDPOINT_FLAGS = {
     "external_endpoint": "--external-endpoint",
     "internal_endpoint": "--internal-endpoint",
 }
+CALLBACK_MODULES = ("ssrf", "xxe")  # blind; need both endpoints
 # Log4Shell verifies over DNS, which a callback receiver cannot serve.
 DNS_MODULE = "log4shell"
 # Wapiti's usage banner and box-drawing logo are noise in stderr.
@@ -200,16 +202,22 @@ class WapitiScanner(ExternalToolScanner):
         # "all" predates Wapiti's own preset of that name; keep the default set.
         if modules in ("", "all"):
             modules = DEFAULT_MODULES
-        names = list(get_wapiti_excluded_modules())
-        if any(self.options.get(option) for option in ENDPOINT_FLAGS):
-            names.append(DNS_MODULE)
+        names = [*get_wapiti_excluded_modules(), DNS_MODULE]
+        if not all(self.options.get(option) for option in ENDPOINT_FLAGS):
+            names.extend(CALLBACK_MODULES)
         return ",".join([modules, *(f"-{name}" for name in names)])
 
-    def _endpoint_args(self) -> list[str]:
+    def _endpoint_args(self, target: Target) -> list[str]:
         args: list[str] = []
         for option, flag in ENDPOINT_FLAGS.items():
             value = self.options.get(option)
             if not value:
+                fallback = (
+                    target.base_url
+                    if option == "internal_endpoint"
+                    else LOOPBACK_ENDPOINT
+                )
+                args.extend([flag, fallback])
                 continue
             parts = urlsplit(str(value))
             if parts.scheme not in ("http", "https") or not parts.netloc:
@@ -251,6 +259,6 @@ class WapitiScanner(ExternalToolScanner):
         for name, value in target.auth.as_headers().items():
             cmd.extend(["--header", f"{name}: {value}"])
 
-        cmd.extend(self._endpoint_args())
+        cmd.extend(self._endpoint_args(target))
         cmd.extend(self._extra_args())
         return cmd
