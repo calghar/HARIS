@@ -12,7 +12,6 @@ from fastapi.testclient import TestClient
 
 from haris.auth.cookies import SESSION_COOKIE
 from haris.auth.csrf import make_token
-from haris.auth.middleware import _login_attempts
 from haris.auth.models import User, UserRole
 from haris.auth.tokens import hash_token
 from haris.db.connection import connect
@@ -79,7 +78,6 @@ class WebEnv:
         self.app: FastAPI = create_app(self.settings)
         self.state: AppState = self.app.state.haris
         self.use_targets()
-        _login_attempts.clear()
         self.admin: User
         self.alice: User
         self.bob: User

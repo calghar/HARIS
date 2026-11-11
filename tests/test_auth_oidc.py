@@ -89,6 +89,10 @@ class TestEmailVerified:
 
 
 class TestCallback:
+    @pytest.fixture(autouse=True)
+    def _allow_example_domain(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("HARIS_ALLOWED_EMAIL_DOMAINS", "example.com")
+
     def test_verified_new_user_is_created_and_logged_in(
         self, env: WebEnv, idp: FakeIdP
     ) -> None:

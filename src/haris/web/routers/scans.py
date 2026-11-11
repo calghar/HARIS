@@ -50,7 +50,9 @@ async def new_scan_form(
             nav_active="new",
             profiles=list(PROFILES.values()),
             available_scanners=sorted(all_registered().keys()),
-            scan_templates=state.store.list_scan_config_templates(),
+            scan_templates=state.store.list_scan_config_templates(
+                owner_user_id=user.user_id
+            ),
             prefill=prefill,
             page_data={
                 "profileDescriptions": profile_descriptions(),

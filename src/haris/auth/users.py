@@ -11,6 +11,7 @@ _UPDATABLE_FIELDS = {
     "display_name",
     "role",
     "is_active",
+    "disabled_by_admin",
     "password_hash",
     "last_login_at",
 }
@@ -30,7 +31,33 @@ class UserStore(AuditLog):
     ) -> User:
         email = email.strip().lower()
         now = now_iso()
-        user = User(
+        user = self._build_user(
+            email,
+            password,
+            display_name,
+            role,
+            is_active=is_active,
+            auth_provider=auth_provider,
+            oidc_sub=oidc_sub,
+            now=now,
+        )
+        with self._connect() as conn:
+            self._insert_user(conn, user)
+        return user
+
+    def _build_user(
+        self,
+        email: str,
+        password: str,
+        display_name: str,
+        role: UserRole,
+        *,
+        is_active: bool,
+        auth_provider: AuthProvider,
+        oidc_sub: str,
+        now: str,
+    ) -> User:
+        return User(
             email=email,
             display_name=display_name or email.split("@")[0],
             password_hash=(
@@ -45,28 +72,29 @@ class UserStore(AuditLog):
             created_at=now,
             updated_at=now,
         )
-        with self._connect() as conn:
-            conn.execute(
-                """
-                INSERT INTO users
-                    (user_id, email, display_name, password_hash, role, auth_provider,
-                     oidc_sub, is_active, created_at, updated_at, last_login_at)
-                VALUES (?,?,?,?,?,?,?,?,?,?,'')
-                """,
-                (
-                    user.user_id,
-                    user.email,
-                    user.display_name,
-                    user.password_hash,
-                    user.role.value,
-                    user.auth_provider.value,
-                    user.oidc_sub,
-                    int(user.is_active),
-                    user.created_at,
-                    user.updated_at,
-                ),
-            )
-        return user
+
+    @staticmethod
+    def _insert_user(conn: sqlite3.Connection, user: User) -> None:
+        conn.execute(
+            """
+            INSERT INTO users
+                (user_id, email, display_name, password_hash, role, auth_provider,
+                 oidc_sub, is_active, created_at, updated_at, last_login_at)
+            VALUES (?,?,?,?,?,?,?,?,?,?,'')
+            """,
+            (
+                user.user_id,
+                user.email,
+                user.display_name,
+                user.password_hash,
+                user.role.value,
+                user.auth_provider.value,
+                user.oidc_sub,
+                int(user.is_active),
+                user.created_at,
+                user.updated_at,
+            ),
+        )
 
     def get_user_by_email(self, email: str) -> User | None:
         email = email.strip().lower()
@@ -132,6 +160,7 @@ class UserStore(AuditLog):
             auth_provider=AuthProvider(row["auth_provider"]),
             oidc_sub=row["oidc_sub"],
             is_active=bool(row["is_active"]),
+            disabled_by_admin=bool(row["disabled_by_admin"]),
             created_at=row["created_at"],
             updated_at=row["updated_at"],
             last_login_at=row["last_login_at"],

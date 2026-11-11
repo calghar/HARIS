@@ -45,6 +45,7 @@ class User(BaseModel):
     auth_provider: AuthProvider = AuthProvider.LOCAL
     oidc_sub: str = ""
     is_active: bool = True
+    disabled_by_admin: bool = False
     created_at: str = ""
     updated_at: str = ""
     last_login_at: str = ""

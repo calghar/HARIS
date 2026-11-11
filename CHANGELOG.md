@@ -47,6 +47,10 @@
 - Mapped common ZAP plugin ids to vulnerability classes and set the `zap` confidence prior to 0.6
 - Added vulnerability class `cleartext_password_submission` (CWE-319) for Wapiti cleartext password forms, and mapped Nuclei `prometheus-metrics-detect` and `phpinfo-page-detect` to `sensitive_file`
 - Added `--verify` to `bench/run.py`, passed through to `haris` for every target run
+- Added `HARIS_PUBLIC_URL`; when set, emailed verification and reset links use it as their only base
+- Added `HARIS_ALLOWED_HOSTS`; when set, the web app rejects any other Host header
+- Added `HARIS_COOKIE_SECURE` (`true`, `false` or `auto`) for the session and CSRF seed cookies
+- Added `HARIS_SETUP_TOKEN`; `/auth/setup` answers 404 while it is unset
 
 ### Changed (packaging)
 
@@ -122,6 +126,13 @@
 - Fixed the Nuclei `sensitive_file` aliases to use the real template ids (`prometheus-metrics`, `phpinfo-files`), which the earlier names never matched; added `springboot-env` and `gocd-encryption-key`
 - Fixed nikto missing-header, banner, CORS, robots.txt and phpinfo records reporting as unclassified; they now map to `missing_header`, `banner_disclosure`, `cors_misconfiguration` and `sensitive_file`, and replay checks the header named in a nikto title
 - Fixed the DVWA, Juice Shop and WebGoat ground truth: blind SQL injection is `sqli_error`, WebGoat gains a stack-trace entry, and four nikto notes are ignored
+- Fixed an admin-disabled account coming back through the verification email; resend and consume refuse it, and only a `registration` token activates a user
+- Fixed login limits living in process memory and covering only login; the same 5 attempts per 60 seconds are stored per IP and per email for login, register and resend
+- Fixed OIDC first login creating a user outside `HARIS_ALLOWED_EMAIL_DOMAINS`
+- Fixed login answering an unknown or inactive account before any password check
+- Fixed a password change leaving other sessions signed in, and admin deactivation leaving sessions signed in
+- Fixed the new-scan form listing every user's template names
+- Fixed `/auth/setup` creating an administrator without a secret and allowing a second concurrent administrator
 
 ### Changed
 

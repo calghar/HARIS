@@ -1,6 +1,7 @@
 import base64
 import hashlib
 import json
+import os
 import re
 from collections.abc import Iterator
 from html.parser import HTMLParser
@@ -158,15 +159,23 @@ def pages(tmp_path_factory: pytest.TempPathFactory) -> Iterator[list[Page]]:
         )
         assert nonce
         rendered.append(Page(path, response.text, nonce.group(1)))
-    first_run = WebEnv(tmp_path_factory.mktemp("first-run"), seed_users=False)
-    for path in FIRST_RUN_PAGES:
-        response = first_run.anonymous().get(path)
-        assert response.status_code == 200, path
-        nonce = re.search(
-            r"'nonce-([^']+)'", response.headers["content-security-policy"]
-        )
-        assert nonce
-        rendered.append(Page(f"first-run {path}", response.text, nonce.group(1)))
+    previous_setup_token = os.environ.get("HARIS_SETUP_TOKEN")
+    os.environ["HARIS_SETUP_TOKEN"] = "render-setup-token"
+    try:
+        first_run = WebEnv(tmp_path_factory.mktemp("first-run"), seed_users=False)
+        for path in FIRST_RUN_PAGES:
+            response = first_run.anonymous().get(path)
+            assert response.status_code == 200, path
+            nonce = re.search(
+                r"'nonce-([^']+)'", response.headers["content-security-policy"]
+            )
+            assert nonce
+            rendered.append(Page(f"first-run {path}", response.text, nonce.group(1)))
+    finally:
+        if previous_setup_token is None:
+            os.environ.pop("HARIS_SETUP_TOKEN", None)
+        else:
+            os.environ["HARIS_SETUP_TOKEN"] = previous_setup_token
     yield rendered
 
 

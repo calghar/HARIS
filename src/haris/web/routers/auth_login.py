@@ -5,9 +5,12 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 
 from ...auth.config import (
     MIN_PASSWORD_LENGTH,
+    emailed_link_base,
     get_allowed_domains,
     get_email_sender,
     get_oidc_client,
+    setup_enabled,
+    setup_token_matches,
 )
 from ...auth.cookies import (
     SESSION_COOKIE,
@@ -76,7 +79,7 @@ async def login_submit(
     auth_service: AuthService = Depends(get_auth_service),
 ) -> Response:
     ip = _client_ip(request) or "unknown"
-    check_rate_limit(ip)
+    check_rate_limit(auth_service, ip, email)
     user = auth_service.authenticate(email, password)
     if not user:
         auth_service.log_audit(
@@ -136,7 +139,7 @@ async def logout(
 async def setup_page(
     request: Request, auth_service: AuthService = Depends(get_auth_service)
 ) -> Response:
-    if auth_service.has_any_user():
+    if not setup_enabled() or auth_service.has_any_user():
         raise HTTPException(status_code=404, detail="Not found")
     return templates.TemplateResponse(
         request, "auth/setup.html", template_context(request)
@@ -149,9 +152,10 @@ async def setup_submit(
     email: str = Form(),
     password: str = Form(),
     display_name: str = Form(default=""),
+    setup_token: str = Form(default=""),
     auth_service: AuthService = Depends(get_auth_service),
 ) -> Response:
-    if auth_service.has_any_user():
+    if not setup_token_matches(setup_token) or auth_service.has_any_user():
         raise HTTPException(status_code=404, detail="Not found")
     if len(password) < MIN_PASSWORD_LENGTH:
         return templates.TemplateResponse(
@@ -160,13 +164,13 @@ async def setup_submit(
             template_context(request, error=_password_error()),
             status_code=422,
         )
-    user = auth_service.create_user(
+    user = auth_service.create_initial_admin(
         email=email,
         password=password,
         display_name=display_name or "Administrator",
-        role=UserRole.ADMIN,
-        is_active=True,
     )
+    if user is None:
+        raise HTTPException(status_code=404, detail="Not found")
     auth_service.log_audit(
         AuditEvent(
             user_email="system",
@@ -195,6 +199,7 @@ async def register_submit(
     auth_service: AuthService = Depends(get_auth_service),
 ) -> Response:
     email = email.strip().lower()
+    check_rate_limit(auth_service, _client_ip(request) or "unknown", email)
 
     def page(status_code: int = 200, **context: Any) -> Response:
         return templates.TemplateResponse(
@@ -238,7 +243,7 @@ async def register_submit(
     )
     token = auth_service.create_email_verification_token(user.user_id, "registration")
     get_email_sender().send_verification_email(
-        user.email, token, str(request.base_url).rstrip("/")
+        user.email, token, emailed_link_base(request)
     )
     return page(
         success=(
@@ -284,14 +289,16 @@ async def resend_verification(
     email: str = Form(),
     auth_service: AuthService = Depends(get_auth_service),
 ) -> Response:
+    email = email.strip().lower()
+    check_rate_limit(auth_service, _client_ip(request) or "unknown", email)
     user = auth_service.get_user_by_email(email)
     # Always show success to avoid email enumeration
-    if user and not user.is_active:
+    if user and not user.is_active and not user.disabled_by_admin:
         token = auth_service.create_email_verification_token(
             user.user_id, "registration"
         )
         get_email_sender().send_verification_email(
-            user.email, token, str(request.base_url).rstrip("/")
+            user.email, token, emailed_link_base(request)
         )
     return _login_page(
         request,

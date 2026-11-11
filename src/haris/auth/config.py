@@ -1,4 +1,7 @@
+import hmac
 import os
+
+from starlette.requests import Request
 
 from .email import EmailSender, SMTPConfig
 from .oidc import OIDCClient, OIDCConfig
@@ -30,6 +33,38 @@ def get_allowed_domains() -> list[str]:
     """Return configured allowed email domains. Empty list = allow all."""
     raw = os.environ.get("HARIS_ALLOWED_EMAIL_DOMAINS", "techforpalestine.org")
     return [d.strip().lower() for d in raw.split(",") if d.strip()]
+
+
+def email_domain_allowed(email: str) -> bool:
+    allowed = get_allowed_domains()
+    if not allowed:
+        return True
+    domain = email.rsplit("@", 1)[-1] if "@" in email else ""
+    return domain.lower() in allowed
+
+
+def emailed_link_base(request: Request) -> str:
+    """HARIS_PUBLIC_URL when set; otherwise the request base URL."""
+    configured = os.environ.get("HARIS_PUBLIC_URL", "").strip().rstrip("/")
+    if configured:
+        return configured
+    return str(request.base_url).rstrip("/")
+
+
+def trusted_hosts() -> list[str]:
+    raw = os.environ.get("HARIS_ALLOWED_HOSTS", "")
+    return [host.strip() for host in raw.split(",") if host.strip()]
+
+
+def setup_enabled() -> bool:
+    return bool(os.environ.get("HARIS_SETUP_TOKEN", ""))
+
+
+def setup_token_matches(supplied: str) -> bool:
+    expected = os.environ.get("HARIS_SETUP_TOKEN", "")
+    if not expected:
+        return False
+    return hmac.compare_digest(supplied, expected)
 
 
 def get_email_sender() -> EmailSender:

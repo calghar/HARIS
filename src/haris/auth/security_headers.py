@@ -2,10 +2,12 @@ import secrets
 from typing import Any
 
 from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.middleware.trustedhost import TrustedHostMiddleware
 from starlette.requests import Request
 from starlette.responses import RedirectResponse, Response
 
-from .cookies import set_seed_cookie
+from .config import trusted_hosts
+from .cookies import is_https, set_seed_cookie
 
 
 def build_csp(nonce: str) -> str:
@@ -43,6 +45,9 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
     """
 
     def __init__(self, app: Any, *, force_https: bool = False) -> None:
+        hosts = trusted_hosts()
+        if hosts:
+            app = TrustedHostMiddleware(app, allowed_hosts=hosts, www_redirect=False)
         super().__init__(app)
         self._force_https = force_https
 
@@ -61,7 +66,7 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         response.headers["Content-Security-Policy"] = build_csp(nonce)
         seed = getattr(request.state, "csrf_seed", "")
         if seed:
-            set_seed_cookie(response, seed, secure=request.url.scheme == "https")
+            set_seed_cookie(response, seed, secure=is_https(request))
         if request.url.scheme == "https":
             response.headers["Strict-Transport-Security"] = _HSTS
         return response

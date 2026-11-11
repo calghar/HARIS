@@ -1,3 +1,5 @@
+import os
+
 from fastapi import Request, Response
 
 SESSION_COOKIE = "haris_session"
@@ -7,6 +9,12 @@ SEED_MAX_AGE = 3600
 
 
 def is_https(request: Request) -> bool:
+    """Secure-cookie flag. HARIS_COOKIE_SECURE is true, false, or auto (the scheme)."""
+    mode = os.environ.get("HARIS_COOKIE_SECURE", "auto").strip().lower()
+    if mode == "true":
+        return True
+    if mode == "false":
+        return False
     return str(request.url.scheme) == "https"
 
 

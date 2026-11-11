@@ -5,8 +5,8 @@ from typing import Any
 import pytest
 
 from haris.auth.cookies import SEED_COOKIE, SESSION_COOKIE
-from haris.auth.middleware import _login_attempts
 from haris.auth.redirects import safe_next
+from haris.db.connection import connect
 
 from .test_web_env import PASSWORD, Browser, Resources, WebEnv, stub_scan_runner
 from .test_web_routes import CASES, UNSAFE, Case, case_json, reached
@@ -167,7 +167,8 @@ def test_pages_embed_the_session_token(env: WebEnv) -> None:
 
 
 def _login(env: WebEnv, next_value: str | None) -> str:
-    _login_attempts.clear()
+    with connect(env.settings.db_path) as conn:
+        conn.execute("DELETE FROM auth_attempt_counters")
     anon = env.anonymous()
     token = TOKEN_FIELD.search(anon.get("/login").text)
     assert token
