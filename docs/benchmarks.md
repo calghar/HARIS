@@ -6,9 +6,9 @@ The harness in `bench/` measures how many of HARIS's findings are real (precisio
 
 | Target | Kind | Ground truth |
 |---|---|---|
-| OWASP Juice Shop `v20.4.0` | external | seed set of 4 entries from the [companion guide](https://pwning.owasp-juice.shop/); 0 known gaps |
-| DVWA (digest of `latest`) | external | seed set of 8 entries from the [module list](https://github.com/digininja/DVWA), security level low; 0 known gaps |
-| WebGoat `v2026.5` | external | seed set of 3 lesson endpoints from the [WebGoat repository](https://github.com/WebGoat/WebGoat) |
+| OWASP Juice Shop `v20.4.0` | external | seed set of 5 entries from the [companion guide](https://pwning.owasp-juice.shop/); 0 known gaps |
+| DVWA (digest of `latest`) | external | seed set of 13 entries from the [module list](https://github.com/digininja/DVWA), security level low; 0 known gaps |
+| WebGoat `v2026.5` | external | seed set of 6 entries from the [WebGoat repository](https://github.com/WebGoat/WebGoat) |
 | `spa_catchall` | fixture | the fixture's real properties: plain HTTP, `Server` banner, five missing security headers; any path or debug finding is a false positive |
 | `vuln_ai_app` | fixture | 7 deliberate weaknesses (prompt injection, system-prompt leak, unauthenticated inference, verbose error, output XSS, unauthenticated MCP `tools/list`, poisoned MCP tool description) plus 4 real properties (plain HTTP, `Server` banner, no rate limit, ignored `max_tokens`); the `/health` path and `ai_endpoint_discovered` records are ignored |
 
@@ -22,7 +22,7 @@ The harness in `bench/` measures how many of HARIS's findings are real (precisio
 
 - `vuln_class` is an `id` in `src/haris/resources/config/vuln_classes.yaml` (or an `unclassified:` token HARIS emits); `tests/test_bench_ground_truth.py` enforces it.
 - A weakness HARIS cannot yet detect stays an entry, so recall shows the miss (`juice-ftp-listing`); no ground-truth file lists known gaps in its header.
-- The three external files each ignore 6 target properties: plain HTTP, missing headers, `Server` banner, and the `robots.txt`, `sitemap.xml` and `security.txt` records.
+- The three external files each ignore 6 target properties: plain HTTP, missing headers, `Server` banner, and the `robots.txt`, `sitemap.xml` and `security.txt` records. The DVWA file also ignores Wapiti's cleartext-password and 500-anomaly records.
 
 ## Scoring
 

@@ -1,10 +1,10 @@
-# Seed set from WebGoat lesson endpoints; confirm paths against the pinned image on the first full run.
+# Seed set from WebGoat lesson endpoints and exposures, checked against the pinned image with a logged-in session.
 target: webgoat
 kind: external
 entries:
   - id: webgoat-sqli-intro
     method: POST
-    url: /WebGoat/SqlInjection/attack5a
+    url: /WebGoat/SqlInjection/assignment5a
     parameter: account
     vuln_class: sqli_error
     cwe: CWE-89
@@ -28,6 +28,30 @@ entries:
     expected: true_positive
     source: https://github.com/WebGoat/WebGoat
     notes: Cross Site Scripting lesson.
+  - id: webgoat-actuator
+    method: GET
+    url: /WebGoat/actuator
+    vuln_class: sensitive_file
+    cwe: CWE-538
+    expected: true_positive
+    source: https://github.com/WebGoat/WebGoat
+    notes: Spring Boot actuator index answers 200 without a login (checked live).
+  - id: webgoat-actuator-env
+    method: GET
+    url: /WebGoat/actuator/env
+    vuln_class: sensitive_file
+    cwe: CWE-538
+    expected: true_positive
+    source: https://github.com/WebGoat/WebGoat
+    notes: Environment endpoint answers 200 without a login; values are masked (checked live).
+  - id: webgoat-login-cache
+    method: GET
+    url: /WebGoat/login
+    vuln_class: cache_sensitive
+    cwe: CWE-525
+    expected: true_positive
+    source: https://github.com/WebGoat/WebGoat
+    notes: The login page sends no Cache-Control or Pragma header (checked live).
 ignore:
   - vuln_class: no_https
     url: /*

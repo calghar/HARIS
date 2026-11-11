@@ -69,6 +69,50 @@ entries:
     cwe: CWE-434
     expected: true_positive
     source: https://github.com/digininja/DVWA
+  - id: dvwa-brute-sqli
+    method: GET
+    url: /vulnerabilities/brute
+    parameter: username
+    vuln_class: sqli_error
+    cwe: CWE-89
+    expected: true_positive
+    source: https://github.com/digininja/DVWA
+    notes: The brute-force login interpolates username into SQL; a quote returns a MariaDB syntax error (checked live).
+  - id: dvwa-file-inclusion-remote
+    method: GET
+    url: /vulnerabilities/fi
+    parameter: page
+    vuln_class: ssrf
+    cwe: CWE-918
+    expected: true_positive
+    source: https://github.com/digininja/DVWA
+    notes: page=http://127.0.0.1/robots.txt returns the fetched file (checked live); HARIS reports remote inclusion as ssrf.
+  - id: dvwa-upload-filename-xss
+    method: POST
+    url: /vulnerabilities/upload
+    parameter: uploaded
+    vuln_class: xss_reflected
+    cwe: CWE-79
+    expected: true_positive
+    source: https://github.com/digininja/DVWA
+    notes: The uploaded file name is echoed unescaped (checked live).
+  - id: dvwa-open-redirect
+    method: GET
+    url: /vulnerabilities/open_redirect/source/low.php
+    parameter: redirect
+    vuln_class: open_redirect
+    cwe: CWE-601
+    expected: true_positive
+    source: https://github.com/digininja/DVWA
+    notes: redirect=https://evil.example returns a 302 to that host (checked live).
+  - id: dvwa-phpinfo
+    method: GET
+    url: /phpinfo.php
+    vuln_class: unclassified:nuclei:phpinfo-page-detect
+    cwe: CWE-200
+    expected: true_positive
+    source: https://github.com/digininja/DVWA
+    notes: phpinfo() page answers 200 for a logged-in session (checked live); the class gains an alias in a later change.
 ignore:
   - vuln_class: no_https
     url: /*
@@ -88,3 +132,15 @@ ignore:
   - vuln_class: sensitive_file
     url: /.well-known/security.txt
     reason: Info-level discovery record, not a weakness.
+  - vuln_class: unclassified:wapiti:cleartext-submission-of-password-password-field-password-conf-sent-in-clear-text-from-url-http-127-0-0-1-14280
+    url: /vulnerabilities/*
+    reason: Password forms are served over plain HTTP by the compose file.
+  - vuln_class: unclassified:wapiti:cleartext-submission-of-password-password-field-password-new-sent-in-clear-text-from-url-http-127-0-0-1-14280-v
+    url: /vulnerabilities/*
+    reason: Password forms are served over plain HTTP by the compose file.
+  - vuln_class: unclassified:wapiti:cleartext-submission-of-password-password-field-password-sent-in-clear-text-from-url-http-127-0-0-1-14280-vulne
+    url: /vulnerabilities/*
+    reason: Password forms are served over plain HTTP by the compose file.
+  - vuln_class: unclassified:wapiti:anomaly-internal-server-error-the-server-responded-with-a-500-http-error-code-while-attempting-to-inject-a-pay
+    url: /vulnerabilities/open_redirect/source/info.php
+    reason: Wapiti anomaly record from payload injection, not a weakness.

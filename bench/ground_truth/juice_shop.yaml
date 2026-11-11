@@ -36,6 +36,14 @@ entries:
     expected: true_positive
     source: https://pwning.owasp-juice.shop/companion-guide/latest/part2/sensitive-data-exposure.html
     notes: Exposed Metrics challenge; HARIS reports /metrics as an exposed debug endpoint.
+  - id: juice-cors-wildcard
+    method: GET
+    url: /
+    vuln_class: cors_misconfiguration
+    cwe: CWE-942
+    expected: true_positive
+    source: https://github.com/juice-shop/juice-shop
+    notes: Every response sends Access-Control-Allow-Origin with a wildcard (checked live).
 ignore:
   - vuln_class: no_https
     url: /*
