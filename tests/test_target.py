@@ -1,3 +1,5 @@
+import re
+import time
 from pathlib import Path
 
 import pytest
@@ -106,17 +108,47 @@ class TestTarget:
         assert t.scheme == "http"
 
 
-@pytest.mark.parametrize("pattern", ["(a+)+", "(a*)*", "(a+){2}", "((a+))+"])
+_REJECTED_EXCLUDED = [
+    "(a+)+",
+    "(a*)*",
+    "(a+){2}",
+    "((a+))+",
+    "(a|aa)+$",
+    "(a|a)*",
+    "(a|b)+",
+    "(?:a|aa)+",
+]
+_ACCEPTED_EXCLUDED = [
+    "(ab)+",
+    "(?:ab)+",
+    "a+",
+    "/x[0-9]+",
+    "(a+)",
+    "/logout",
+    "/api/admin/.*",
+]
+_NON_MATCH = "/" + ("b" * 20_000)
+_MATCH_BUDGET_S = 1.0
+
+
+@pytest.mark.parametrize("pattern", _REJECTED_EXCLUDED)
 def test_m2_nested_quantifier_is_rejected(pattern: str) -> None:
     with pytest.raises(ValidationError, match="nested quantifiers"):
         Scope(excluded_paths=[pattern])
 
 
-@pytest.mark.parametrize(
-    "pattern", ["(a|b)+", "a+", "/x[0-9]+", "(a+)", "/logout", "/api/admin/.*"]
-)
+@pytest.mark.parametrize("pattern", _ACCEPTED_EXCLUDED)
 def test_m2_plain_patterns_are_accepted(pattern: str) -> None:
     assert Scope(excluded_paths=[pattern]).excluded_paths == [pattern]
+
+
+@pytest.mark.parametrize("pattern", _ACCEPTED_EXCLUDED)
+def test_m2_accepted_pattern_finishes_on_a_long_non_match(pattern: str) -> None:
+    assert re.search(pattern, _NON_MATCH) is None
+    scope = Scope(excluded_paths=[pattern])
+    started = time.perf_counter()
+    assert scope.is_url_in_scope(f"https://example.com{_NON_MATCH}") is True
+    assert time.perf_counter() - started < _MATCH_BUDGET_S
 
 
 def test_m2_invalid_regex_is_rejected() -> None:

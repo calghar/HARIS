@@ -150,6 +150,12 @@
 - Fixed an empty scanner status reporting risk posture `excellent`; it is now `unknown`
 - Fixed promptfoo scheduling more tests than `max_prompts` when the cap is below the plugin count
 - Fixed the agent sandbox tunnel cutting upstream replies that take more than 5 seconds, which broke timing-oracle validation
+- Fixed web `dns_checks` options accepting `nameservers` and `dns_port`, which sent DNS queries to a caller-chosen server; the web policy allows only a bounded `dns_timeout`, and CLI and YAML config still set the server and port
+- Fixed verification email using the request Host when `HARIS_PUBLIC_URL` is unset; SMTP enabled refuses the send and logs `HARIS_PUBLIC_URL`, and SMTP disabled still logs the link from the request base URL
+- Fixed `excluded_paths` accepting a quantified alternation such as `(a|aa)+$`; a quantifier on a group that contains alternation or a quantifier is rejected, and the 200-character limit stays
+- Fixed sandbox cleanup on exec timeout or output truncation killing only the first process group; it now kills every other process in the container, and a failed cleanup marks the sandbox unusable
+- Fixed web `scanner_options` accepting a non-numeric `nuclei` `timeout` and other mistyped values; each option must be a bool, a bounded number, or a bounded string or list
+- Fixed template URL downloads reading the whole response into memory; the body streams to a temporary file capped at 50 MiB over http(s) only, then replaces the target, and the temporary file is removed on failure
 
 ### Changed
 

@@ -51,3 +51,4 @@ The safe harbour in this policy is good-faith research on a local install of HAR
 ## Known limits
 
 Each external tool's target host is vetted again immediately before the tool starts, and the tool resolves the name itself afterwards, so a DNS rebind in that window remains possible.
+Verification email is not sent when `HARIS_PUBLIC_URL` is unset and SMTP is enabled, so the request Host header is not the link origin.

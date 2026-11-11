@@ -1,5 +1,4 @@
 import json
-import logging
 import select
 import subprocess
 import threading
@@ -10,8 +9,6 @@ from pydantic import BaseModel
 
 from .runtime import RuntimeSpec, SandboxRuntime, container_argv
 from .settings import AgentSettings, load_agent_settings
-
-logger = logging.getLogger(__name__)
 
 PREFIX = "haris-agent-"
 EXEC_TIMEOUT_S = 30
@@ -27,13 +24,26 @@ _PID_LINE = (
     "    pass\n"
     "os.execvp(sys.argv[1], sys.argv[1:])\n"
 )
-_KILL_GROUP = (
-    "import os, signal, sys\n"
-    "pid = int(sys.argv[1])\n"
-    "try:\n"
-    "    os.killpg(pid, signal.SIGKILL)\n"
-    "except OSError:\n"
-    "    os.kill(pid, signal.SIGKILL)\n"
+# Pid 1 is the container sleeper. Two passes catch children reparented mid-kill.
+_KILL_PASSES = 2
+_KILL_ALL = (
+    "import os, signal\n"
+    "me = os.getpid()\n"
+    "bad = 0\n"
+    f"for _ in range({_KILL_PASSES}):\n"
+    "    for name in os.listdir('/proc'):\n"
+    "        if not name.isdecimal():\n"
+    "            continue\n"
+    "        pid = int(name)\n"
+    "        if pid in (1, me):\n"
+    "            continue\n"
+    "        try:\n"
+    "            os.kill(pid, signal.SIGKILL)\n"
+    "        except ProcessLookupError:\n"
+    "            pass\n"
+    "        except OSError:\n"
+    "            bad = 1\n"
+    "raise SystemExit(bad)\n"
 )
 
 
@@ -215,17 +225,25 @@ def _collect(
     return pid, bytes(out), bytes(err), timed_out, truncated
 
 
-def _kill_pid(sandbox: str, pid: str) -> None:
-    if not pid.isdecimal():
-        return
-    try:
-        subprocess.run(
-            ["docker", "exec", sandbox, "python3", "-B", "-c", _KILL_GROUP, pid],
-            capture_output=True,
-            timeout=PROBE_TIMEOUT_S,
-        )
-    except (OSError, subprocess.SubprocessError):
-        logger.warning("sandbox process %s was not killed", pid)
+def _kill_all(sandbox: str, user: str) -> None:
+    name = require_name(sandbox)
+    completed = subprocess.run(
+        [
+            "docker",
+            "exec",
+            "--user",
+            user,
+            name,
+            "python3",
+            "-B",
+            "-c",
+            _KILL_ALL,
+        ],
+        capture_output=True,
+        timeout=PROBE_TIMEOUT_S,
+    )
+    if completed.returncode != 0:
+        raise RuntimeError("sandbox cleanup failed; sandbox is unusable")
 
 
 class DockerRuntime(SandboxRuntime):
@@ -242,6 +260,7 @@ class DockerRuntime(SandboxRuntime):
         self._tunnel = ""
         self._networks: list[str] = []
         self.killed = False
+        self.unusable = False
 
     def start(self, spec: RuntimeSpec) -> None:
         require_name(spec.name)
@@ -299,6 +318,8 @@ class DockerRuntime(SandboxRuntime):
         return ""
 
     def exec(self, argv: list[str], stdin: str = "") -> ExecResult:
+        if self.unusable:
+            raise RuntimeError("sandbox is unusable")
         proc: subprocess.Popen[bytes] = subprocess.Popen(
             ["docker", "exec", "-i", self._sandbox, *_pid_argv(argv)],
             stdin=subprocess.PIPE,
@@ -311,19 +332,28 @@ class DockerRuntime(SandboxRuntime):
         )
         feeder.start()
         try:
-            pid, out, err, timed_out, truncated = _collect(
+            _, out, err, timed_out, truncated = _collect(
                 proc, EXEC_OUTPUT_CAP_BYTES, EXEC_TIMEOUT_S
             )
         finally:
             feeder.join(timeout=PROBE_TIMEOUT_S)
+        cleanup_error: RuntimeError | None = None
         if timed_out or truncated:
-            _kill_pid(self._sandbox, pid)
+            try:
+                _kill_all(self._sandbox, self.settings.sandbox_user)
+            except (OSError, subprocess.SubprocessError, RuntimeError, ValueError):
+                self.unusable = True
+                cleanup_error = RuntimeError(
+                    "sandbox cleanup failed; sandbox is unusable"
+                )
             proc.kill()
         try:
             proc.wait(timeout=PROBE_TIMEOUT_S)
         except subprocess.TimeoutExpired:
             proc.kill()
             proc.wait(timeout=PROBE_TIMEOUT_S)
+        if cleanup_error is not None:
+            raise cleanup_error
         if timed_out:
             raise subprocess.TimeoutExpired(proc.args, EXEC_TIMEOUT_S)
         text = out.decode("utf-8", "replace")

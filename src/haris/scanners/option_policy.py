@@ -1,3 +1,4 @@
+import math
 from typing import Any
 from urllib.parse import urlsplit
 
@@ -6,6 +7,19 @@ from ..net.errors import SSRFBlocked
 from ..net.policy import NetworkPolicy
 from ..net.ssrf import Resolver, system_resolver, vet_host
 from .argv_policy import ExtraArgsError, validate_extra_args
+from .option_values import (
+    _BOOL,
+    _LIST,
+    _LIST_ITEM_MAX_CHARS,
+    _LIST_MAX_ITEMS,
+    _NUMBER,
+    _NUMBER_MAX,
+    _NUMBER_MIN,
+    _STRINGS,
+    _TEXT,
+    _TEXT_MAX_CHARS,
+    _VALUE_KINDS,
+)
 
 _GATE_KEYS = frozenset({ACTIVE_KEY, AUTHORISED_KEY})
 _URL_SCHEMES = frozenset({"http", "https"})
@@ -78,7 +92,8 @@ _OPTION_KEYS: dict[str, frozenset[str]] = {
         }
     ),
     "cookie_checks": frozenset({"max_cookie_lifetime_seconds"}),
-    "dns_checks": frozenset({"nameservers", "dns_port", "dns_timeout"}),
+    # Server and port stay on the CLI; the web must not choose where DNS packets go.
+    "dns_checks": frozenset({"dns_timeout"}),
     "ai_security": frozenset(
         {"max_prompts", "max_tokens_per_prompt", "system_prompt_markers"}
     ),
@@ -108,11 +123,7 @@ def prepare_web_scanner_options(
     allow_private: bool | None = None,
     resolver: Resolver = system_resolver,
 ) -> dict[str, dict[str, Any]]:
-    """Drop AI gate flags and reject unknown keys, blocked flags, and unsafe URLs.
-
-    The CLI does not call this; it keeps today's scanner options, including loopback
-    Wapiti endpoints.
-    """
+    """Reject unknown keys, blocked flags, unsafe URLs, and bad values."""
     if not isinstance(options, dict):
         raise ScannerOptionsError("scanner_options must be an object")
     private = (
@@ -133,6 +144,8 @@ def prepare_web_scanner_options(
         unknown = sorted(str(key) for key in kept if key not in allowed)
         if unknown:
             raise ScannerOptionsError(f"unknown option {unknown[0]} for {name}")
+        for key, value in kept.items():
+            _check_value(name, key, value)
         if "extra_args" in kept:
             _check_extra_args(name, kept["extra_args"])
         for key in _URL_OPTIONS.get(name, ()):
@@ -142,6 +155,51 @@ def prepare_web_scanner_options(
                 )
         cleaned[name] = kept
     return cleaned
+
+
+def _bad_value(scanner: str, option: object) -> ScannerOptionsError:
+    return ScannerOptionsError(f"{scanner}.{option} is not a valid value")
+
+
+def _check_value(scanner: str, option: object, value: object) -> None:
+    kind = _VALUE_KINDS.get(str(option))
+    if kind == _NUMBER:
+        _check_number(scanner, option, value)
+    elif kind == _BOOL and isinstance(value, bool):
+        return
+    elif kind in {_TEXT, _STRINGS} and isinstance(value, str):
+        _check_text(scanner, option, value)
+    elif kind in {_LIST, _STRINGS}:
+        _check_list(scanner, option, value)
+    else:
+        raise _bad_value(scanner, option)
+
+
+def _check_number(scanner: str, option: object, value: object) -> None:
+    if (
+        isinstance(value, bool)
+        or not isinstance(value, int | float)
+        or not math.isfinite(value)
+        or not _NUMBER_MIN <= value <= _NUMBER_MAX
+    ):
+        raise _bad_value(scanner, option)
+
+
+def _check_text(scanner: str, option: object, value: object) -> None:
+    if not isinstance(value, str) or len(value) > _TEXT_MAX_CHARS:
+        raise _bad_value(scanner, option)
+
+
+def _check_list(scanner: str, option: object, value: object) -> None:
+    if (
+        not isinstance(value, list)
+        or len(value) > _LIST_MAX_ITEMS
+        or any(
+            not isinstance(item, str) or len(item) > _LIST_ITEM_MAX_CHARS
+            for item in value
+        )
+    ):
+        raise _bad_value(scanner, option)
 
 
 def _check_extra_args(scanner: str, args: object) -> None:

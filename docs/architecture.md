@@ -188,7 +188,7 @@ Per-scanner options per template:
 - **Nmap**: `ports`, `script_categories`, `timeout`
 - See `src/haris/models/scan_config_template.py` for the full option set.
 
-Web template saves and web scan starts check `scanner_options`. An unknown key or scanner name returns HTTP 422. URL-valued options go through the SSRF vet. Web `extra_args` reject `-fr` and `-followredirects`. The keys `active` and `authorised` are dropped. The CLI passes scanner options through unchanged.
+Web template saves and web scan starts check `scanner_options`. An unknown key or scanner name returns HTTP 422. Values must be a bool, a bounded number, or a bounded string or list of strings. URL-valued options go through the SSRF vet. Web `extra_args` reject `-fr` and `-followredirects`. The keys `active` and `authorised` are dropped. Web `dns_checks` accepts only `dns_timeout`. The CLI passes scanner options through unchanged.
 
 **API**: `GET/POST /api/v1/scan-templates`, `GET/PUT/DELETE /api/v1/scan-templates/{id}`, `POST /api/v1/scan-templates/{id}/set-default`
 **Web UI**: `/templates` → *Scan Configurations* tab — create, edit, clone, delete, set default.

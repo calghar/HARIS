@@ -37,6 +37,13 @@ def _client_ip(request: Request) -> str:
     return request.client.host if request.client else ""
 
 
+def _send_verification(request: Request, email: str, token: str) -> None:
+    base = emailed_link_base(request)
+    if base is None:
+        return
+    get_email_sender().send_verification_email(email, token, base)
+
+
 def _login_page(request: Request, status_code: int = 200, **context: Any) -> Response:
     return templates.TemplateResponse(
         request,
@@ -242,9 +249,7 @@ async def register_submit(
         )
     )
     token = auth_service.create_email_verification_token(user.user_id, "registration")
-    get_email_sender().send_verification_email(
-        user.email, token, emailed_link_base(request)
-    )
+    _send_verification(request, user.email, token)
     return page(
         success=(
             "Registration successful! Please check your email to verify your account."
@@ -297,9 +302,7 @@ async def resend_verification(
         token = auth_service.create_email_verification_token(
             user.user_id, "registration"
         )
-        get_email_sender().send_verification_email(
-            user.email, token, emailed_link_base(request)
-        )
+        _send_verification(request, user.email, token)
     return _login_page(
         request,
         success="If your account exists and is unverified, a new link has been sent.",

@@ -93,6 +93,7 @@ def test_h1_admin_disabled_user_cannot_reactivate_by_verification(
 def test_m1_public_url_is_the_only_base_for_emailed_links(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
 ) -> None:
+    monkeypatch.delenv("HARIS_SMTP_ENABLED", raising=False)
     monkeypatch.setenv("HARIS_PUBLIC_URL", "https://haris.example")
     env = WebEnv(tmp_path)
     user = env.state.auth.create_user(
@@ -117,6 +118,7 @@ def test_m1_unset_public_url_keeps_the_request_base(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
 ) -> None:
     monkeypatch.delenv("HARIS_PUBLIC_URL", raising=False)
+    monkeypatch.setenv("HARIS_SMTP_ENABLED", "false")
     env = WebEnv(tmp_path)
     user = env.state.auth.create_user("new@example.com", PASSWORD, is_active=False)
     anon = env.anonymous()
@@ -128,6 +130,55 @@ def test_m1_unset_public_url_keeps_the_request_base(
         )
     logged = " ".join(record.message for record in caplog.records)
     assert "http://testserver/auth/verify-email?token=" in logged
+
+
+def test_m1_smtp_without_public_url_does_not_send(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    monkeypatch.delenv("HARIS_PUBLIC_URL", raising=False)
+    monkeypatch.setenv("HARIS_SMTP_ENABLED", "true")
+    monkeypatch.setenv("HARIS_SMTP_HOST", "127.0.0.1")
+    monkeypatch.setenv("HARIS_SMTP_PORT", "9")
+    monkeypatch.setenv("HARIS_SMTP_USE_TLS", "false")
+    env = WebEnv(tmp_path)
+    user = env.state.auth.create_user(
+        "new@techforpalestine.org", PASSWORD, is_active=False
+    )
+    anon = env.anonymous()
+    csrf = _csrf(anon)
+    with caplog.at_level(logging.INFO):
+        resent = anon.post(
+            "/auth/resend-verification",
+            data={"email": user.email, "csrf_token": csrf},
+            headers={"host": "evil.test"},
+        )
+        unknown = anon.post(
+            "/auth/resend-verification",
+            data={"email": "nobody@example.com", "csrf_token": csrf},
+            headers={"host": "evil.test"},
+        )
+        registered = anon.post(
+            "/auth/register",
+            data={
+                "email": "ada@techforpalestine.org",
+                "password": PASSWORD,
+                "display_name": "Ada",
+                "csrf_token": csrf,
+            },
+            headers={"host": "evil.test"},
+        )
+    assert resent.status_code == 200
+    assert unknown.status_code == 200
+    assert registered.status_code == 200
+    assert SUCCESS in resent.text
+    assert SUCCESS in unknown.text
+    assert "Registration successful!" in registered.text
+    assert "HARIS_PUBLIC_URL" not in resent.text
+    assert "HARIS_PUBLIC_URL" not in registered.text
+    logged = " ".join(record.message for record in caplog.records)
+    assert "HARIS_PUBLIC_URL" in logged
+    assert "verify-email" not in logged
+    assert "evil.test" not in logged
 
 
 def test_m1_allowed_hosts_rejects_unknown_host(

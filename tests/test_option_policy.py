@@ -118,6 +118,37 @@ def test_h3_web_rejects_redirect_flags_and_strips_gate_flags() -> None:
     assert cleaned == {"ai_security": {"max_prompts": 3}}
 
 
+def test_h1_web_cannot_choose_a_dns_server() -> None:
+    blocked = {"dns_checks": {"nameservers": ["169.254.169.254"], "dns_port": 53}}
+    with pytest.raises(ScannerOptionsError):
+        prepare_web_scanner_options(blocked, allow_private=False)
+    assert prepare_web_scanner_options(
+        {"dns_checks": {"dns_timeout": 3.0}}, allow_private=False
+    ) == {"dns_checks": {"dns_timeout": 3.0}}
+
+
+@pytest.mark.parametrize(
+    "options",
+    [
+        {"nuclei": {"timeout": {"not": "a number"}}},
+        {"nuclei": {"timeout": True}},
+        {"dns_checks": {"dns_timeout": 10**12}},
+    ],
+)
+def test_l2_rejects_mistyped_or_unbounded_values(options: dict[str, dict]) -> None:
+    with pytest.raises(ScannerOptionsError):
+        prepare_web_scanner_options(options, allow_private=False)
+
+
+def test_l2_every_web_option_has_a_value_kind() -> None:
+    from haris.scanners.option_policy import _OPTION_KEYS, _VALUE_KINDS
+
+    missing = sorted(
+        {key for keys in _OPTION_KEYS.values() for key in keys} - _VALUE_KINDS.keys()
+    )
+    assert missing == []
+
+
 def test_h3_cli_loopback_wapiti_endpoint_passes() -> None:
     scanner = WapitiScanner(
         options={"external_endpoint": LOOPBACK, "internal_endpoint": LOOPBACK}

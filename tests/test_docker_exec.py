@@ -33,8 +33,16 @@ class _Proc:
         return self.returncode
 
 
+def _kill_script(argv: list[str]) -> str:
+    return argv[argv.index("-c") + 1]
+
+
 def _run(
-    monkeypatch: pytest.MonkeyPatch, stdout: bytes, *, close_stdout: bool
+    monkeypatch: pytest.MonkeyPatch,
+    stdout: bytes,
+    *,
+    close_stdout: bool,
+    kill_status: int | BaseException = 0,
 ) -> tuple[DockerRuntime, list[_Proc], list[list[str]], list[int]]:
     out_read, out_write = os.pipe()
     err_read, err_write = os.pipe()
@@ -58,7 +66,9 @@ def _run(
 
     def run(argv: list[str], **_kwargs: object) -> subprocess.CompletedProcess[bytes]:
         runs.append(list(argv))
-        return subprocess.CompletedProcess(argv, 0)
+        if isinstance(kill_status, BaseException):
+            raise kill_status
+        return subprocess.CompletedProcess(argv, kill_status)
 
     monkeypatch.setattr("haris.agent.docker_runtime.subprocess.Popen", popen)
     monkeypatch.setattr("haris.agent.docker_runtime.subprocess.run", run)
@@ -92,8 +102,12 @@ def test_m5_exec_caps_output_and_kills_the_inner_process(
     assert result.ok is False
     assert len(result.text.encode()) <= 8
     assert procs[0].killed is True
-    assert runs and runs[0][-1] == "42"
-    assert "kill" in runs[0][6]
+    assert runtime.unusable is False
+    script = _kill_script(runs[0])
+    assert "os.listdir('/proc')" in script
+    assert "os.kill" in script
+    assert "--user" in runs[0]
+    assert "42" not in runs[0]
 
 
 def test_m5_exec_timeout_kills_the_inner_process(
@@ -108,5 +122,28 @@ def test_m5_exec_timeout_kills_the_inner_process(
         for fd in writes:
             os.close(fd)
     assert procs[0].killed is True
-    assert runs and runs[0][-1] == "7"
-    assert "kill" in runs[0][6]
+    assert runtime.unusable is False
+    assert "os.listdir('/proc')" in _kill_script(runs[0])
+    assert "7" not in runs[0]
+
+
+@pytest.mark.parametrize(
+    "kill_status",
+    [1, subprocess.TimeoutExpired(["docker", "exec"], 1)],
+)
+def test_l1_cleanup_failure_marks_the_sandbox_unusable(
+    monkeypatch: pytest.MonkeyPatch, kill_status: int | BaseException
+) -> None:
+    monkeypatch.setattr("haris.agent.docker_runtime.EXEC_OUTPUT_CAP_BYTES", 8)
+    runtime, procs, runs, _writes = _run(
+        monkeypatch, b"42\n" + b"x" * 40, close_stdout=True, kill_status=kill_status
+    )
+    with pytest.raises(RuntimeError, match="unusable"):
+        runtime.exec(USER_ARGV)
+    assert runtime.unusable is True
+    assert procs[0].killed is True
+    assert "os.listdir('/proc')" in _kill_script(runs[0])
+    with pytest.raises(RuntimeError, match="unusable"):
+        runtime.exec(USER_ARGV)
+    assert len(procs) == 1
+    assert len(runs) == 1

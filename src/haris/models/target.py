@@ -10,7 +10,7 @@ _QUANTIFIER = re.compile(r"\d*(,\d*)?")
 
 
 def check_excluded_paths(patterns: object) -> None:
-    """Compile every pattern now; reject long, invalid, or nested-quantifier ones."""
+    """Compile every pattern; reject long, invalid, or catastrophic ones."""
     if not isinstance(patterns, list):
         raise ValueError("excluded_paths must be a list of strings")
     for pattern in patterns:
@@ -22,7 +22,8 @@ def check_excluded_paths(patterns: object) -> None:
             )
         if _has_nested_quantifier(pattern):
             raise ValueError(
-                f"excluded path pattern has nested quantifiers ({pattern})"
+                "excluded path pattern has nested quantifiers or quantified "
+                f"alternation ({pattern})"
             )
         try:
             re.compile(pattern)
@@ -33,8 +34,8 @@ def check_excluded_paths(patterns: object) -> None:
 
 
 def _has_nested_quantifier(pattern: str) -> bool:
-    """A group that contains a quantifier is itself quantified, as in (a+)+."""
-    contains: list[bool] = []
+    """True when a quantifier applies to a group with alternation or a quantifier."""
+    frames: list[list[bool]] = []
     index = 0
     size = len(pattern)
     while index < size:
@@ -46,25 +47,37 @@ def _has_nested_quantifier(pattern: str) -> bool:
             index = _skip_class(pattern, index) + 1
             continue
         if char == "(":
-            contains.append(False)
-        elif char == ")" and contains:
-            inner = contains.pop()
-            if inner and contains:
-                contains[-1] = True
-            nxt = pattern[index + 1] if index + 1 < size else ""
-            if inner and nxt in {"+", "*", "{"}:
+            frames.append([False, False])
+            if index + 1 < size and pattern[index + 1] == "?":
+                index += 1
+        elif char == ")" and frames:
+            alt, inner = frames.pop()
+            if frames:
+                frames[-1][0] |= alt
+                frames[-1][1] |= inner
+            if (alt or inner) and _quantifier_at(pattern, index + 1):
                 return True
-        elif char in "+*":
-            if contains:
-                contains[-1] = True
+        elif char == "|" and frames:
+            frames[-1][0] = True
+        elif char in "+*?" and frames:
+            frames[-1][1] = True
         elif char == "{":
             end = _quantifier_end(pattern, index)
             if end is not None:
-                if contains:
-                    contains[-1] = True
+                if frames:
+                    frames[-1][1] = True
                 index = end
         index += 1
     return False
+
+
+def _quantifier_at(pattern: str, index: int) -> bool:
+    if index >= len(pattern):
+        return False
+    char = pattern[index]
+    if char in "+*?":
+        return True
+    return char == "{" and _quantifier_end(pattern, index) is not None
 
 
 def _quantifier_end(pattern: str, start: int) -> int | None:
