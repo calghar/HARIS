@@ -99,6 +99,7 @@ classes:
     oracle: header_presence
     aliases:
       builtin: ["Missing .* header"]
+      nikto: ["Suggested security header missing", "The X-Content-Type-Options header is not set"]
       zap: ["^10020$", "^10021$", "^10035$", "^10038$"]
 
   - id: insecure_cookie
@@ -115,7 +116,15 @@ classes:
     aliases:
       builtin: ["Accessible sensitive path: .*", "Exposed debug endpoint: .*"]
       wapiti: ["Backup file"]
-      nuclei: ["^prometheus-metrics-detect$", "^phpinfo-page-detect$"]
+      nikto:
+        - "contains \\d+ entr(y|ies) which should be manually viewed"
+        - "PHP is installed, and a test script which runs phpinfo"
+        - ".*Output from the phpinfo\\(\\) function"
+      nuclei:
+        - "^prometheus-metrics$"
+        - "^phpinfo-files$"
+        - "^springboot-env$"
+        - "^gocd-encryption-key$"
 
   - id: tls_weak_protocol
     primary_cwe: CWE-326
@@ -135,6 +144,8 @@ classes:
   - id: banner_disclosure
     primary_cwe: CWE-200
     granularity: host
+    aliases:
+      nikto: ["Retrieved (x-powered-by|server) header", "PHP Easter Eggs reveals"]
 
   - id: cookie_missing_secure
     primary_cwe: CWE-614
@@ -193,6 +204,8 @@ classes:
   - id: cors_misconfiguration
     primary_cwe: CWE-942
     granularity: host
+    aliases:
+      nikto: ["Retrieved access-control-allow-origin header: \\*"]
 
   - id: http_methods
     primary_cwe: CWE-749

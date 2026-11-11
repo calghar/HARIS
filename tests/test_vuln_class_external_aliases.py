@@ -2,6 +2,7 @@ import pytest
 
 from haris.core.vuln_class import get_registry
 from haris.models import Finding, Severity
+from haris.verify.oracles import header_name
 
 CLEARTEXT_TITLE = (
     "Cleartext submission of password: Password field 'password' "
@@ -23,14 +24,98 @@ CLEARTEXT_TITLE = (
             "nuclei",
             "PHPinfo Page - Detect",
             ["security_misconfiguration", "sensitive_data_exposure"],
-            "phpinfo-page-detect",
+            "phpinfo-files",
             "sensitive_file",
         ),
         (
             "nuclei",
             "Prometheus Metrics - Detect",
-            ["sensitive_data_exposure", "security_misconfiguration"],
-            "prometheus-metrics-detect",
+            ["security_misconfiguration", "sensitive_data_exposure"],
+            "prometheus-metrics",
+            "sensitive_file",
+        ),
+        (
+            "nuclei",
+            "Springboot Env Actuator - Detect",
+            ["security_misconfiguration", "sensitive_data_exposure"],
+            "springboot-env",
+            "sensitive_file",
+        ),
+        (
+            "nuclei",
+            "GoCd Encryption Key",
+            ["security_misconfiguration", "sensitive_data_exposure"],
+            "gocd-encryption-key",
+            "sensitive_file",
+        ),
+        (
+            "nuclei",
+            "Tomcat Stack Traces Enabled",
+            ["security_misconfiguration"],
+            "tomcat-stacktraces",
+            "unclassified:nuclei:tomcat-stack-traces-enabled",
+        ),
+        (
+            "nikto",
+            "Suggested security header missing: content-security-policy.",
+            ["security_misconfiguration"],
+            "",
+            "missing_header",
+        ),
+        (
+            "nikto",
+            "The X-Content-Type-Options header is not set. This could allow it.",
+            ["security_misconfiguration"],
+            "",
+            "missing_header",
+        ),
+        (
+            "nikto",
+            "Retrieved x-powered-by header: PHP/8.5.11.",
+            ["outdated_server"],
+            "",
+            "banner_disclosure",
+        ),
+        (
+            "nikto",
+            "PHP Easter Eggs reveals potentially sensitive information via HTTP.",
+            ["security_misconfiguration"],
+            "",
+            "banner_disclosure",
+        ),
+        (
+            "nikto",
+            "Retrieved access-control-allow-origin header: *.",
+            ["security_misconfiguration"],
+            "",
+            "cors_misconfiguration",
+        ),
+        (
+            "nikto",
+            "contains 1 entry which should be manually viewed.",
+            ["security_misconfiguration"],
+            "",
+            "sensitive_file",
+        ),
+        (
+            "nikto",
+            "contains 3 entries which should be manually viewed.",
+            ["security_misconfiguration"],
+            "",
+            "sensitive_file",
+        ),
+        (
+            "nikto",
+            "/phpinfo.php: Output from the phpinfo() function was found.",
+            ["security_misconfiguration", "outdated_component"],
+            "",
+            "sensitive_file",
+        ),
+        (
+            "nikto",
+            "PHP is installed, and a test script which runs phpinfo() was found.",
+            ["security_misconfiguration", "outdated_component"],
+            "",
             "sensitive_file",
         ),
         (
@@ -69,3 +154,25 @@ def test_cleartext_password_submission_has_no_oracle() -> None:
         "parameter",
         "none",
     )
+
+
+@pytest.mark.parametrize(
+    ("title", "header"),
+    [
+        ("Missing X-Frame-Options header", "X-Frame-Options"),
+        (
+            "Suggested security header missing: content-security-policy.",
+            "content-security-policy",
+        ),
+        (
+            "The X-Content-Type-Options header is not set. This could allow it.",
+            "X-Content-Type-Options",
+        ),
+        ("Retrieved x-powered-by header: PHP/8.5.11.", ""),
+    ],
+)
+def test_header_oracle_reads_the_header_from_scanner_titles(
+    title: str, header: str
+) -> None:
+    finding = Finding(title=title, description=title, severity=Severity.INFO)
+    assert header_name(finding) == header

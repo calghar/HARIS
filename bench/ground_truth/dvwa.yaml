@@ -14,11 +14,11 @@ entries:
     method: GET
     url: /vulnerabilities/sqli_blind
     parameter: id
-    vuln_class: sqli_time
+    vuln_class: sqli_error
     cwe: CWE-89
     expected: true_positive
     source: https://github.com/digininja/DVWA
-    notes: Wapiti reports "Blind SQL Injection", which maps to sqli_time.
+    notes: Wapiti 3.3 reports this blind injection as plain "SQL Injection", which maps to sqli_error.
   - id: dvwa-xss-reflected
     method: GET
     url: /vulnerabilities/xss_r
@@ -169,3 +169,9 @@ ignore:
   - vuln_class: unclassified:nuclei:php2shell-cve-2026-109618-cve-2026-109619-active-crash-detection-cve-2026-109618
     url: /
     reason: Version match only (PHP 8.5.11 is below the NVD fixed version 8.5.12); no crash or code execution was shown.
+  - vuln_class: unclassified:nikto:admin-login-page-section-found
+    url: /login.php
+    reason: Info-level discovery record of the login form, not a weakness.
+  - vuln_class: unclassified:nikto:web-server-returns-a-valid-response-with-junk-http-methods-which-may-cause-false-positives
+    url: /
+    reason: Apache treats an unknown method as GET; nikto flags its own possible false positive.

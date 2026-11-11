@@ -119,6 +119,9 @@
 - Fixed a web scan that requests the agent failing silently when Docker or the sandbox image is missing; the scan is accepted without that stage and records `[agent] skipped: docker unavailable` at submit and again at run time
 - Fixed unclassified external findings on a catch-all host, such as nikto `/.psql_history`, staying active; replay now refutes a non-root GET when it matches the soft-404 control
 - Fixed nikto being killed at the scanner timeout with 0 findings; it now runs with `-maxtime` 60 s below the timeout and writes its report (an `extra_args` `-maxtime` takes precedence)
+- Fixed the Nuclei `sensitive_file` aliases to use the real template ids (`prometheus-metrics`, `phpinfo-files`), which the earlier names never matched; added `springboot-env` and `gocd-encryption-key`
+- Fixed nikto missing-header, banner, CORS, robots.txt and phpinfo records reporting as unclassified; they now map to `missing_header`, `banner_disclosure`, `cors_misconfiguration` and `sensitive_file`, and replay checks the header named in a nikto title
+- Fixed the DVWA, Juice Shop and WebGoat ground truth: blind SQL injection is `sqli_error`, WebGoat gains a stack-trace entry, and four nikto notes are ignored
 
 ### Changed
 
