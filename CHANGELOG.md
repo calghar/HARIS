@@ -145,6 +145,7 @@
 - Changed built-in findings to carry a confidence score from `confidence.yaml` (`<check>.<kind>`); a passed validator raises it
 - Changed `robots.txt`, `sitemap.xml` and `security.txt` findings to INFO and moved the API-document paths from `info_disclosure` to `openapi_checks`
 - Changed the agent proxy and PoC re-execution to forward `POST` only with `--agent-allow-unsafe-methods`, to the finding's own URL, for a finding observed on `POST`; `PUT`, `PATCH` and `DELETE` stay rejected
+- Changed `haris bench score` to compute precision over active findings, count refuted findings and per-tier findings, and add `verified_precision`
 
 ### Added
 

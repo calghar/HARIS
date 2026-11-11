@@ -196,6 +196,53 @@ class TestScoreRun:
         )
 
 
+def tiered(base: dict[str, Any], tier: str) -> dict[str, Any]:
+    return {**base, "verification": {"tier": tier}}
+
+
+class TestVerificationTiers:
+    def test_refuted_findings_leave_precision_but_stay_in_recall(self) -> None:
+        findings = [
+            tiered(TP["sqli"], "refuted"),
+            tiered(TP["xss"], "unverified"),
+            tiered(FP[0], "refuted"),
+            FP[1],
+        ]
+        score = score_run(report(findings), TRUTH)
+        assert (score.findings, score.refuted, score.refuted_true_positives) == (
+            4,
+            2,
+            1,
+        )
+        assert (score.true_positives, score.false_positives) == (1, 1)
+        assert score.precision == 0.5
+        assert (score.false_negatives, score.recall) == (2, 0.5)
+
+    def test_verified_precision_covers_only_verified_findings(self) -> None:
+        findings = [
+            tiered(TP["sqli"], "replay_verified"),
+            tiered(FP[0], "exploit_validated"),
+            tiered(TP["xss"], "unverified"),
+        ]
+        score = score_run(report(findings), TRUTH)
+        assert (score.verified, score.unverified) == (2, 1)
+        assert score.verified_precision == 0.5
+
+    def test_verified_precision_is_undefined_without_verified_findings(self) -> None:
+        score = score_run(report([TP["sqli"], tiered(FP[0], "refuted")]), TRUTH)
+        assert (score.verified, score.verified_precision) == (0, None)
+
+    def test_a_key_takes_its_strongest_non_refuted_tier(self) -> None:
+        findings = [
+            tiered(TP["sqli"], "refuted"),
+            tiered(TP["sqli"], "replay_verified"),
+            tiered(FP[0], "refuted"),
+            tiered(FP[0], "unverified"),
+        ]
+        score = score_run(report(findings), TRUTH)
+        assert (score.refuted, score.verified, score.unverified) == (0, 1, 1)
+
+
 class TestScoreRuns:
     def test_mean_and_sample_stddev_across_runs(self) -> None:
         reports = [

@@ -34,7 +34,10 @@ python -m haris.bench score <report.json | reports-dir> <ground_truth.yaml> [--b
 
 - A finding matches an entry when the class token (the finding's `vuln_class`, else its `cwe_id`), the normalised URL path and the parameter all match. Scheme, host, query and trailing slash are ignored. The method is recorded but not matched.
 - A finding that matches an `ignore` entry is excluded from precision and recall and counted as ignored (`ignored` in `score.json`, the Ignored column in `score.md`). Ignore is checked before truth entries.
-- Findings with the same key count once. Precision is true-positive findings over unique findings; recall is matched entries over entries. True-positive rate equals recall (DASTestBed naming).
+- Findings with the same key count once. A key takes the strongest non-refuted verification tier of its findings, and is `refuted` only when every finding is refuted.
+- Precision is true-positive keys over active (non-refuted) keys. Refuted keys are counted in the Refuted column; `refuted_true_positives` in `score.json` counts refuted keys that match an entry, so a wrongly refuted weakness stays visible.
+- `verified_precision` is precision over keys at `replay_verified` or `exploit_validated`; it is `n/a` when a run has none. The Unverified and Verified columns count active keys by tier.
+- Recall is matched entries over entries and counts refuted keys as found, so it measures candidate-tier coverage. True-positive rate equals recall (DASTestBed naming).
 - With no findings, precision is 1.0; with no entries, recall is 1.0. Read false positives next to these values.
 - F1 is the harmonic mean of precision and recall.
 - False-positive reduction rate is `(baseline_fp - fp) / baseline_fp`, where `baseline_fp` is the mean over the baseline runs; undefined when the baseline has none.

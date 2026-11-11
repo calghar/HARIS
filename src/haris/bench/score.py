@@ -5,10 +5,12 @@ from typing import Any
 
 from pydantic import BaseModel
 
+from ..models import VerificationTier
 from .truth import GroundTruth, normalise_cwe, normalise_path
 
 METRICS = (
     "precision",
+    "verified_precision",
     "recall",
     "f1",
     "true_positive_rate",
@@ -23,10 +25,15 @@ class RunScore(BaseModel):
     source: str = ""
     findings: int
     ignored: int = 0
+    refuted: int = 0
+    refuted_true_positives: int = 0
+    unverified: int = 0
+    verified: int = 0
     true_positives: int
     false_positives: int
     false_negatives: int
     precision: float
+    verified_precision: float | None = None
     recall: float
     f1: float
     true_positive_rate: float
@@ -59,8 +66,28 @@ def finding_key(finding: dict[str, Any]) -> tuple[str, str, str]:
     )
 
 
-def unique_finding_keys(report: dict[str, Any]) -> set[tuple[str, str, str]]:
-    return {finding_key(finding) for finding in report.get("findings", [])}
+type Key = tuple[str, str, str]
+
+
+def _strength(tier: VerificationTier) -> int:
+    return -1 if tier is VerificationTier.REFUTED else tier.rank
+
+
+def key_tiers(report: dict[str, Any]) -> dict[Key, VerificationTier]:
+    """Tier per finding key: the strongest non-refuted tier, else refuted."""
+    tiers: dict[Key, VerificationTier] = {}
+    for finding in report.get("findings", []):
+        tier = VerificationTier(
+            (finding.get("verification") or {}).get("tier", VerificationTier.UNVERIFIED)
+        )
+        key = finding_key(finding)
+        if key not in tiers or _strength(tier) > _strength(tiers[key]):
+            tiers[key] = tier
+    return tiers
+
+
+def unique_finding_keys(report: dict[str, Any]) -> set[Key]:
+    return set(key_tiers(report))
 
 
 def _ratio(numerator: int, denominator: int, empty: float) -> float:
@@ -79,21 +106,27 @@ def score_run(
     source: str = "",
     baseline_fp: float | None = None,
 ) -> RunScore:
-    """Precision is 1.0 with no findings and recall 1.0 with no truth (vacuous).
+    """Precision covers active (non-refuted) findings; recall covers all of them.
 
-    Findings matching a truth `ignore` entry are excluded before scoring.
+    Precision is 1.0 with no active findings and recall 1.0 with no truth (vacuous);
+    `verified_precision` is None with no verified findings. Findings matching a
+    truth `ignore` entry are excluded before scoring.
     """
-    all_keys = unique_finding_keys(report)
-    keys = {k for k in all_keys if not any(i.matches(*k) for i in truth.ignore)}
+    tiers = key_tiers(report)
+    keys = {k for k in tiers if not any(i.matches(*k) for i in truth.ignore)}
     matched_entries: set[str] = set()
-    true_positives = 0
+    is_true = {k: False for k in keys}
     for key in keys:
         hits = [entry.id for entry in truth.entries if entry.matches(*key)]
         matched_entries.update(hits)
-        true_positives += bool(hits)
-    false_positives = len(keys) - true_positives
+        is_true[key] = bool(hits)
+    refuted = {k for k in keys if tiers[k] is VerificationTier.REFUTED}
+    active = keys - refuted
+    verified = {k for k in active if tiers[k] is not VerificationTier.UNVERIFIED}
+    true_positives = sum(is_true[k] for k in active)
+    false_positives = len(active) - true_positives
     false_negatives = len(truth.entries) - len(matched_entries)
-    precision = _ratio(true_positives, len(keys), 1.0)
+    precision = _ratio(true_positives, len(active), 1.0)
     recall = _ratio(len(matched_entries), len(truth.entries), 1.0)
     f1 = 2 * precision * recall / (precision + recall) if precision + recall else 0.0
     meta = report.get("meta", {})
@@ -103,11 +136,18 @@ def score_run(
     return RunScore(
         source=source,
         findings=len(keys),
-        ignored=len(all_keys) - len(keys),
+        ignored=len(tiers) - len(keys),
+        refuted=len(refuted),
+        refuted_true_positives=sum(is_true[k] for k in refuted),
+        unverified=len(active) - len(verified),
+        verified=len(verified),
         true_positives=true_positives,
         false_positives=false_positives,
         false_negatives=false_negatives,
         precision=precision,
+        verified_precision=(
+            sum(is_true[k] for k in verified) / len(verified) if verified else None
+        ),
         recall=recall,
         f1=f1,
         true_positive_rate=recall,
