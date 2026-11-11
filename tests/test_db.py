@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from src.db.store import ScanStore
-from src.models import (
+from haris.db.store import ScanStore
+from haris.models import (
     Confidence,
     Effort,
     Finding,
@@ -234,7 +234,7 @@ class TestScanStore:
         assert len(sessions) == 3
 
     def test_enrichment_roundtrip(self, tmp_path):
-        from src.models.enrichment import (
+        from haris.models.enrichment import (
             AttackChain,
             EnrichedFinding,
             TriagedFinding,

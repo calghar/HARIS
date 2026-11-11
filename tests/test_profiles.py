@@ -1,6 +1,6 @@
 import pytest
 
-from src.core.profiles import PROFILES, get_profile, list_profiles
+from haris.core.profiles import PROFILES, get_profile, list_profiles
 
 
 class TestProfiles:

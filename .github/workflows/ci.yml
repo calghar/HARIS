@@ -5,21 +5,30 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
+  workflow_dispatch:
+    inputs:
+      cov-fail-under:
+        description: pytest-cov fail-under threshold
+        required: false
+        default: "70"
+
+permissions:
+  contents: read
 
 jobs:
   lint:
     name: Lint
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
 
-      - uses: astral-sh/setup-uv@v7
+      - uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7.6.0
         with:
           enable-cache: true
           python-version: "3.13"
 
       - name: Install dev dependencies
-        run: uv sync --extra dev
+        run: uv sync
 
       - name: Ruff lint
         run: uv run ruff check src/ tests/
@@ -30,51 +39,57 @@ jobs:
   typecheck:
     name: Type check
     runs-on: ubuntu-latest
-    continue-on-error: true
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
 
-      - uses: astral-sh/setup-uv@v7
+      - uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7.6.0
         with:
           enable-cache: true
           python-version: "3.13"
 
       - name: Install dependencies
-        run: uv sync --extra dev --extra web --extra reporting --extra llm-anthropic --extra llm-openai
+        run: uv sync --extra web --extra reporting
 
       - name: Mypy
-        run: uv run mypy src/ tests/ --ignore-missing-imports
+        run: uv run mypy src/ tests/
 
   test:
     name: Tests
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false # a 3.14-only failure still reports the 3.13 result
+      matrix:
+        python-version: ["3.13", "3.14"]
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
 
-      - uses: astral-sh/setup-uv@v7
+      - uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7.6.0
         with:
           enable-cache: true
-          python-version: "3.13"
+          python-version: ${{ matrix.python-version }}
 
       - name: Install dependencies
-        # Excludes scanner extras (sslyze/wapiti3) — scanners are mocked in tests
-        run: uv sync --extra dev --extra web --extra reporting --extra llm-anthropic --extra llm-openai
+        # Excludes the scanners extra (sslyze/wapiti3) — scanners are mocked in tests
+        run: uv sync --extra web --extra reporting
 
       - name: Run tests
-        run: uv run pytest tests/ -v --tb=short --cov=src --cov-report=xml --cov-report=term-missing
+        env:
+          COV_FAIL_UNDER: ${{ inputs.cov-fail-under || '70' }}
+        run: uv run pytest tests/ -m "not docker" --cov=haris --cov-report=xml --cov-report=term-missing --cov-fail-under="$COV_FAIL_UNDER"
 
       - name: Upload coverage
-        uses: codecov/codecov-action@v6
+        uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f # v6.0.2
         if: always()
         with:
           files: ./coverage.xml
+          flags: python-${{ matrix.python-version }}
           fail_ci_if_error: false
 
   docker-build:
     name: Docker build
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
 
       - name: Build Docker image
         run: docker build -t haris:ci-test .
@@ -82,4 +97,25 @@ jobs:
       - name: Verify web app imports
         run: |
           docker run --rm --entrypoint="" haris:ci-test \
-            python -c "from src.web.app import app; print('OK')"
+            python -c "from haris.web.app import app; print('OK')"
+
+  actionlint:
+    name: actionlint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+
+      - name: Install actionlint
+        env:
+          ACTIONLINT_VERSION: "1.7.12"
+          ACTIONLINT_SHA256: "8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8"
+        run: |
+          set -euo pipefail
+          curl -sSfL -o /tmp/actionlint.tar.gz \
+            "https://github.com/rhysd/actionlint/releases/download/v${ACTIONLINT_VERSION}/actionlint_${ACTIONLINT_VERSION}_linux_amd64.tar.gz"
+          echo "${ACTIONLINT_SHA256}  /tmp/actionlint.tar.gz" | sha256sum -c -
+          tar -xzf /tmp/actionlint.tar.gz -C /tmp actionlint
+          sudo install -m 0755 /tmp/actionlint /usr/local/bin/actionlint
+
+      - name: Lint workflows
+        run: actionlint

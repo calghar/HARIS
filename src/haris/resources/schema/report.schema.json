@@ -1,0 +1,670 @@
+{
+  "$defs": {
+    "CorrelatedRecord": {
+      "properties": {
+        "agent_annotation": {
+          "default": "",
+          "title": "Agent Annotation",
+          "type": "string"
+        },
+        "confidence": {
+          "title": "Confidence",
+          "type": "string"
+        },
+        "confidence_score": {
+          "default": 0.5,
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Confidence Score",
+          "type": "number"
+        },
+        "cwe_id": {
+          "default": "",
+          "title": "Cwe Id",
+          "type": "string"
+        },
+        "description": {
+          "title": "Description",
+          "type": "string"
+        },
+        "evidence": {
+          "default": "",
+          "title": "Evidence",
+          "type": "string"
+        },
+        "finding_id": {
+          "title": "Finding Id",
+          "type": "string"
+        },
+        "fingerprint": {
+          "default": "",
+          "title": "Fingerprint",
+          "type": "string"
+        },
+        "found_at": {
+          "default": "",
+          "title": "Found At",
+          "type": "string"
+        },
+        "method": {
+          "default": "GET",
+          "title": "Method",
+          "type": "string"
+        },
+        "observation_id": {
+          "default": "",
+          "title": "Observation Id",
+          "type": "string"
+        },
+        "owasp_category": {
+          "default": "",
+          "title": "Owasp Category",
+          "type": "string"
+        },
+        "parameter": {
+          "default": "",
+          "title": "Parameter",
+          "type": "string"
+        },
+        "references": {
+          "items": {
+            "type": "string"
+          },
+          "title": "References",
+          "type": "array"
+        },
+        "remediation": {
+          "default": "",
+          "title": "Remediation",
+          "type": "string"
+        },
+        "request_example": {
+          "default": "",
+          "title": "Request Example",
+          "type": "string"
+        },
+        "response_snippet": {
+          "default": "",
+          "title": "Response Snippet",
+          "type": "string"
+        },
+        "scanner": {
+          "default": "",
+          "title": "Scanner",
+          "type": "string"
+        },
+        "severity": {
+          "title": "Severity",
+          "type": "string"
+        },
+        "sources": {
+          "items": {
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "string"
+              }
+            ],
+            "type": "array"
+          },
+          "title": "Sources",
+          "type": "array"
+        },
+        "suppression": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Suppression"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "tags": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Tags",
+          "type": "array"
+        },
+        "title": {
+          "title": "Title",
+          "type": "string"
+        },
+        "url": {
+          "default": "",
+          "title": "Url",
+          "type": "string"
+        },
+        "verification": {
+          "$ref": "#/$defs/Verification"
+        },
+        "vuln_class": {
+          "default": "",
+          "title": "Vuln Class",
+          "type": "string"
+        }
+      },
+      "required": [
+        "finding_id",
+        "title",
+        "description",
+        "severity",
+        "confidence"
+      ],
+      "title": "CorrelatedRecord",
+      "type": "object"
+    },
+    "EvidenceExchange": {
+      "description": "One request/response pair; headers are already redacted.",
+      "properties": {
+        "elapsed_ms": {
+          "default": 0.0,
+          "title": "Elapsed Ms",
+          "type": "number"
+        },
+        "method": {
+          "default": "GET",
+          "title": "Method",
+          "type": "string"
+        },
+        "request_body_excerpt": {
+          "default": "",
+          "title": "Request Body Excerpt",
+          "type": "string"
+        },
+        "request_headers": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Request Headers",
+          "type": "object"
+        },
+        "request_id": {
+          "default": "",
+          "title": "Request Id",
+          "type": "string"
+        },
+        "response_body_excerpt": {
+          "default": "",
+          "maxLength": 8192,
+          "title": "Response Body Excerpt",
+          "type": "string"
+        },
+        "response_headers": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Response Headers",
+          "type": "object"
+        },
+        "role": {
+          "default": "probe",
+          "enum": [
+            "probe",
+            "control",
+            "baseline",
+            "poc"
+          ],
+          "title": "Role",
+          "type": "string"
+        },
+        "status": {
+          "default": 0,
+          "title": "Status",
+          "type": "integer"
+        },
+        "url": {
+          "default": "",
+          "title": "Url",
+          "type": "string"
+        }
+      },
+      "title": "EvidenceExchange",
+      "type": "object"
+    },
+    "FindingRecord": {
+      "description": "One finding as ``Finding.to_dict`` writes it; 0.7 keys are optional.",
+      "properties": {
+        "agent_annotation": {
+          "default": "",
+          "title": "Agent Annotation",
+          "type": "string"
+        },
+        "confidence": {
+          "title": "Confidence",
+          "type": "string"
+        },
+        "confidence_score": {
+          "default": 0.5,
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Confidence Score",
+          "type": "number"
+        },
+        "cwe_id": {
+          "default": "",
+          "title": "Cwe Id",
+          "type": "string"
+        },
+        "description": {
+          "title": "Description",
+          "type": "string"
+        },
+        "evidence": {
+          "default": "",
+          "title": "Evidence",
+          "type": "string"
+        },
+        "finding_id": {
+          "title": "Finding Id",
+          "type": "string"
+        },
+        "fingerprint": {
+          "default": "",
+          "title": "Fingerprint",
+          "type": "string"
+        },
+        "found_at": {
+          "default": "",
+          "title": "Found At",
+          "type": "string"
+        },
+        "method": {
+          "default": "GET",
+          "title": "Method",
+          "type": "string"
+        },
+        "observation_id": {
+          "default": "",
+          "title": "Observation Id",
+          "type": "string"
+        },
+        "owasp_category": {
+          "default": "",
+          "title": "Owasp Category",
+          "type": "string"
+        },
+        "parameter": {
+          "default": "",
+          "title": "Parameter",
+          "type": "string"
+        },
+        "references": {
+          "items": {
+            "type": "string"
+          },
+          "title": "References",
+          "type": "array"
+        },
+        "remediation": {
+          "default": "",
+          "title": "Remediation",
+          "type": "string"
+        },
+        "request_example": {
+          "default": "",
+          "title": "Request Example",
+          "type": "string"
+        },
+        "response_snippet": {
+          "default": "",
+          "title": "Response Snippet",
+          "type": "string"
+        },
+        "scanner": {
+          "default": "",
+          "title": "Scanner",
+          "type": "string"
+        },
+        "severity": {
+          "title": "Severity",
+          "type": "string"
+        },
+        "suppression": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Suppression"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "tags": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Tags",
+          "type": "array"
+        },
+        "title": {
+          "title": "Title",
+          "type": "string"
+        },
+        "url": {
+          "default": "",
+          "title": "Url",
+          "type": "string"
+        },
+        "verification": {
+          "$ref": "#/$defs/Verification"
+        },
+        "vuln_class": {
+          "default": "",
+          "title": "Vuln Class",
+          "type": "string"
+        }
+      },
+      "required": [
+        "finding_id",
+        "title",
+        "description",
+        "severity",
+        "confidence"
+      ],
+      "title": "FindingRecord",
+      "type": "object"
+    },
+    "LLMAssessment": {
+      "properties": {
+        "cited_spans": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Cited Spans",
+          "type": "array"
+        },
+        "confidence": {
+          "default": 0.0,
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Confidence",
+          "type": "number"
+        },
+        "model": {
+          "default": "",
+          "title": "Model",
+          "type": "string"
+        },
+        "rationale": {
+          "default": "",
+          "title": "Rationale",
+          "type": "string"
+        },
+        "status": {
+          "default": "ok",
+          "enum": [
+            "ok",
+            "abstained",
+            "invalid",
+            "skipped_budget"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "verdict": {
+          "default": "inconclusive",
+          "enum": [
+            "confirmed",
+            "likely_fp",
+            "inconclusive"
+          ],
+          "title": "Verdict",
+          "type": "string"
+        }
+      },
+      "title": "LLMAssessment",
+      "type": "object"
+    },
+    "RemediationRecord": {
+      "properties": {
+        "category": {
+          "default": "",
+          "title": "Category",
+          "type": "string"
+        },
+        "description": {
+          "title": "Description",
+          "type": "string"
+        },
+        "effort": {
+          "title": "Effort",
+          "type": "string"
+        },
+        "finding_count": {
+          "title": "Finding Count",
+          "type": "integer"
+        },
+        "impact": {
+          "title": "Impact",
+          "type": "string"
+        },
+        "title": {
+          "title": "Title",
+          "type": "string"
+        }
+      },
+      "required": [
+        "title",
+        "description",
+        "effort",
+        "impact",
+        "finding_count"
+      ],
+      "title": "RemediationRecord",
+      "type": "object"
+    },
+    "RiskRecord": {
+      "properties": {
+        "description": {
+          "default": "",
+          "title": "Description",
+          "type": "string"
+        },
+        "level": {
+          "title": "Level",
+          "type": "string"
+        }
+      },
+      "required": [
+        "level"
+      ],
+      "title": "RiskRecord",
+      "type": "object"
+    },
+    "Suppression": {
+      "properties": {
+        "author": {
+          "title": "Author",
+          "type": "string"
+        },
+        "expires": {
+          "title": "Expires",
+          "type": "string"
+        },
+        "reason": {
+          "title": "Reason",
+          "type": "string"
+        },
+        "source": {
+          "const": "ignore_file",
+          "default": "ignore_file",
+          "title": "Source",
+          "type": "string"
+        }
+      },
+      "required": [
+        "reason",
+        "author",
+        "expires"
+      ],
+      "title": "Suppression",
+      "type": "object"
+    },
+    "Verification": {
+      "description": "Verification state of a finding; the tier moves only via `advance`.",
+      "properties": {
+        "baseline_ref": {
+          "default": "",
+          "title": "Baseline Ref",
+          "type": "string"
+        },
+        "evidence": {
+          "items": {
+            "$ref": "#/$defs/EvidenceExchange"
+          },
+          "title": "Evidence",
+          "type": "array"
+        },
+        "llm": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/LLMAssessment"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "method": {
+          "$ref": "#/$defs/VerificationMethod",
+          "default": "none"
+        },
+        "oracle": {
+          "$ref": "#/$defs/VerificationOracle",
+          "default": "none"
+        },
+        "tier": {
+          "$ref": "#/$defs/VerificationTier",
+          "default": "unverified"
+        },
+        "timestamp": {
+          "default": "",
+          "title": "Timestamp",
+          "type": "string"
+        },
+        "verdict_source": {
+          "default": "deterministic",
+          "title": "Verdict Source",
+          "type": "string"
+        }
+      },
+      "title": "Verification",
+      "type": "object"
+    },
+    "VerificationMethod": {
+      "enum": [
+        "none",
+        "replay",
+        "agent"
+      ],
+      "title": "VerificationMethod",
+      "type": "string"
+    },
+    "VerificationOracle": {
+      "enum": [
+        "none",
+        "reflection",
+        "error_signature",
+        "timing",
+        "header_presence",
+        "content_validator",
+        "soft404",
+        "canary"
+      ],
+      "title": "VerificationOracle",
+      "type": "string"
+    },
+    "VerificationTier": {
+      "description": "How far a finding has been verified; never changes its fingerprint.",
+      "enum": [
+        "unverified",
+        "replay_verified",
+        "exploit_validated",
+        "refuted"
+      ],
+      "title": "VerificationTier",
+      "type": "string"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "The JSON report; a 0.6 report validates because 0.7 keys have defaults.",
+  "properties": {
+    "correlated": {
+      "items": {
+        "$ref": "#/$defs/CorrelatedRecord"
+      },
+      "title": "Correlated",
+      "type": "array"
+    },
+    "errors": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Errors",
+      "type": "array"
+    },
+    "findings": {
+      "items": {
+        "$ref": "#/$defs/FindingRecord"
+      },
+      "title": "Findings",
+      "type": "array"
+    },
+    "meta": {
+      "additionalProperties": true,
+      "title": "Meta",
+      "type": "object"
+    },
+    "remediation": {
+      "items": {
+        "$ref": "#/$defs/RemediationRecord"
+      },
+      "title": "Remediation",
+      "type": "array"
+    },
+    "risk_posture": {
+      "$ref": "#/$defs/RiskRecord"
+    },
+    "scan_state": {
+      "default": "pending",
+      "title": "Scan State",
+      "type": "string"
+    },
+    "scanner_status": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "title": "Scanner Status",
+      "type": "object"
+    },
+    "stage_log": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Stage Log",
+      "type": "array"
+    },
+    "summary": {
+      "additionalProperties": true,
+      "title": "Summary",
+      "type": "object"
+    }
+  },
+  "required": [
+    "meta",
+    "risk_posture",
+    "summary",
+    "findings"
+  ],
+  "title": "HARIS JSON report",
+  "type": "object"
+}

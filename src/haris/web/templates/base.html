@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}HARIS{% endblock %}</title>
+  <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/static/css/fonts.css">
+  <link rel="stylesheet" href="/static/style.css">
+  <link rel="stylesheet" href="/static/css/findings.css">
+  <link rel="stylesheet" href="/static/css/pages.css">
+  <link rel="stylesheet" href="/static/css/layout.css">
+  {% block head %}{% endblock %}
+  <meta name="csrf-token" content="{{ csrf_token }}">
+  <meta name="htmx-config" content='{"inlineStyleNonce": "{{ csp_nonce }}", "allowEval": false, "allowScriptTags": false}'>
+  <script src="/static/theme-init.js"></script>
+  <script src="/static/vendor/htmx.min.js" integrity="sha384-2OatzQy1H+Zd/IIrjr1TcuDGqLXeHhbooAyJY1KdQMKnr4LZ22k31GBLdYKHmVjg"></script>
+</head>
+<body hx-headers='{"X-CSRF-Token": "{{ csrf_token }}"}'>
+
+  <header>
+    <div class="container header-inner">
+      <!-- Logo -->
+      <a href="/" class="logo-group">
+        <img src="/static/haris_logo.png" alt="HARIS" class="logo-img" height="40">
+      </a>
+
+      <!-- Navigation -->
+      <nav id="main-nav">
+        <a href="/" class="{% if nav_active == 'dashboard' %}active{% endif %}">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><rect x="1.5" y="1.5" width="5" height="5" rx="1"/><rect x="9.5" y="1.5" width="5" height="5" rx="1"/><rect x="1.5" y="9.5" width="5" height="5" rx="1"/><rect x="9.5" y="9.5" width="5" height="5" rx="1"/></svg>
+          Dashboard
+        </a>
+        <a href="/websites" class="{% if nav_active == 'websites' %}active{% endif %}">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="8" cy="8" r="6.5"/><path d="M1.5 8h13M8 1.5c-2 2.5-2 9.5 0 13M8 1.5c2 2.5 2 9.5 0 13"/></svg>
+          Websites
+        </a>
+        <a href="/scans" class="{% if nav_active == 'scans' %}active{% endif %}">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M2 4h12M2 8h12M2 12h8"/></svg>
+          Scans
+        </a>
+        <a href="/templates" class="{% if nav_active == 'templates' %}active{% endif %}">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><rect x="2" y="2" width="12" height="12" rx="1.5"/><path d="M5 5h6M5 8h6M5 11h4"/></svg>
+          Templates
+        </a>
+        <a href="/scan/new" class="nav-cta {% if nav_active == 'new' %}active{% endif %}">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M8 3v10M3 8h10"/></svg>
+          New Scan
+        </a>
+      </nav>
+
+      <!-- User menu -->
+      {% if current_user %}
+      <div class="user-menu-wrap" id="user-menu-wrap">
+        <!-- Popup (appears above trigger on desktop, below on mobile) -->
+        <div class="user-menu-popup" id="user-menu-popup" role="menu" aria-hidden="true">
+          <a href="/auth/profile" class="user-menu-item {% if request.url.path == '/auth/profile' %}active{% endif %}" role="menuitem">
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="8" cy="6" r="3"/><path d="M2 14c0-3.3 2.7-6 6-6s6 2.7 6 6"/></svg>
+            Profile
+          </a>
+          {% if user_is_admin %}
+          <a href="/auth/users" class="user-menu-item {% if request.url.path.startswith('/auth/users') or request.url.path.startswith('/auth/audit') %}active{% endif %}" role="menuitem">
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M14 13v-1a4 4 0 00-4-4H6a4 4 0 00-4 4v1"/><circle cx="8" cy="4" r="3"/><path d="M12.5 7l1.5 1.5 2.5-2.5"/></svg>
+            Admin Panel
+          </a>
+          {% endif %}
+          <div class="user-menu-divider"></div>
+          <form method="post" action="/auth/logout">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <button type="submit" class="user-menu-item user-menu-signout" role="menuitem">
+              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M6 2H3a1 1 0 00-1 1v10a1 1 0 001 1h3M11 11l3-3-3-3M14 8H6"/></svg>
+              Sign Out
+            </button>
+          </form>
+        </div>
+        <!-- Trigger button -->
+        <button class="user-menu-trigger" id="user-menu-trigger"
+                aria-haspopup="menu" aria-expanded="false" aria-controls="user-menu-popup">
+          <span class="user-avatar">{{ (current_user.display_name or current_user.email)[0] | upper }}</span>
+          <span class="user-menu-name">{{ current_user.display_name or current_user.email }}</span>
+          <svg class="user-menu-chevron" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M4 10l4-4 4 4"/></svg>
+        </button>
+      </div>
+      {% endif %}
+
+      <!-- Theme toggle -->
+      <button id="theme-toggle" class="theme-toggle" aria-label="Toggle theme">
+        <svg id="theme-icon-sun" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
+          <circle cx="10" cy="10" r="4"/>
+          <path d="M10 2v2M10 16v2M2 10h2M16 10h2M4.93 4.93l1.41 1.41M13.66 13.66l1.41 1.41M4.93 15.07l1.41-1.41M13.66 6.34l1.41-1.41"/>
+        </svg>
+        <svg id="theme-icon-moon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" style="display:none">
+          <path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z"/>
+        </svg>
+      </button>
+
+      <!-- Hamburger (mobile) -->
+      <button class="hamburger" aria-label="Menu">
+        <svg viewBox="0 0 22 22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+          <path d="M3 6h16M3 11h16M3 16h16"/>
+        </svg>
+      </button>
+    </div>
+  </header>
+
+  <main class="container">
+    {% block content %}{% endblock %}
+  </main>
+
+  <footer class="site-footer">
+    <div class="container">
+      HARIS Security Audit Framework &middot;
+      <a href="https://github.com/nicksavill/HARIS">GitHub</a> &middot;
+      <a href="/licenses">Open Source Licenses</a>
+    </div>
+  </footer>
+
+  <script src="/static/main.js"></script>
+  {% block scripts %}{% endblock %}
+</body>
+</html>

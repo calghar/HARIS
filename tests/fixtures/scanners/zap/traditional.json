@@ -1,0 +1,185 @@
+{
+  "@programName": "ZAP",
+  "@version": "hand-built",
+  "@generated": "Tue, 10 Nov 2026 12:00:00",
+  "created": "2026-11-10T12:00:00Z",
+  "site": [
+    {
+      "@name": "https://example.com",
+      "@host": "example.com",
+      "@port": "443",
+      "@ssl": "true",
+      "alerts": [
+        {
+          "pluginid": "40012",
+          "alertRef": "40012",
+          "alert": "Cross Site Scripting (Reflected)",
+          "name": "Cross Site Scripting (Reflected)",
+          "riskcode": "3",
+          "confidence": "2",
+          "riskdesc": "High (Medium)",
+          "desc": "<p>Cross-site Scripting (XSS) is an attack technique.</p>",
+          "instances": [
+            {
+              "id": "1",
+              "uri": "https://example.com/search?q=1",
+              "nodeName": "https://example.com/search (q)",
+              "method": "GET",
+              "param": "q",
+              "attack": "<script>",
+              "evidence": "<script>",
+              "otherinfo": ""
+            },
+            {
+              "id": "2",
+              "uri": "https://example.com/contact",
+              "nodeName": "https://example.com/contact",
+              "method": "POST",
+              "param": "comments",
+              "attack": "<script>",
+              "evidence": "<script>",
+              "otherinfo": ""
+            }
+          ],
+          "count": "2",
+          "solution": "<p>Encode untrusted data.</p>",
+          "otherinfo": "",
+          "reference": "https://owasp.org/www-community/attacks/xss/",
+          "cweid": "79",
+          "wascid": "8",
+          "sourceid": "1"
+        },
+        {
+          "pluginid": "40018",
+          "alertRef": "40018",
+          "alert": "SQL Injection",
+          "name": "SQL Injection",
+          "riskcode": "3",
+          "confidence": "3",
+          "riskdesc": "High (High)",
+          "desc": "<p>SQL injection may be possible.</p>",
+          "instances": [
+            {
+              "id": "3",
+              "uri": "https://example.com/item",
+              "method": "GET",
+              "param": "id",
+              "attack": "'",
+              "evidence": "SQL syntax",
+              "otherinfo": ""
+            }
+          ],
+          "count": "1",
+          "solution": "<p>Use parameterised queries.</p>",
+          "otherinfo": "",
+          "reference": "https://owasp.org/www-community/attacks/SQL_Injection",
+          "cweid": "89",
+          "wascid": "19",
+          "sourceid": "1"
+        },
+        {
+          "pluginid": "6",
+          "alertRef": "6",
+          "alert": "Path Traversal",
+          "name": "Path Traversal",
+          "riskcode": "3",
+          "confidence": "1",
+          "riskdesc": "High (Low)",
+          "desc": "<p>Path traversal may be possible.</p>",
+          "instances": [
+            {
+              "id": "4",
+              "uri": "https://example.com/file",
+              "method": "GET",
+              "param": "path",
+              "attack": "../etc/passwd",
+              "evidence": "root:x:",
+              "otherinfo": ""
+            }
+          ],
+          "count": "1",
+          "solution": "<p>Canonicalise the path.</p>",
+          "otherinfo": "",
+          "reference": "",
+          "cweid": "22",
+          "wascid": "33",
+          "sourceid": "1"
+        },
+        {
+          "pluginid": "10010",
+          "alertRef": "10010",
+          "alert": "Cookie No HttpOnly Flag",
+          "name": "Cookie No HttpOnly Flag",
+          "riskcode": "1",
+          "confidence": "3",
+          "riskdesc": "Low (High)",
+          "desc": "<p>A cookie is missing the HttpOnly flag.</p>",
+          "instances": [
+            {
+              "id": "5",
+              "uri": "https://example.com/",
+              "method": "GET",
+              "param": "session",
+              "attack": "",
+              "evidence": "Set-Cookie: session=1",
+              "otherinfo": ""
+            }
+          ],
+          "count": "1",
+          "solution": "<p>Set the HttpOnly flag.</p>",
+          "otherinfo": "",
+          "reference": "",
+          "cweid": "1004",
+          "wascid": "13",
+          "sourceid": "3"
+        },
+        {
+          "pluginid": "10038",
+          "alertRef": "10038-1",
+          "alert": "Content Security Policy (CSP) Header Not Set",
+          "name": "Content Security Policy (CSP) Header Not Set",
+          "riskcode": "2",
+          "confidence": "2",
+          "riskdesc": "Medium (Medium)",
+          "desc": "<p>CSP header is not set.</p>",
+          "instances": [
+            {
+              "id": "6",
+              "uri": "https://example.com/",
+              "method": "GET",
+              "param": "",
+              "attack": "",
+              "evidence": "",
+              "otherinfo": ""
+            }
+          ],
+          "count": "1",
+          "solution": "<p>Set a Content-Security-Policy header.</p>",
+          "otherinfo": "",
+          "reference": "",
+          "cweid": "693",
+          "wascid": "15",
+          "sourceid": "3"
+        },
+        {
+          "pluginid": "0",
+          "alertRef": "0",
+          "alert": "Ignored, no instances",
+          "name": "Ignored, no instances",
+          "riskcode": "0",
+          "confidence": "1",
+          "riskdesc": "Informational (Low)",
+          "desc": "<p>No instances.</p>",
+          "instances": [],
+          "count": "0",
+          "solution": "",
+          "otherinfo": "",
+          "reference": "",
+          "cweid": "-1",
+          "wascid": "-1",
+          "sourceid": "0"
+        }
+      ]
+    }
+  ]
+}

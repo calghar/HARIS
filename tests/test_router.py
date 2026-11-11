@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
 
-from src.llm.router import ModelRouter
+from haris.llm.router import ModelRouter
 
 
 def _make_default_backend(
@@ -48,7 +48,7 @@ class TestModelRouterRouting:
         routed_backend = MagicMock()
 
         with patch(
-            "src.llm.router.create_backend",
+            "haris.llm.router.create_backend",
             return_value=routed_backend,
         ) as mock_create:
             router = ModelRouter(
@@ -65,7 +65,7 @@ class TestModelRouterRouting:
         default = _make_default_backend(model="default-model")
         routed_backend = MagicMock()
 
-        with patch("src.llm.router.create_backend", return_value=routed_backend):
+        with patch("haris.llm.router.create_backend", return_value=routed_backend):
             router = ModelRouter(
                 default_backend=default,
                 routing={"triage": "cheap-model"},
@@ -82,7 +82,7 @@ class TestModelRouterFallback:
         default = _make_default_backend(model="default-model")
 
         with patch(
-            "src.llm.router.create_backend",
+            "haris.llm.router.create_backend",
             side_effect=ValueError("unknown model"),
         ):
             router = ModelRouter(
@@ -97,7 +97,7 @@ class TestModelRouterFallback:
         """A failing create_backend must never propagate the exception."""
         default = _make_default_backend(model="default-model")
 
-        with patch("src.llm.router.create_backend", side_effect=RuntimeError("boom")):
+        with patch("haris.llm.router.create_backend", side_effect=RuntimeError("boom")):
             router = ModelRouter(
                 default_backend=default,
                 routing={"enrichment": "bad-model"},
@@ -115,7 +115,7 @@ class TestModelRouterCache:
         routed_backend = MagicMock()
 
         with patch(
-            "src.llm.router.create_backend", return_value=routed_backend
+            "haris.llm.router.create_backend", return_value=routed_backend
         ) as mock_create:
             router = ModelRouter(
                 default_backend=default,
@@ -134,7 +134,7 @@ class TestModelRouterCache:
         backend_b = MagicMock()
 
         with patch(
-            "src.llm.router.create_backend", side_effect=[backend_a, backend_b]
+            "haris.llm.router.create_backend", side_effect=[backend_a, backend_b]
         ) as mock_create:
             router = ModelRouter(
                 default_backend=default,
@@ -155,7 +155,7 @@ class TestModelRouterCache:
         call_results = [ValueError("first attempt fails"), routed_backend]
 
         with patch(
-            "src.llm.router.create_backend",
+            "haris.llm.router.create_backend",
             side_effect=call_results,
         ) as mock_create:
             router = ModelRouter(

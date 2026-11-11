@@ -1,0 +1,83 @@
+# Map Wapiti integer severity levels to internal severity model.
+# Wapiti 3.x uses integers: 0=INFO, 1=LOW, 2=MEDIUM, 3=HIGH, 4=CRITICAL.
+severity_map:
+  4: CRITICAL
+  3: HIGH
+  2: MEDIUM
+  1: LOW
+  0: INFO
+
+# Module names from wapitiCore/attack/modules/core.py (3.3.2).
+# common adds stacktrace_disclosure; all adds printer.
+excluded_modules:
+  # Covered by built-in header, cookie, redirect and TLS checks.
+  - cookieflags
+  - csp
+  - http_headers
+  - https_redirect
+  - ssl
+  # 3.2.10 ReDoS regex; 3.3.1 drops slash from the repeated class. Kept out until a live run.
+  - information_disclosure
+
+# Category names as emitted by Wapiti 3.3.2 (wapitiCore/definitions) -> OWASP tags.
+category_tags:
+  "Reflected Cross Site Scripting": [xss]
+  "Stored Cross Site Scripting": [xss]
+  "HTML Injection": [xss]
+  "Stored HTML Injection": [xss]
+  "SQL Injection": [sql_injection]
+  "Blind SQL Injection": [sql_injection]
+  "XPATH Injection": [sql_injection]
+  "LDAP Injection": [sql_injection]
+  "CRLF Injection": [crlf_injection]
+  "Command execution": [command_injection]
+  "Log4Shell": [command_injection, outdated_component]
+  "Spring4Shell": [command_injection, outdated_component]
+  "Path Traversal": [directory_traversal]
+  "XML External Entity": [xxe]
+  "Server Side Request Forgery": [ssrf]
+  "Open Redirect": [open_redirect]
+  "Cross Site Request Forgery": [missing_csrf]
+  "Htaccess Bypass": [missing_access_control]
+  "Weak credentials": [default_credentials]
+  "Cleartext Submission of Password": [cleartext_transmission]
+  "Unencrypted Channels": [cleartext_transmission]
+  "Vulnerable software": [outdated_component]
+  "Information Disclosure - Full Path": [verbose_errors]
+  "Internal Server Error": [improper_error_handling]
+  "TLS/SSL misconfigurations": [weak_tls]
+  "Content Security Policy Configuration": [missing_security_headers]
+  "Clickjacking Protection": [missing_security_headers]
+  "MIME Type Confusion": [missing_security_headers]
+  "HTTP Strict Transport Security (HSTS)": [missing_hsts]
+  "HttpOnly Flag cookie": [security_misconfiguration]
+  "Secure Flag cookie": [security_misconfiguration]
+  "Backup file": [security_misconfiguration]
+  "Potentially dangerous file": [security_misconfiguration]
+  "Unrestricted File Upload": [security_misconfiguration]
+  "Fingerprint web server": [security_misconfiguration]
+  "Fingerprint web application framework": [security_misconfiguration]
+  "Fingerprint web technology": [security_misconfiguration]
+  "Inconsistent Redirection": [security_misconfiguration]
+  "Resource consumption": [security_misconfiguration]
+  "NS takeover": [security_misconfiguration]
+  "Subdomain takeover": [security_misconfiguration]
+  "HTTP Methods": [security_misconfiguration]
+  "Review Webserver Metafiles for Information Leakage": [sensitive_data_exposure]
+  "Stack Trace Disclosure": [verbose_errors]
+  "CVE-2024-55591": [outdated_component]
+
+# Flags accepted from scanner_options.extra_args: flag -> number of values.
+extra_args_allowlist:
+  "-l": 1
+  "--level": 1
+  "-d": 1
+  "--depth": 1
+  "-S": 1
+  "--scan-force": 1
+  "--tasks": 1
+  "--max-parameters": 1
+  "--max-attack-time": 1
+  "--max-files-per-dir": 1
+  "--verify-ssl": 1
+  "--drop-set-cookie": 0

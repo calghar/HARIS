@@ -6,10 +6,10 @@ import json
 import tempfile
 from pathlib import Path
 
-from src.llm.base import BACKEND_REGISTRY, BaseLLMBackend
-from src.llm.prompts import PromptBuilder
-from src.llm.qa import ReportQA
-from src.models import (
+from haris.llm.base import BACKEND_REGISTRY, BaseLLMBackend
+from haris.llm.prompts import PromptBuilder
+from haris.llm.qa import ReportQA
+from haris.models import (
     Confidence,
     Finding,
     LLMResponse,
@@ -103,7 +103,7 @@ class TestPromptBuilder:
         assert "executive" in prompt.lower() or "non-technical" in prompt.lower()
         assert "f001" in prompt
         assert "f002" in prompt
-        assert "example.com" in prompt
+        assert session.target.base_url in prompt
 
     def test_summarize_report_technical(self):
         session = _make_session()

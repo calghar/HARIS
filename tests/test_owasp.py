@@ -1,5 +1,5 @@
-from src.core.owasp import all_categories, map_cwe_to_owasp, map_to_owasp
-from src.models import OwaspCategory
+from haris.core.owasp import all_categories, map_cwe_to_owasp, map_to_owasp
+from haris.models import OwaspCategory
 
 
 class TestMapToOwasp:

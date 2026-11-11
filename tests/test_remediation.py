@@ -1,5 +1,5 @@
-from src.core.remediation import RemediationPlanner
-from src.models import Effort, Finding, Severity
+from haris.core.remediation import RemediationPlanner
+from haris.models import Effort, Finding, Severity
 
 
 class TestRemediationPlanner:

@@ -1,0 +1,321 @@
+{% extends "base.html" %}
+{% block title %}HARIS — {% if template %}Edit Template{% else %}New Template{% endif %}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div class="breadcrumb">
+    <a href="/templates">Templates</a>
+    <span class="sep">/</span>
+    {% if template %}Edit: {{ template.name }}{% else %}New Template{% endif %}
+  </div>
+</div>
+
+<h1 style="font-size:1.5rem;margin-bottom:1.5rem;">
+  {% if template %}Edit Template{% else %}New Scan Template{% endif %}
+</h1>
+
+<form id="template-form">
+
+  <!-- ================================================================
+       Section 1: General Settings
+       ================================================================ -->
+  <div class="card">
+    <h2 style="font-size:1rem;margin-bottom:1.25rem;padding-bottom:.6rem;border-bottom:1px solid var(--border);">
+      General Settings
+    </h2>
+
+    <div class="form-group">
+      <label for="name">Template Name <span style="color:var(--critical);">*</span></label>
+      <input type="text" id="name" name="name" required
+             placeholder="e.g. Production API Baseline"
+             value="{{ template.name if template else '' }}">
+    </div>
+
+    <div class="form-group">
+      <label for="description">Description</label>
+      <textarea id="description" name="description" rows="2"
+                placeholder="What is this template used for?">{{ template.description if template else '' }}</textarea>
+    </div>
+
+    <div class="form-row">
+      <div class="form-group">
+        <label for="profile">Scan Profile</label>
+        <select id="profile" name="profile">
+          {% for p in profiles %}
+          <option value="{{ p.name }}"
+            {% if template and template.profile == p.name %}selected
+            {% elif not template and p.name == 'quick' %}selected{% endif %}>
+            {{ p.display_name }}
+          </option>
+          {% endfor %}
+        </select>
+        <p id="profile-desc" class="text-sm text-muted mt-1"></p>
+      </div>
+
+      <div class="form-group">
+        <label for="auth_method">Authentication</label>
+        <select id="auth_method" name="auth_method">
+          <option value="none" {% if not template or template.auth_method == 'none' %}selected{% endif %}>None</option>
+          <option value="header" {% if template and template.auth_method == 'header' %}selected{% endif %}>Bearer Token (Authorization header)</option>
+          <option value="cookie" {% if template and template.auth_method == 'cookie' %}selected{% endif %}>Cookie</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="form-row">
+      <div class="form-group">
+        <label for="rate_limit_rps">Rate Limit (req/s)</label>
+        <input type="number" id="rate_limit_rps" name="rate_limit_rps"
+               value="{{ template.rate_limit_rps if template else 10 }}"
+               min="1" max="100">
+      </div>
+      <div class="form-group">
+        <label for="max_requests">Max Requests</label>
+        <input type="number" id="max_requests" name="max_requests"
+               value="{{ template.max_requests if template else 10000 }}"
+               min="100">
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label for="excluded_paths">Excluded Paths <span class="text-muted text-sm">(one per line, plain path or a trailing .*)</span></label>
+      <textarea id="excluded_paths" name="excluded_paths" rows="3"
+                placeholder="/logout&#10;/admin/.*">{{ (template.excluded_paths | join('\n')) if template and template.excluded_paths else '' }}</textarea>
+    </div>
+
+    <div class="form-group">
+      <span class="form-label">Report Formats</span>
+      <div class="checkbox-group">
+        <label>
+          <input type="checkbox" name="report_formats" value="markdown"
+            {% if not template or 'markdown' in template.report_formats %}checked{% endif %}>
+          Markdown
+        </label>
+        <label>
+          <input type="checkbox" name="report_formats" value="json"
+            {% if not template or 'json' in template.report_formats %}checked{% endif %}>
+          JSON
+        </label>
+        <label>
+          <input type="checkbox" name="report_formats" value="html"
+            {% if template and 'html' in template.report_formats %}checked{% endif %}>
+          HTML
+        </label>
+      </div>
+    </div>
+
+    <div class="form-group">
+      <span class="form-label">AI-Powered Analysis</span>
+      <div class="checkbox-group">
+        <label>
+          <input type="checkbox" id="llm_enrichment" name="llm_enrichment" value="1"
+            {% if template and template.llm_enrichment %}checked{% endif %}>
+          Enable LLM enrichment
+        </label>
+      </div>
+      <p class="text-sm text-muted mt-1">
+        Adds attack narratives, chain detection, and smart triage to findings.
+        Requires an LLM API key (Anthropic, OpenAI, or local Ollama).
+      </p>
+    </div>
+
+    <div id="llm-backend-group" class="form-group" style="display:none;">
+      <label for="llm_backend">LLM Backend</label>
+      <select id="llm_backend" name="llm_backend">
+        <option value="">Loading...</option>
+      </select>
+    </div>
+
+    <div class="form-group">
+      <label for="tags">Tags <span class="text-muted text-sm">(comma-separated)</span></label>
+      <input type="text" id="tags" name="tags"
+             placeholder="production, api, compliance"
+             value="{{ (template.tags | join(', ')) if template and template.tags else '' }}">
+    </div>
+  </div>
+
+  <!-- ================================================================
+       Section 2: Scanner Options (accordion)
+       ================================================================ -->
+  <div class="card" style="margin-top:1.5rem;">
+    <h2 style="font-size:1rem;margin-bottom:1.25rem;padding-bottom:.6rem;border-bottom:1px solid var(--border);">
+      Scanner Options
+    </h2>
+    <p class="text-sm text-muted" style="margin-bottom:1.25rem;">
+      Configure per-scanner options. Panels are shown based on the selected profile.
+    </p>
+
+    <!-- Nuclei -->
+    {% set active_profile = template.profile if template else 'quick' %}
+    {% set active_scanners = [] %}
+    {% for p in profiles if p.name == active_profile %}{% if active_scanners.extend(p.scanners) %}{% endif %}{% endfor %}
+
+    <div class="scanner-panel" id="panel-nuclei" {% if 'nuclei' not in active_scanners %}style="display:none;"{% endif %}>
+      <div class="scanner-panel-header" data-action="toggle-panel">
+        <span class="scanner-panel-title">Nuclei</span>
+        <span class="scanner-panel-meta text-sm text-muted">Template-based CVE and misconfiguration scanner</span>
+      </div>
+      <div class="scanner-panel-body">
+        <div class="form-group">
+          <span class="form-label">Template Directories</span>
+          <p class="text-sm text-muted" style="margin-bottom:.5rem;">
+            Select nuclei template categories to scan. Leave all unchecked to use defaults.
+          </p>
+          <div class="checkbox-group" id="nuclei-template-dirs-group"
+               style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:.4rem;">
+            {% set nuclei_dir_opts = [
+              ('http/misconfiguration', 'Misconfigurations'),
+              ('http/exposures', 'Exposed Files & Data'),
+              ('http/technologies', 'Tech Detection'),
+              ('http/vulnerabilities', 'Vulnerabilities'),
+              ('http/exposed-panels', 'Admin Panels'),
+              ('http/default-logins', 'Default Logins'),
+              ('http/takeovers', 'Subdomain Takeover'),
+              ('http/cves', 'CVEs'),
+              ('ssl', 'SSL/TLS Checks'),
+              ('dast', 'DAST'),
+            ] %}
+            {% for val, lbl in nuclei_dir_opts %}
+            <label>
+              <input type="checkbox" name="nuclei_template_dirs" value="{{ val }}">
+              {{ lbl }}
+            </label>
+            {% endfor %}
+          </div>
+        </div>
+        <div class="form-group">
+          <span class="form-label">Template Tags</span>
+          <div class="checkbox-group" id="nuclei-tags-group">
+            {% set nuclei_tag_opts = ['cve', 'misconfig', 'exposure', 'default-login', 'xss', 'sqli', 'ssrf', 'lfi', 'rfi', 'rce', 'tech-detect', 'panel'] %}
+            {% set nuclei_tags_saved = template.scanner_options.nuclei.tags if template and template.scanner_options and 'nuclei' in template.scanner_options and 'tags' in template.scanner_options.nuclei else [] %}
+            {% for tag in nuclei_tag_opts %}
+            <label>
+              <input type="checkbox" name="nuclei_tags" value="{{ tag }}"
+                {% if not template or tag in nuclei_tags_saved %}checked{% endif %}>
+              {{ tag }}
+            </label>
+            {% endfor %}
+          </div>
+          <div class="form-group" style="margin-top:.6rem;margin-bottom:0;">
+            <label for="nuclei_custom_tags">Custom Tags <span class="text-muted text-sm">(comma-separated)</span></label>
+            <input type="text" id="nuclei_custom_tags" name="nuclei_custom_tags"
+                   placeholder="custom-tag,my-templates"
+                   value="">
+          </div>
+        </div>
+        <div class="form-group">
+          <span class="form-label">Severity Filter</span>
+          <div class="checkbox-group">
+            {% set nuclei_sev_opts = ['critical', 'high', 'medium', 'low', 'info'] %}
+            {% set nuclei_sev_saved = template.scanner_options.nuclei.severity if template and template.scanner_options and 'nuclei' in template.scanner_options and 'severity' in template.scanner_options.nuclei else [] %}
+            {% for sev in nuclei_sev_opts %}
+            <label>
+              <input type="checkbox" name="nuclei_severity" value="{{ sev }}"
+                {% if not template or sev in nuclei_sev_saved %}checked{% endif %}>
+              <span class="badge badge-{{ sev }}">{{ sev }}</span>
+            </label>
+            {% endfor %}
+          </div>
+        </div>
+        <div class="form-group">
+          <span class="form-label">Exclude Tags</span>
+          <div class="checkbox-group">
+            {% set nuclei_etag_opts = ['dos', 'fuzz', 'token-spray', 'credential-stuffing'] %}
+            {% for etag in nuclei_etag_opts %}
+            <label>
+              <input type="checkbox" name="nuclei_exclude_tags" value="{{ etag }}">
+              {{ etag }}
+            </label>
+            {% endfor %}
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label for="nuclei_rate_limit">Rate Limit (req/s)</label>
+            <input type="number" id="nuclei_rate_limit" name="nuclei_rate_limit"
+                   value="{{ template.scanner_options.nuclei.rate_limit if template and template.scanner_options and 'nuclei' in template.scanner_options and 'rate_limit' in template.scanner_options.nuclei else 150 }}"
+                   min="1" max="500">
+          </div>
+          <div class="form-group">
+            <label for="nuclei_timeout">Timeout (seconds)</label>
+            <input type="number" id="nuclei_timeout" name="nuclei_timeout"
+                   value="{{ template.scanner_options.nuclei.timeout if template and template.scanner_options and 'nuclei' in template.scanner_options and 'timeout' in template.scanner_options.nuclei else 600 }}"
+                   min="30">
+          </div>
+          <div class="form-group">
+            <label for="nuclei_max_host_errors">Max Host Errors</label>
+            <input type="number" id="nuclei_max_host_errors" name="nuclei_max_host_errors"
+                   value="{{ template.scanner_options.nuclei.max_host_errors if template and template.scanner_options and 'nuclei' in template.scanner_options and 'max_host_errors' in template.scanner_options.nuclei else 500 }}"
+                   min="10" max="5000">
+            <p class="text-sm text-muted mt-1">Skip host after this many errors</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Nikto -->
+    <div class="scanner-panel" id="panel-nikto" {% if 'nikto' not in active_scanners %}style="display:none;"{% endif %}>
+      <div class="scanner-panel-header" data-action="toggle-panel">
+        <span class="scanner-panel-title">Nikto</span>
+        <span class="scanner-panel-meta text-sm text-muted">Web server misconfiguration and outdated software scanner</span>
+      </div>
+      <div class="scanner-panel-body">
+        <div class="form-group">
+          <span class="form-label">Tuning</span>
+          <div class="checkbox-group" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:.4rem;">
+            {% set nikto_tunings = [
+              ('1', 'Interesting File'),
+              ('2', 'Misconfiguration'),
+              ('3', 'Info Disclosure'),
+              ('4', 'Injection'),
+              ('5', 'Remote File Retrieval'),
+              ('6', 'DoS'),
+              ('7', 'Remote File Retrieval (Server)'),
+              ('8', 'Command Execution'),
+              ('9', 'SQL Injection'),
+              ('0', 'File Upload'),
+              ('a', 'Auth Bypass'),
+              ('b', 'Software ID'),
+            ] %}
+            {% set nikto_tuning_saved = template.scanner_options.nikto.tuning if template and template.scanner_options and 'nikto' in template.scanner_options and 'tuning' in template.scanner_options.nikto else [] %}
+            {% for val, lbl in nikto_tunings %}
+            <label>
+              <input type="checkbox" name="nikto_tuning" value="{{ val }}"
+                {% if not template or val in nikto_tuning_saved %}checked{% endif %}>
+              {{ val }} — {{ lbl }}
+            </label>
+            {% endfor %}
+          </div>
+        </div>
+        <div class="form-group" style="max-width:200px;">
+          <label for="nikto_timeout">Timeout (seconds)</label>
+          <input type="number" id="nikto_timeout" name="nikto_timeout"
+                 value="{{ template.scanner_options.nikto.timeout if template and template.scanner_options and 'nikto' in template.scanner_options and 'timeout' in template.scanner_options.nikto else 300 }}"
+                 min="30">
+        </div>
+      </div>
+    </div>
+
+    {% include "partials/template_form_scanners_b.html" %}
+  </div><!-- /card scanner options -->
+
+  <!-- Submit -->
+  <div style="display:flex;align-items:center;gap:1rem;margin-top:1.5rem;margin-bottom:3rem;">
+    <button type="submit" class="btn btn-primary" id="submit-btn">
+      {% if template %}Update Template{% else %}Save Template{% endif %}
+    </button>
+    <a href="/templates" class="btn btn-secondary">Cancel</a>
+    <span id="submit-status" class="text-sm text-muted"></span>
+  </div>
+
+</form>
+{% endblock %}
+
+{% block head %}
+<link rel="stylesheet" href="/static/css/template_form.css">
+{% endblock %}
+
+{% block scripts %}
+<script type="application/json" id="page-data">{{ page_data | tojson }}</script>
+<script src="/static/js/template_form.js"></script>
+{% endblock %}

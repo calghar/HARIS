@@ -1,0 +1,356 @@
+# aliases: per scanner, regexes matched (case-insensitive) against the title start, and against each tag and Nuclei template id in full.
+# Scanners not listed here are built-in checks and use the builtin aliases.
+external_scanners: [wapiti, nuclei, nikto, nmap, sslyze, zap]
+
+classes:
+  - id: xss_stored
+    primary_cwe: CWE-79
+    granularity: parameter
+    aliases:
+      wapiti: ["Stored Cross Site Scripting"]
+      zap: ["^40014$"]
+
+  - id: xss_reflected
+    primary_cwe: CWE-79
+    granularity: parameter
+    oracle: reflection
+    aliases:
+      wapiti: ["(Reflected )?Cross Site Scripting"]
+      nuclei: ["(Reflected )?XSS", "xss", "reflected-xss"]
+      zap: ["^40012$"]
+
+  - id: sqli_time
+    primary_cwe: CWE-89
+    granularity: parameter
+    oracle: timing
+    aliases:
+      wapiti: ["Blind SQL Injection"]
+      nuclei: ["(Time|Blind)[- ]based SQL Injection"]
+      zap: ["^40019$", "^40020$", "^40021$", "^40022$", "^40027$"]
+
+  - id: sqli_error
+    primary_cwe: CWE-89
+    granularity: parameter
+    oracle: error_signature
+    aliases:
+      wapiti: ["SQL Injection"]
+      nuclei: ["SQL Injection", "sqli"]
+      zap: ["^40018$"]
+
+  - id: path_traversal
+    primary_cwe: CWE-22
+    granularity: parameter
+    aliases:
+      wapiti: ["Path Traversal"]
+      nuclei: ["lfi", "path-traversal"]
+      zap: ["^6$"]
+
+  - id: open_redirect
+    primary_cwe: CWE-601
+    granularity: parameter
+    aliases:
+      wapiti: ["Open Redirect"]
+      nuclei: ["redirect", "open-redirect"]
+      zap: ["^20019$"]
+
+  - id: ssrf
+    primary_cwe: CWE-918
+    granularity: parameter
+    aliases:
+      wapiti: ["Server Side Request Forgery"]
+      nuclei: ["ssrf"]
+      zap: ["^40046$"]
+
+  - id: xxe
+    primary_cwe: CWE-611
+    granularity: parameter
+    aliases:
+      wapiti: ["XML External Entity"]
+      nuclei: ["xxe"]
+
+  - id: command_injection
+    primary_cwe: CWE-78
+    granularity: parameter
+    aliases:
+      wapiti: ["Command execution"]
+      zap: ["^90020$", "^90037$"]
+
+  - id: csrf
+    primary_cwe: CWE-352
+    granularity: path
+    aliases:
+      wapiti: ["Cross Site Request Forgery"]
+
+  - id: unrestricted_upload
+    primary_cwe: CWE-434
+    granularity: parameter
+    aliases:
+      wapiti: ["Unrestricted File Upload"]
+
+  - id: cleartext_password_submission
+    primary_cwe: CWE-319
+    granularity: parameter
+    aliases:
+      wapiti: ["Cleartext Submission of Password"]
+
+  - id: missing_header
+    primary_cwe: CWE-693
+    granularity: host
+    oracle: header_presence
+    aliases:
+      builtin: ["Missing .* header"]
+      nikto: ["Suggested security header missing", "The X-Content-Type-Options header is not set"]
+      zap: ["^10020$", "^10021$", "^10035$", "^10038$"]
+
+  - id: insecure_cookie
+    primary_cwe: CWE-614
+    granularity: host
+    aliases:
+      builtin: ["Cookie '.*' (missing|uses|has) .*"]
+      wapiti: ["(Secure|HttpOnly) Flag cookie"]
+
+  - id: sensitive_file
+    primary_cwe: CWE-538
+    granularity: path
+    oracle: soft404, content_validator
+    aliases:
+      builtin: ["Accessible sensitive path: .*", "Exposed debug endpoint: .*"]
+      wapiti: ["Backup file"]
+      nikto:
+        - "contains \\d+ entr(y|ies) which should be manually viewed"
+        - "PHP is installed, and a test script which runs phpinfo"
+        - ".*Output from the phpinfo\\(\\) function"
+      nuclei:
+        - "^prometheus-metrics$"
+        - "^phpinfo-files$"
+        - "^springboot-env$"
+        - "^gocd-encryption-key$"
+
+  - id: tls_weak_protocol
+    primary_cwe: CWE-326
+    granularity: host
+    aliases:
+      builtin: ["Weak TLS protocol negotiated: .*"]
+      sslyze: ["Deprecated protocol .* supported"]
+
+  - id: weak_csp
+    primary_cwe: CWE-693
+    granularity: host
+
+  - id: weak_hsts
+    primary_cwe: CWE-319
+    granularity: host
+
+  - id: banner_disclosure
+    primary_cwe: CWE-200
+    granularity: host
+    aliases:
+      nikto: ["Retrieved (x-powered-by|server) header", "PHP Easter Eggs reveals"]
+
+  - id: cookie_missing_secure
+    primary_cwe: CWE-614
+    granularity: host
+    aliases:
+      zap: ["^10011$"]
+
+  - id: cookie_missing_httponly
+    primary_cwe: CWE-1004
+    granularity: host
+    aliases:
+      zap: ["^10010$"]
+
+  - id: cookie_samesite
+    primary_cwe: CWE-1275
+    granularity: host
+    aliases:
+      zap: ["^10054$"]
+
+  - id: cookie_scope
+    primary_cwe: CWE-16
+    granularity: host
+
+  - id: cookie_lifetime
+    primary_cwe: CWE-613
+    granularity: host
+
+  - id: cookie_name_disclosure
+    primary_cwe: CWE-200
+    granularity: host
+
+  - id: tls_cert_expired
+    primary_cwe: CWE-298
+    granularity: host
+
+  - id: tls_cert_hostname
+    primary_cwe: CWE-297
+    granularity: host
+
+  - id: tls_cert_untrusted
+    primary_cwe: CWE-295
+    granularity: host
+
+  - id: tls_weak_cipher
+    primary_cwe: CWE-326
+    granularity: host
+
+  - id: no_https
+    primary_cwe: CWE-319
+    granularity: host
+
+  - id: no_https_redirect
+    primary_cwe: CWE-319
+    granularity: host
+
+  - id: cors_misconfiguration
+    primary_cwe: CWE-942
+    granularity: host
+    aliases:
+      nikto: ["Retrieved access-control-allow-origin header: \\*"]
+
+  - id: http_methods
+    primary_cwe: CWE-749
+    granularity: host
+
+  - id: http_trace
+    primary_cwe: CWE-16
+    granularity: host
+
+  - id: dns_missing_caa
+    primary_cwe: CWE-693
+    granularity: host
+
+  - id: dns_missing_spf
+    primary_cwe: CWE-290
+    granularity: host
+
+  - id: dns_missing_dmarc
+    primary_cwe: CWE-290
+    granularity: host
+
+  - id: version_disclosure
+    primary_cwe: CWE-200
+    granularity: path
+
+  - id: cache_sensitive
+    primary_cwe: CWE-525
+    granularity: path
+
+  - id: graphql_introspection
+    primary_cwe: CWE-200
+    granularity: path
+
+  - id: api_docs_exposed
+    primary_cwe: CWE-200
+    granularity: path
+    oracle: content_validator
+
+  - id: directory_listing
+    primary_cwe: CWE-548
+    granularity: path
+
+  - id: verbose_error
+    primary_cwe: CWE-209
+    granularity: parameter
+    aliases:
+      wapiti: ["Stack Trace Disclosure"]
+
+  - id: html_comment_leak
+    primary_cwe: CWE-615
+    granularity: parameter
+
+  - id: missing_sri
+    primary_cwe: CWE-353
+    granularity: parameter
+
+  # AI findings verify themselves in haris.ai_security, so they have no replay oracle.
+  - id: ai_endpoint_discovered
+    primary_cwe: CWE-NONE
+    granularity: parameter
+
+  - id: ai_ai_widget
+    primary_cwe: CWE-NONE
+    granularity: parameter
+
+  - id: ai_unauthenticated_inference
+    primary_cwe: CWE-306
+    granularity: parameter
+
+  - id: ai_unauthenticated_admin
+    primary_cwe: CWE-306
+    granularity: parameter
+
+  - id: ai_mcp_unauthenticated
+    primary_cwe: CWE-306
+    granularity: parameter
+
+  - id: ai_plaintext_mcp_transport
+    primary_cwe: CWE-319
+    granularity: parameter
+
+  - id: ai_provider_key_in_bundle
+    primary_cwe: CWE-798
+    granularity: parameter
+
+  - id: ai_system_prompt_in_bundle
+    primary_cwe: CWE-200
+    granularity: parameter
+
+  - id: ai_model_config_in_bundle
+    primary_cwe: CWE-200
+    granularity: parameter
+
+  - id: ai_verbose_provider_error
+    primary_cwe: CWE-209
+    granularity: parameter
+
+  - id: ai_chat_cors
+    primary_cwe: CWE-942
+    granularity: parameter
+
+  - id: ai_tool_description_injection
+    primary_cwe: CWE-1427
+    granularity: parameter
+
+  - id: ai_hidden_unicode
+    primary_cwe: CWE-1427
+    granularity: parameter
+
+  - id: ai_excessive_agency_schema
+    primary_cwe: CWE-NONE
+    granularity: parameter
+
+  - id: ai_toxic_flow
+    primary_cwe: CWE-NONE
+    granularity: parameter
+
+  - id: ai_prompt_injection_canary
+    primary_cwe: CWE-1427
+    granularity: parameter
+
+  - id: ai_jailbreak_canary
+    primary_cwe: CWE-1427
+    granularity: parameter
+
+  - id: ai_system_prompt_leak
+    primary_cwe: CWE-200
+    granularity: parameter
+
+  - id: ai_output_handling_xss
+    primary_cwe: CWE-79
+    granularity: parameter
+
+  - id: ai_missing_rate_limit
+    primary_cwe: CWE-770
+    granularity: parameter
+
+  - id: ai_ignored_token_cap
+    primary_cwe: CWE-770
+    granularity: parameter
+
+  - id: ai_garak
+    primary_cwe: CWE-1427
+    granularity: parameter
+
+  - id: ai_promptfoo
+    primary_cwe: CWE-1427
+    granularity: parameter

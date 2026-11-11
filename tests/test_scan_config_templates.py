@@ -1,6 +1,6 @@
-from src.db.store import ScanStore
-from src.models import RiskPosture, ScanSession, Target
-from src.models.scan_config_template import ScanConfigTemplate
+from haris.db.store import ScanStore
+from haris.models import RiskPosture, ScanSession, Target
+from haris.models.scan_config_template import ScanConfigTemplate
 
 
 def _make_template(

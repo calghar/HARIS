@@ -1,14 +1,15 @@
-from src.core.engine import ScanEngine
-from src.core.scanner import BaseScanner
-from src.models import (
+from haris.core.engine import ScanEngine
+from haris.core.scanner import BaseScanner
+from haris.models import (
     Confidence,
     Finding,
+    RiskPosture,
     ScannerResult,
     ScanSession,
     Severity,
     Target,
 )
-from src.models.scan_context import ScanContext
+from haris.models.scan_context import ScanContext
 
 
 class MockScanner(BaseScanner):
@@ -50,13 +51,24 @@ class FailingScanner(BaseScanner):
 
 class TestScanEngine:
     def test_empty_scan(self):
-        engine = ScanEngine(scanners=[])
+        engine = ScanEngine(
+            scanners=[], resolver=lambda _host, _port: ["93.184.216.34"]
+        )
         target = Target(base_url="https://example.com")
         session = engine.run(target)
 
         assert isinstance(session, ScanSession)
         assert session.all_findings == []
         assert session.scanners_used == []
+        assert session.scanner_status == {}
+        assert session.risk_posture is RiskPosture.UNKNOWN
+
+    def test_code_h1_empty_status_is_unknown(self):
+        """An empty scanner status map is unknown."""
+        session = ScanEngine(
+            scanners=[], resolver=lambda _host, _port: ["93.184.216.34"]
+        ).run(Target(base_url="https://example.com"))
+        assert session.risk_posture is RiskPosture.UNKNOWN
 
     def test_scan_with_findings(self):
         findings = [

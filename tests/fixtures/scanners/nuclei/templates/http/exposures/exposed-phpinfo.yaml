@@ -1,0 +1,21 @@
+id: exposed-phpinfo
+
+info:
+  name: Fixture exposed phpinfo
+  author: haris
+  severity: medium
+  description: phpinfo() output is publicly reachable.
+  reference:
+    - https://www.php.net/manual/en/function.phpinfo.php
+  classification:
+    cwe-id: CWE-200
+  tags: exposure,php,phpinfo
+
+http:
+  - method: GET
+    path:
+      - "{{BaseURL}}/phpinfo.php"
+    matchers:
+      - type: word
+        words:
+          - "PHP Version"

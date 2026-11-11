@@ -1,0 +1,77 @@
+name: HARIS web audit
+description: Scan a web application with HARIS and upload the findings as SARIF.
+inputs:
+  url:
+    description: Target URL. Scan only targets you are authorised to test.
+    required: true
+  authorised:
+    description: Must be "true" to confirm you are authorised to scan the target.
+    required: true
+  profile:
+    description: HARIS scan profile (see `haris --list-profiles`).
+    default: quick
+  scanners:
+    description: Comma-separated scanner list; overrides the profile.
+    default: ""
+  fail-on:
+    description: Fail the job when a finding at or above this severity remains.
+    default: high
+  baseline:
+    description: Earlier JSON report; SARIF results get a baselineState.
+    default: ""
+  output-dir:
+    description: Report directory, relative to the workspace.
+    default: haris-reports
+  upload-sarif:
+    description: Upload the SARIF report to code scanning (needs security-events write).
+    default: "true"
+outputs:
+  exit-code:
+    description: "HARIS exit code: 0 clean, 1 findings at fail-on, 2 incomplete scan, 3 usage error."
+    value: ${{ steps.scan.outputs.exit-code }}
+runs:
+  using: composite
+  steps:
+    - uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7.6.0
+      with:
+        python-version: "3.13"
+    - name: Install HARIS
+      shell: bash
+      env:
+        HARIS_SOURCE: ${{ github.action_path }}
+      run: uv tool install "$HARIS_SOURCE"
+    - name: Scan
+      id: scan
+      shell: bash
+      env:
+        INPUT_URL: ${{ inputs.url }}
+        INPUT_AUTHORISED: ${{ inputs.authorised }}
+        INPUT_PROFILE: ${{ inputs.profile }}
+        INPUT_SCANNERS: ${{ inputs.scanners }}
+        INPUT_FAIL_ON: ${{ inputs.fail-on }}
+        INPUT_BASELINE: ${{ inputs.baseline }}
+        INPUT_OUTPUT_DIR: ${{ inputs.output-dir }}
+      run: |
+        if [ "$INPUT_AUTHORISED" != "true" ]; then
+          echo "::error::Set 'authorised: true' to confirm you may scan the target."
+          exit 3
+        fi
+        args=(--url "$INPUT_URL" --profile "$INPUT_PROFILE" --yes
+              --formats sarif,json --output "$INPUT_OUTPUT_DIR"
+              --fail-on "$INPUT_FAIL_ON")
+        [ -n "$INPUT_SCANNERS" ] && args+=(--scanners "$INPUT_SCANNERS")
+        [ -n "$INPUT_BASELINE" ] && args+=(--baseline "$INPUT_BASELINE")
+        code=0
+        haris "${args[@]}" || code=$?
+        echo "exit-code=$code" >> "$GITHUB_OUTPUT"
+    - name: Upload SARIF
+      if: ${{ !cancelled() && inputs.upload-sarif == 'true' && hashFiles(format('{0}/*.sarif', inputs.output-dir)) != '' }}
+      uses: github/codeql-action/upload-sarif@33d7b85da1a04171e211befe2c739303b9a4c066 # v4.39.3
+      with:
+        sarif_file: ${{ inputs.output-dir }}
+    - name: Enforce exit code
+      if: ${{ !cancelled() && steps.scan.outputs.exit-code != '0' }}
+      shell: bash
+      env:
+        HARIS_EXIT: ${{ steps.scan.outputs.exit-code }}
+      run: exit "${HARIS_EXIT:-3}"

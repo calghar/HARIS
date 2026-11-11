@@ -1,34 +1,76 @@
-from src.core.risk import assess_risk_posture, get_business_impact, risk_posture_summary
-from src.models import Finding, OwaspCategory, RiskPosture, Severity
+import pytest
+
+from haris.core.risk import (
+    assess_risk_posture,
+    get_business_impact,
+    risk_posture_summary,
+)
+from haris.models import (
+    CorrelatedFinding,
+    Finding,
+    OwaspCategory,
+    RiskPosture,
+    Severity,
+    Suppression,
+    VerificationTier,
+)
+
+
+def correlated(severity: Severity, score: float, tier: VerificationTier | None = None):
+    finding = Finding(
+        title="x", description="", severity=severity, confidence_score=score
+    )
+    if tier is not None:
+        finding.verification.advance(tier)
+    return CorrelatedFinding(canonical=finding, consensus_score=score)
 
 
 class TestAssessRiskPosture:
     def test_no_findings_is_excellent(self):
         assert assess_risk_posture([]) == RiskPosture.EXCELLENT
 
-    def test_one_low_is_good(self):
-        findings = [Finding(title="", description="", severity=Severity.LOW)]
-        assert assess_risk_posture(findings) == RiskPosture.GOOD
+    @pytest.mark.parametrize(
+        ("severities", "posture"),
+        [
+            ([Severity.LOW], RiskPosture.GOOD),
+            ([Severity.INFO], RiskPosture.EXCELLENT),
+            ([Severity.CRITICAL], RiskPosture.POOR),
+            ([Severity.CRITICAL] * 2, RiskPosture.CRITICAL),
+            ([Severity.MEDIUM] * 4, RiskPosture.MODERATE),
+        ],
+    )
+    def test_thresholds_at_full_confidence(self, severities, posture):
+        findings = [correlated(s, 1.0) for s in severities]
+        assert assess_risk_posture(findings) == posture
 
-    def test_critical_finding_pushes_to_poor(self):
-        findings = [Finding(title="", description="", severity=Severity.CRITICAL)]
-        assert assess_risk_posture(findings) == RiskPosture.POOR
+    @pytest.mark.parametrize(
+        ("tier", "score", "posture"),
+        [
+            (VerificationTier.UNVERIFIED, 0.5, RiskPosture.GOOD),
+            (VerificationTier.REPLAY_VERIFIED, 0.9, RiskPosture.GOOD),
+            (VerificationTier.EXPLOIT_VALIDATED, 1.0, RiskPosture.MODERATE),
+            (VerificationTier.REFUTED, 0.0, RiskPosture.EXCELLENT),
+        ],
+    )
+    def test_risk_by_tier(self, tier, score, posture):
+        """Scenario: Risk by tier."""
+        assert assess_risk_posture([correlated(Severity.HIGH, score, tier)]) == posture
 
-    def test_two_criticals_is_critical_posture(self):
-        findings = [
-            Finding(title="", description="", severity=Severity.CRITICAL),
-            Finding(title="", description="", severity=Severity.CRITICAL),
-        ]
-        assert assess_risk_posture(findings) == RiskPosture.CRITICAL
+    def test_refuted_excluded_even_with_nonzero_score(self):
+        finding = correlated(Severity.CRITICAL, 1.0, VerificationTier.REFUTED)
+        assert assess_risk_posture([finding]) == RiskPosture.EXCELLENT
 
-    def test_moderate_range(self):
-        findings = [
-            Finding(title="", description="", severity=Severity.MEDIUM),
-            Finding(title="", description="", severity=Severity.MEDIUM),
-            Finding(title="", description="", severity=Severity.MEDIUM),
-            Finding(title="", description="", severity=Severity.MEDIUM),
-        ]
-        assert assess_risk_posture(findings) == RiskPosture.MODERATE
+    def test_suppressed_excluded(self):
+        finding = correlated(Severity.CRITICAL, 1.0)
+        finding.canonical.suppression = Suppression(
+            reason="accepted", author="a@example.com", expires="2027-01-01"
+        )
+        assert assess_risk_posture([finding]) == RiskPosture.EXCELLENT
+
+    def test_unknown_when_no_scanner_completed(self):
+        """Scenario: All scanners failed (posture half)."""
+        posture = assess_risk_posture([], scanner_completed=False)
+        assert posture == RiskPosture.UNKNOWN
 
 
 class TestGetBusinessImpact:

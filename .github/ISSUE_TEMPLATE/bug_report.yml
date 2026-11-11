@@ -1,0 +1,63 @@
+name: Bug report
+description: A defect in HARIS itself.
+body:
+  - type: input
+    id: version
+    attributes:
+      label: HARIS version
+      description: Output of `haris --version`.
+    validations:
+      required: true
+  - type: dropdown
+    id: install
+    attributes:
+      label: Install method
+      description: How this copy of HARIS was installed.
+      options:
+        - uv
+        - Docker Compose
+        - other
+    validations:
+      required: true
+  - type: textarea
+    id: scanners
+    attributes:
+      label: Scanner versions
+      description: Versions of the external scanners involved (Wapiti, SSLyze, Nmap, Nikto, Nuclei, ZAP, garak, promptfoo), or "none".
+    validations:
+      required: true
+  - type: textarea
+    id: command
+    attributes:
+      label: Command
+      description: The command that was run, with secrets removed.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected
+      description: What the run should have done.
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual
+      description: What the run did.
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Redacted logs
+      description: Logs with tokens, cookies, and target data removed. Write "none" when there is no log.
+    validations:
+      required: true
+  - type: checkboxes
+    id: authorisation
+    attributes:
+      label: Authorisation
+      options:
+        - label: I scanned only systems I am authorised to test
+          required: true

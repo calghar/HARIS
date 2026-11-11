@@ -37,7 +37,7 @@ Before integrating, understand:
 
 ### 2. Create the adapter
 
-Create `src/scanners/my_tool_scanner.py`:
+Create `src/haris/scanners/my_tool_scanner.py`:
 
 ```python
 from __future__ import annotations
@@ -47,9 +47,9 @@ import tempfile
 from pathlib import Path
 from typing import Any
 
-from ..core.finding import Confidence, Finding, Severity
-from ..core.scanner import BaseScanner, ScannerResult
-from ..core.target import Target
+from haris.core.decorators import register_scanner
+from haris.core.scanner import BaseScanner
+from haris.models import Confidence, Finding, ScannerResult, Severity, Target
 
 
 # Map tool severity -> internal severity
@@ -68,6 +68,7 @@ CATEGORY_TAGS = {
 }
 
 
+@register_scanner
 class MyToolScanner(BaseScanner):
     name = "my_tool"
     version = "1.0"
@@ -119,70 +120,81 @@ class MyToolScanner(BaseScanner):
             severity = SEVERITY_MAP.get(item["severity"], Severity.INFO)
             tags = CATEGORY_TAGS.get(item["category"], [])
 
-            findings.append(Finding(
-                title=item["name"],
-                description=item["description"],
-                severity=severity,
-                confidence=Confidence.FIRM,
-                url=item.get("url", ""),
-                scanner=self.name,
-                tags=tags,
-            ))
+            findings.append(
+                Finding(
+                    title=item["name"],
+                    description=item["description"],
+                    severity=severity,
+                    confidence=Confidence.FIRM,
+                    url=item.get("url", ""),
+                    scanner=self.name,
+                    tags=tags,
+                )
+            )
 
         return findings
 
     def _build_command(self, target: Target, output_path: str) -> list[str]:
         return [
             "my-tool",
-            "--target", target.base_url,
-            "--output", output_path,
-            "--format", "json",
+            "--target",
+            target.base_url,
+            "--output",
+            output_path,
+            "--format",
+            "json",
         ]
 ```
 
 ### 3. Register the scanner
 
-In `src/scanners/__init__.py`:
+Import the module from `src/haris/scanners/__init__.py`. The import runs `@register_scanner`, and the scan runner reads that registry. Also add the class to `SCANNER_REGISTRY` in the same file. `get_scanner` reads the dict.
 
 ```python
 from .my_tool_scanner import MyToolScanner
+
 SCANNER_REGISTRY["my_tool"] = MyToolScanner
 ```
 
 ### 4. Map to OWASP categories
 
-Add entries to `CATEGORY_TAGS` in your scanner that use keyword keys from `src/core/owasp.py` `OWASP_MAPPINGS`.
+Add entries to `CATEGORY_TAGS` in your scanner that use keyword keys from `src/haris/core/owasp.py` `OWASP_MAPPINGS`.
 
 ### 5. Document the integration
 
-Add a docstring to the scanner module explaining:
-
-- What the tool does
-- How to install it
-- What vulnerability categories it covers
-- Any known limitations
+The scanner module docstring names the tool's purpose, the install command, the vulnerability categories and the known limits.
 
 ## Existing Integrations
 
-### Wapiti (`src/scanners/wapiti_scanner.py`)
+### Wapiti (`src/haris/scanners/wapiti_scanner.py`)
 
 - **Focus**: Web application vulnerability scanning (SQLi, XSS, injection, SSRF)
 - **Output**: JSON
 - **Key flags**: `--scope`, `--timeout`, `--max-scan-time`, `--module`
+- Without both `external_endpoint` and `internal_endpoint` set, the SSRF and XXE modules are skipped and `log4shell` is always skipped. The internal placeholder is the target's base URL and the external placeholder is `http://127.0.0.1:9/`.
 
-### SSLyze (`src/scanners/sslyze_scanner.py`)
+### SSLyze (`src/haris/scanners/sslyze_scanner.py`)
 
 - **Focus**: TLS/SSL configuration analysis
 - **Output**: JSON
 - **Checks**: Protocol support, cipher suites, certificate validity, Heartbleed, ROBOT
 
-### Nmap (`src/scanners/nmap_scanner.py`)
+### Nmap (`src/haris/scanners/nmap_scanner.py`)
 
 - **Focus**: Port scanning, service detection, reconnaissance
 - **Output**: XML
 - **Key flags**: `-sV` (version detection), `-p` (ports), `--open`
 
-### Nuclei (`src/scanners/nuclei_scanner.py`)
+### ZAP (`src/haris/scanners/zap_scanner.py`)
+
+- **Focus**: Active and passive web scanning through the Automation Framework
+- **Output**: `traditional-json` (`site[].alerts[].instances[]`)
+- **Invocation**: `<launcher> -cmd -autorun plan.yaml -dir <home> -silent`
+- **Launchers on PATH**, in order: `zap.sh`, `zap.bat` (the documented launchers; `zap.exe` ignores these flags), then `zaproxy` and `zap`
+- **Plan**: context URL (no `:80` or `:443`), include and exclude regexes from scope, spider, `passiveScan-wait`, `activeScan` with a minute cap, then a report job. Auth headers are a `replacer` rule in the plan file (mode 0600), not command-line arguments.
+- **Default**: `enabled: false` in `default_config.yaml`, and absent from every profile. Run it with `--scanners zap`.
+
+### Nuclei (`src/haris/scanners/nuclei_scanner.py`)
 
 - **Focus**: CVE detection, default credentials, exposed panels, technology fingerprinting
 - **Output**: JSONL (one JSON object per line)
@@ -190,7 +202,7 @@ Add a docstring to the scanner module explaining:
   - **Phase 1**: `http/technologies` templates for fingerprinting (detects CMS, WAF, frameworks)
   - **Phase 2a**: Broad scan across 8 `DEFAULT_TEMPLATE_DIRS` (CVEs, exposures, panels, vulnerabilities, default-logins, takeovers, misconfigurations, DAST)
   - **Phase 2b**: Tech-targeted scan using `TECH_TAG_MAP` and `TECH_WORKFLOW_MAP` based on `ScanContext`
-- **Key flags**: `-jsonl`, `-duc`, `-silent`, `-fhr`, `-retries 2`, `-nmhe`, `-tls-impersonate`
+- **Flags on every run**: `-jsonl`, `-or`, `-ot`, `-duc`, `-silent`, `-no-color`, `-system-resolvers`, `-tls-impersonate`, `-fhr`, `-retries 2`, `-mhe` (the `max_host_errors` option)
 - **Context-aware**: Uses `ScanContext.detected_technologies` to select targeted Nuclei tags and workflows
 
 ## Testing Adapters
@@ -199,7 +211,8 @@ Use mock output files to test parsing without running the actual tool:
 
 ```python
 from pathlib import Path
-from src.scanners.my_tool_scanner import MyToolScanner
+from haris.scanners.my_tool_scanner import MyToolScanner
+
 
 def test_parse_results():
     mock_output = Path("tests/fixtures/my_tool_output.json").read_text()

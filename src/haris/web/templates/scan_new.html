@@ -1,0 +1,147 @@
+{% extends "base.html" %}
+{% block title %}HARIS — New Scan{% endblock %}
+
+{% block content %}
+<h1 style="font-size:1.5rem;margin-bottom:1.5rem;">Configure Scan</h1>
+
+<form id="scan-form" class="card" novalidate>
+  <!-- Configuration Template -->
+  <div class="form-group">
+    <label for="scan_template">Configuration Template</label>
+    <select id="scan_template" name="template_id">
+      <option value="">None (manual configuration)</option>
+      {% for t in scan_templates %}
+      <option value="{{ t.template_id }}" {% if t.is_default %}selected{% endif %}>
+        {{ t.name }}{% if t.is_default %} (default){% endif %}
+      </option>
+      {% endfor %}
+    </select>
+    <p id="template-desc" class="text-sm text-muted mt-1">Select a saved template to auto-fill settings, or configure manually.</p>
+  </div>
+
+  <!-- Target -->
+  <div class="form-group">
+    <label for="target_url">Target URL</label>
+    <input type="text" id="target_url" name="target_url"
+           placeholder="https://example.com"
+           value="{{ prefill.target_url or '' }}">
+    <p id="url-error" class="text-sm mt-1" style="color:var(--critical);display:none;">Please enter a valid URL starting with http:// or https://</p>
+  </div>
+
+  <!-- Profile selection -->
+  <div class="form-group">
+    <label for="profile">Scan Profile</label>
+    <select id="profile" name="profile">
+      {% for p in profiles %}
+      <option value="{{ p.name }}" {% if p.name == (prefill.profile or 'quick') %}selected{% endif %}>
+        {{ p.display_name }} — {{ p.estimated_duration }}
+      </option>
+      {% endfor %}
+    </select>
+    <p id="profile-desc" class="text-sm text-muted mt-1"></p>
+  </div>
+
+  <!-- Scope -->
+  <div class="form-row">
+    <div class="form-group">
+      <label for="rate_limit">Rate Limit (req/s)</label>
+      <input type="number" id="rate_limit" name="rate_limit" value="{{ prefill.rate_limit or 10 }}" min="1" max="100">
+    </div>
+    <div class="form-group">
+      <label for="max_requests">Max Requests</label>
+      <input type="number" id="max_requests" name="max_requests" value="{{ prefill.max_requests or 10000 }}" min="100">
+    </div>
+  </div>
+
+  <div class="form-group">
+    <label for="excluded_paths">Excluded Paths (one per line, plain path or a trailing .*)</label>
+    <textarea id="excluded_paths" name="excluded_paths" rows="3"
+              placeholder="/logout&#10;/admin/.*">{{ prefill.excluded_paths or '' }}</textarea>
+  </div>
+
+  <!-- Authentication -->
+  <div class="form-group">
+    <label for="auth_method">Authentication</label>
+    <select id="auth_method" name="auth_method">
+      <option value="none" {% if not prefill.auth_method or prefill.auth_method == 'none' %}selected{% endif %}>None</option>
+      <option value="header" {% if prefill.auth_method == 'header' %}selected{% endif %}>Bearer Token (Authorization header)</option>
+      <option value="cookie" {% if prefill.auth_method == 'cookie' %}selected{% endif %}>Cookie</option>
+    </select>
+  </div>
+
+  <div id="auth-header-group" class="form-group" style="display:none;">
+    <label for="auth_header_value">Authorization Header Value</label>
+    <input type="text" id="auth_header_value" name="auth_header_value"
+           placeholder="Bearer your-token-here"
+           value="{{ prefill.auth_header_value or '' }}">
+  </div>
+
+  <!-- Report formats -->
+  <div class="form-group">
+    <label>Report Formats</label>
+    <div class="checkbox-group">
+      <label><input type="checkbox" name="report_formats" value="markdown" checked> Markdown</label>
+      <label><input type="checkbox" name="report_formats" value="json" checked> JSON</label>
+      <label><input type="checkbox" name="report_formats" value="html"> HTML</label>
+    </div>
+  </div>
+
+  <div class="form-group">
+    <label for="verify">Finding verification</label>
+    <select id="verify" name="verify">
+      <option value="">Server default</option>
+      <option value="replay">Replay</option>
+      <option value="llm">Replay + LLM verdicts (needs LLM enrichment)</option>
+      <option value="off">Off</option>
+    </select>
+  </div>
+
+  {% if user_is_admin %}
+  <div class="form-group">
+    <label>Exploit validation</label>
+    <div class="checkbox-group">
+      <label><input type="checkbox" name="agent" id="agent" value="1"> Run the sandboxed exploit validator</label>
+    </div>
+    <p class="text-sm text-muted mt-1">
+      Needs a verified ownership proof for the host, Docker on the server and verification not off.
+    </p>
+  </div>
+  {% endif %}
+
+  <!-- LLM Enrichment -->
+  <div class="form-group">
+    <label>AI-Powered Analysis</label>
+    <div class="checkbox-group">
+      <label><input type="checkbox" name="llm_enrich" id="llm_enrich" value="1"> Enable LLM enrichment</label>
+    </div>
+    <p class="text-sm text-muted mt-1">
+      Adds attack narratives, chain detection, and smart triage to findings.
+      Requires an LLM API key (Anthropic, OpenAI, or local Ollama).
+    </p>
+  </div>
+
+  <div id="llm-options" class="form-group" style="display:none;">
+    <label for="llm_backend">LLM Backend</label>
+    <select id="llm_backend" name="llm_backend">
+      <option value="">Loading...</option>
+    </select>
+  </div>
+
+  <!-- Legal notice -->
+  <div style="background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.25);border-radius:var(--radius);padding:.8rem 1rem;margin:1rem 0;font-size:.85rem;">
+    <strong style="color:var(--critical);">Legal Notice:</strong>
+    Only scan targets you are <strong>authorised</strong> to test.
+    Unauthorised scanning may violate applicable laws.
+  </div>
+
+  <button type="submit" class="btn btn-primary" id="submit-btn">
+    Start Scan
+  </button>
+  <span id="submit-status" class="text-sm text-muted" style="margin-left:1rem;"></span>
+</form>
+{% endblock %}
+
+{% block scripts %}
+<script type="application/json" id="page-data">{{ page_data | tojson }}</script>
+<script src="/static/js/scan_new.js"></script>
+{% endblock %}

@@ -1,0 +1,244 @@
+import json
+import logging
+import tempfile
+from pathlib import Path
+from typing import Any
+
+from ..core.decorators import handle_scanner_errors, register_scanner
+from ..data.scanner_config import (
+    get_sslyze_deprecated_protocols,
+    get_sslyze_vulnerability_checks,
+)
+from ..models import Confidence, Finding, ScannerResult, Severity, Target
+from .base import ExternalToolScanner
+
+logger = logging.getLogger(__name__)
+
+SCAN_COMPLETED = "COMPLETED"
+
+
+def _dict(value: Any) -> dict[str, Any]:
+    """Return *value* if a dict, else {} (sslyze emits null on failed commands)."""
+    return value if isinstance(value, dict) else {}
+
+
+def _command_result(scan_result: dict[str, Any], key: str) -> dict[str, Any]:
+    return _dict(_dict(scan_result.get(key)).get("result"))
+
+
+@register_scanner
+class SSLyzeScanner(ExternalToolScanner):
+    """Adapter for SSLyze TLS/SSL configuration scanner."""
+
+    name = "sslyze"
+    version = "6.x"
+    description = "TLS/SSL configuration and certificate analyser"
+
+    def __init__(self, options: dict[str, Any] | None = None) -> None:
+        super().__init__(options)
+        self.options.setdefault("timeout", 120)
+        self.options.setdefault("extra_args", [])
+
+    @handle_scanner_errors
+    def scan(self, target: Target, context: Any = None) -> ScannerResult:  # noqa: ARG002
+        if not self._check_tool_available("sslyze"):
+            return ScannerResult(
+                scanner_name=self.name,
+                errors=["sslyze is not installed or not on PATH"],
+            )
+        self._begin(target)
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            output_file = Path(tmpdir) / "sslyze_results.json"
+            cmd = self._build_command(target, str(output_file))
+            timeout = self.options["timeout"]
+            run = self._run_to_file(cmd, output_file, timeout)
+
+        result = ScannerResult(scanner_name=self.name, raw_output=self._redact(run.raw))
+        if run.timed_out:
+            result.errors.append(self._timeout_error(timeout))
+        elif run.returncode != 0 and not run.raw:
+            result.errors.append(
+                f"sslyze exited with code {run.returncode}: "
+                f"{self._redact(run.stderr)[:500]}"
+            )
+        if run.raw:
+            result.findings = self.parse_results(run.raw)
+            result.errors.extend(self._scan_errors(run.raw))
+        return result
+
+    def _build_command(self, target: Target, output_path: str) -> list[str]:
+        cmd = ["sslyze", "--json_out", output_path, "--quiet"]
+        cmd.extend(self._extra_args())
+        cmd.extend(["--", f"{target.hostname}:{target.port}"])
+        return cmd
+
+    @staticmethod
+    def _scan_errors(raw_output: str) -> list[str]:
+        """Report servers sslyze could not scan (e.g. no connectivity)."""
+        try:
+            data = _dict(json.loads(raw_output))
+        except json.JSONDecodeError:
+            return []
+        errors = []
+        for server_result in data.get("server_scan_results") or []:
+            status = _dict(server_result).get("scan_status")
+            if status != SCAN_COMPLETED:
+                location = _dict(_dict(server_result).get("server_location"))
+                errors.append(
+                    f"sslyze scan of {location.get('hostname', '?')}:"
+                    f"{location.get('port', '?')} ended with status {status}"
+                )
+        return errors
+
+    def parse_results(self, raw_output: str) -> list[Finding]:
+        """Parse SSLyze JSON output into Finding objects."""
+        findings: list[Finding] = []
+
+        try:
+            data = _dict(json.loads(raw_output))
+        except json.JSONDecodeError as exc:
+            logger.error("Failed to parse SSLyze JSON: %s", exc)
+            return findings
+
+        for server_result in data.get("server_scan_results") or []:
+            server_result = _dict(server_result)
+            scan_result = _dict(server_result.get("scan_result"))
+            hostname = _dict(server_result.get("server_location")).get("hostname", "")
+
+            findings.extend(self._check_protocols(scan_result, hostname))
+            findings.extend(self._check_certificate(scan_result, hostname))
+            findings.extend(self._check_vulnerabilities(scan_result, hostname))
+
+        return findings
+
+    def _check_protocols(self, scan_result: dict, hostname: str) -> list[Finding]:
+        """Flag deprecated TLS/SSL protocols."""
+        findings: list[Finding] = []
+        deprecated_protos = get_sslyze_deprecated_protocols()
+
+        for key, proto_info in deprecated_protos.items():
+            proto_name = proto_info["proto_name"]
+            severity = Severity[proto_info["severity"]]
+            accepted = (
+                _command_result(scan_result, key).get("accepted_cipher_suites") or []
+            )
+            if accepted:
+                cipher_names = [
+                    _dict(_dict(c).get("cipher_suite")).get("name", "unknown")
+                    for c in accepted[:5]
+                ]
+                findings.append(
+                    Finding(
+                        title=f"Deprecated protocol {proto_name} supported",
+                        description=(
+                            f"The server accepts connections via {proto_name}, "
+                            f"which is deprecated and has known vulnerabilities."
+                        ),
+                        severity=severity,
+                        confidence=Confidence.CONFIRMED,
+                        url=f"https://{hostname}/",
+                        evidence=f"Accepted ciphers: {', '.join(cipher_names)}",
+                        remediation=(
+                            f"Disable {proto_name} on the server. Only TLS 1.2 "
+                            f"and TLS 1.3 should be enabled."
+                        ),
+                        references=[
+                            "https://www.ssllabs.com/ssltest/",
+                        ],
+                        scanner=self.name,
+                        tags=["weak_tls"],
+                    )
+                )
+
+        return findings
+
+    def _check_certificate(self, scan_result: dict, hostname: str) -> list[Finding]:
+        """Check certificate validity and chain issues."""
+        findings: list[Finding] = []
+        result_obj = _command_result(scan_result, "certificate_info")
+        deployments = result_obj.get("certificate_deployments") or []
+
+        for deployment in map(_dict, deployments):
+            # Check trust
+            for pvr in map(_dict, deployment.get("path_validation_results") or []):
+                if pvr.get("was_validation_successful") is False:
+                    trust_store = _dict(pvr.get("trust_store")).get("name", "")
+                    findings.append(
+                        Finding(
+                            title="Certificate not trusted",
+                            description=(
+                                f"Certificate chain validation failed for "
+                                f"trust store: {trust_store}."
+                            ),
+                            severity=Severity.HIGH,
+                            confidence=Confidence.CONFIRMED,
+                            url=f"https://{hostname}/",
+                            remediation=(
+                                "Ensure a valid certificate chain from a trusted CA."
+                            ),
+                            scanner=self.name,
+                            tags=["weak_tls"],
+                        )
+                    )
+                    break  # one finding per deployment is enough
+
+            # Check hostname match
+            if not deployment.get("leaf_certificate_subject_matches_hostname", True):
+                findings.append(
+                    Finding(
+                        title="Certificate hostname mismatch",
+                        description=(
+                            "The certificate's subject does not match the "
+                            f"server hostname ({hostname})."
+                        ),
+                        severity=Severity.HIGH,
+                        confidence=Confidence.CONFIRMED,
+                        url=f"https://{hostname}/",
+                        remediation=(
+                            "Use a certificate that covers the target hostname."
+                        ),
+                        scanner=self.name,
+                        tags=["weak_tls"],
+                    )
+                )
+
+        return findings
+
+    def _check_vulnerabilities(self, scan_result: dict, hostname: str) -> list[Finding]:
+        """Check for known TLS vulnerabilities (Heartbleed, ROBOT, etc.)."""
+        findings: list[Finding] = []
+        vuln_checks = get_sslyze_vulnerability_checks()
+
+        for check_name, check_info in vuln_checks.items():
+            result_obj = _command_result(scan_result, check_info["key"])
+            if not result_obj:
+                continue
+
+            vulnerable_values = check_info.get("vulnerable_values")
+            if vulnerable_values is not None:
+                assert isinstance(vulnerable_values, list)
+                is_vuln = (
+                    result_obj.get(str(check_info["result_field"]), "")
+                    in vulnerable_values
+                )
+            else:
+                is_vuln = result_obj.get(str(check_info["result_field"]), False)
+
+            if is_vuln:
+                title = str(check_info["title"])
+                severity = Severity[check_info["severity"]]
+                findings.append(
+                    Finding(
+                        title=title,
+                        description=(f"Server is vulnerable to {check_name}."),
+                        severity=severity,
+                        confidence=Confidence.CONFIRMED,
+                        url=f"https://{hostname}/",
+                        remediation="Update the TLS library and server software.",
+                        scanner=self.name,
+                        tags=["weak_tls"],
+                    )
+                )
+
+        return findings

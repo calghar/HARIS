@@ -1,0 +1,131 @@
+[
+   {
+      "end_time" : "2026-11-08 21:32:41 +0100",
+      "host" : "127.0.0.1",
+      "ip" : "127.0.0.1",
+      "port" : "18443",
+      "server_banner" : null,
+      "ssl_info" : {
+         "altnames" : "localhost",
+         "ciphers" : "AEAD-AES256-GCM-SHA384",
+         "cn" : "localhost",
+         "issuer" : "/CN=localhost",
+         "subject" : "/CN=localhost"
+      },
+      "start_time" : "2026-11-08 21:32:30 +0100",
+      "vulnerabilities" : [
+         {
+            "id" : 999986,
+            "method" : "GET",
+            "msg" : "Retrieved x-powered-by header: PHP/5.2.4.",
+            "references" : "",
+            "url" : "/"
+         },
+         {
+            "id" : 999961,
+            "method" : "GET",
+            "msg" : "Cookie sid created without the secure flag.",
+            "references" : "https://developer.mozilla.org/en-US/docs/Web/HTTP/Cookies",
+            "url" : "/"
+         },
+         {
+            "id" : 95,
+            "method" : "GET",
+            "msg" : "Cookie sid created without the httponly flag.",
+            "references" : "https://developer.mozilla.org/en-US/docs/Web/HTTP/Cookies",
+            "url" : "/"
+         },
+         {
+            "id" : "600050",
+            "method" : "HEAD",
+            "msg" : "Apache/2.2.8 appears to be outdated (current is at least 2.4.66).",
+            "references" : "",
+            "url" : "/"
+         },
+         {
+            "id" : "600625",
+            "method" : "HEAD",
+            "msg" : "PHP/5.2.4 appears to be outdated (current is at least 8.5.1).",
+            "references" : "",
+            "url" : "/"
+         },
+         {
+            "id" : 999993,
+            "method" : "GET",
+            "msg" : "Hostname '127.0.0.1' does not match certificate names (CN: localhost, SAN: localhost).",
+            "references" : "https://cwe.mitre.org/data/definitions/297.html",
+            "url" : "/"
+         },
+         {
+            "id" : "013587",
+            "method" : "GET",
+            "msg" : "Suggested security header missing: referrer-policy.",
+            "references" : "https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Referrer-Policy",
+            "url" : "/"
+         },
+         {
+            "id" : "013587",
+            "method" : "GET",
+            "msg" : "Suggested security header missing: permissions-policy.",
+            "references" : "https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Permissions-Policy",
+            "url" : "/"
+         },
+         {
+            "id" : "013587",
+            "method" : "GET",
+            "msg" : "Suggested security header missing: strict-transport-security.",
+            "references" : "https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Strict-Transport-Security",
+            "url" : "/"
+         },
+         {
+            "id" : "013587",
+            "method" : "GET",
+            "msg" : "Suggested security header missing: content-security-policy.",
+            "references" : "https://developer.mozilla.org/en-US/docs/Web/HTTP/CSP",
+            "url" : "/"
+         },
+         {
+            "id" : "013587",
+            "method" : "GET",
+            "msg" : "Suggested security header missing: x-content-type-options.",
+            "references" : "https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/X-Content-Type-Options",
+            "url" : "/"
+         },
+         {
+            "id" : 999990,
+            "method" : "OPTIONS",
+            "msg" : "OPTIONS: Allowed HTTP Methods: GET, HEAD, POST, OPTIONS, TRACE .",
+            "references" : "",
+            "url" : "/"
+         },
+         {
+            "id" : "750500",
+            "method" : "GET",
+            "msg" : "Directory indexing found.",
+            "references" : null,
+            "url" : "/admin/"
+         },
+         {
+            "id" : "002989",
+            "method" : "GET",
+            "msg" : "PHP is installed, and a test script which runs phpinfo() was found. This gives a lot of system information.",
+            "references" : "CWE-552",
+            "url" : "/phpinfo.php"
+         },
+         {
+            "id" : "007342",
+            "method" : "GET",
+            "msg" : "X-Frame-Options header is deprecated and was replaced with the Content-Security-Policy HTTP header with the frame-ancestors directive.",
+            "references" : "https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/X-Frame-Options",
+            "url" : "/"
+         },
+         {
+            "id" : "007352",
+            "method" : "GET",
+            "msg" : "The X-Content-Type-Options header is not set. This could allow the user agent to render the content of the site in a different fashion to the MIME type.",
+            "references" : "https://www.netsparker.com/web-vulnerability-scanner/vulnerabilities/missing-content-type-header/",
+            "url" : "/"
+         }
+      ]
+   }
+]

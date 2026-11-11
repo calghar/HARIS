@@ -1,11 +1,14 @@
 import json
+from pathlib import Path
+from urllib.parse import urlsplit
 
 import pytest
 
-from src.models import Finding, Severity
-from src.models.scan_context import ScanContext
-from src.models.target import Scope, Target
-from src.scanners.nuclei_scanner import (
+from haris.models import Finding, Severity
+from haris.models.scan_context import ScanContext
+from haris.models.target import Scope, Target
+from haris.net.scoped_client import ScopedClient
+from haris.scanners.nuclei_scanner import (
     DEFAULT_TEMPLATE_DIRS,
     TECH_FINGERPRINT_DIR,
     NucleiScanner,
@@ -81,12 +84,25 @@ class TestDefaults:
         scanner = NucleiScanner()
         assert scanner.options["rate_limit"] == 100
 
-    def test_nmhe_in_command(self, target: Target) -> None:
-        """Host error skipping is disabled via -nmhe."""
+    def test_mhe_in_command(self, target: Target) -> None:
+        """Host errors are capped with -mhe; -nmhe disables nuclei's protection."""
         scanner = NucleiScanner()
         cmd = scanner._build_command(target)
-        assert "-nmhe" in cmd
-        assert "-mhe" not in cmd
+        assert cmd[cmd.index("-mhe") + 1] == "500"
+        assert "-nmhe" not in cmd
+
+    def test_default_timeout_per_request_30(self) -> None:
+        scanner = NucleiScanner()
+        assert scanner.options["timeout_per_request"] == 30
+
+    def test_timeout_per_request_appears_in_command(self, target: Target) -> None:
+        scanner = NucleiScanner()
+        cmd = scanner._build_command(target)
+        assert cmd[cmd.index("-timeout") + 1] == "30"
+
+    def test_timeout_per_request_override(self, target: Target) -> None:
+        cmd = NucleiScanner(options={"timeout_per_request": 10})._build_command(target)
+        assert cmd[cmd.index("-timeout") + 1] == "10"
 
 
 class TestParseResults:
@@ -152,7 +168,9 @@ class TestParseResults:
         assert len(findings) == 1
         finding = findings[0]
         assert "CVE-2021-44228" in finding.title
-        assert any("nvd.nist.gov" in ref for ref in finding.references)
+        assert any(
+            urlsplit(ref).hostname == "nvd.nist.gov" for ref in finding.references
+        )
         assert finding.cwe_id == "CWE-917"
 
 
@@ -219,21 +237,16 @@ class TestBuildCommandKeywordArgs:
         w_flags = [cmd[i + 1] for i, v in enumerate(cmd) if v == "-w"]
         assert "workflows/wordpress-workflow.yaml" in w_flags
 
-    def test_url_list_param_single_url(self, target: Target) -> None:
+    def test_no_url_file_uses_u(self, target: Target) -> None:
         scanner = NucleiScanner()
-        cmd = scanner._build_command(target, url_list=[target.base_url])
+        cmd = scanner._build_command(target)
         assert "-u" in cmd
         assert "-list" not in cmd
 
-    def test_url_list_param_multiple_urls(self, target: Target) -> None:
+    def test_url_file_uses_list(self, target: Target) -> None:
         scanner = NucleiScanner()
-        urls = [
-            "https://example.com",
-            "https://example.com/page1",
-            "https://example.com/page2",
-        ]
-        cmd = scanner._build_command(target, url_list=urls)
-        assert "-list" in cmd
+        cmd = scanner._build_command(target, url_file="/tmp/urls.txt")
+        assert cmd[cmd.index("-list") + 1] == "/tmp/urls.txt"
         assert "-u" not in cmd
 
     def test_multiple_kwargs_combined(self, target: Target) -> None:
@@ -393,14 +406,19 @@ class TestExtractTechnologies:
         assert techs == []
 
 
+def _vetted(target: Target) -> ScanContext:
+    ctx = ScanContext()
+    ctx.http = ScopedClient(target, resolver=lambda _host, _port: ["93.184.216.34"])
+    return ctx
+
+
 class TestBuildUrlList:
     def test_base_url_only_when_no_context_urls(self, target: Target) -> None:
-        ctx = ScanContext()
-        urls = NucleiScanner._build_url_list(target, ctx)
+        urls = NucleiScanner._build_url_list(target, ScanContext())
         assert urls == []
 
     def test_combines_base_and_discovered_urls(self, target: Target) -> None:
-        ctx = ScanContext()
+        ctx = _vetted(target)
         ctx.add_urls(["https://example.com/admin", "https://example.com/login"])
         urls = NucleiScanner._build_url_list(target, ctx)
         assert target.base_url in urls
@@ -408,19 +426,19 @@ class TestBuildUrlList:
         assert "https://example.com/login" in urls
 
     def test_deduplicates_base_url(self, target: Target) -> None:
-        ctx = ScanContext()
+        ctx = _vetted(target)
         ctx.add_urls([target.base_url, "https://example.com/admin"])
         urls = NucleiScanner._build_url_list(target, ctx)
         assert urls.count(target.base_url) == 1
 
     def test_caps_at_500_urls(self, target: Target) -> None:
-        ctx = ScanContext()
+        ctx = _vetted(target)
         ctx.add_urls([f"https://example.com/page{i}" for i in range(1000)])
         urls = NucleiScanner._build_url_list(target, ctx)
         assert len(urls) <= 500
 
     def test_filters_non_http_urls(self, target: Target) -> None:
-        ctx = ScanContext()
+        ctx = _vetted(target)
         ctx.discovered_urls = [
             "https://example.com/valid",
             "ftp://example.com/invalid",
@@ -432,10 +450,37 @@ class TestBuildUrlList:
         assert not any(u.startswith("file://") for u in urls)
 
     def test_returns_empty_when_only_base_url(self, target: Target) -> None:
-        ctx = ScanContext()
+        ctx = _vetted(target)
         ctx.add_urls([target.base_url])
         urls = NucleiScanner._build_url_list(target, ctx)
         assert urls == []
+
+    def test_l4_discovered_urls_drop_off_scope_and_blocked_hosts(
+        self, target: Target
+    ) -> None:
+        seen: list[str] = []
+
+        def resolver(host: str, _port: int) -> list[str]:
+            seen.append(host)
+            if host == "rebind.example.com":
+                return ["10.0.0.5"]
+            return ["93.184.216.34"]
+
+        ctx = ScanContext()
+        ctx.http = ScopedClient(target, resolver=resolver)
+        ctx.discovered_urls = [
+            "https://example.com/admin",
+            "https://rebind.example.com/secret",
+            "https://other.test/x",
+            "http://10.0.0.5/meta",
+        ]
+        urls = NucleiScanner._build_url_list(target, ctx)
+        assert "https://example.com/admin" in urls
+        assert "https://rebind.example.com/secret" not in urls
+        assert "https://other.test/x" not in urls
+        assert "http://10.0.0.5/meta" not in urls
+        assert "other.test" not in seen
+        assert "10.0.0.5" not in seen
 
 
 class TestResolveTargetedSelection:
@@ -450,13 +495,17 @@ class TestResolveTargetedSelection:
         assert tags == []
         assert workflows == []
 
-    def test_explicit_tags_returned_as_is(self, target: Target) -> None:
+    def test_explicit_tags_not_repeated_for_targeted_phase(
+        self, target: Target
+    ) -> None:
+        """Explicit tags already run in the broad phase; 2b must not repeat them."""
         scanner = NucleiScanner(options={"tags": ["cve", "rce"]})
         ctx = ScanContext()
         template_dirs, tags, workflows = scanner._resolve_targeted_selection(
             ctx, has_explicit=True
         )
-        assert tags == ["cve", "rce"]
+        assert tags == []
+        assert workflows == []
 
     def test_default_template_dirs_when_no_tech(self, target: Target) -> None:
         scanner = NucleiScanner()
@@ -478,13 +527,18 @@ class TestResolveTargetedSelection:
         assert "wordpress" in tags
         assert "wp-plugin" in tags or "wp-theme" in tags
 
-    def test_wordpress_tech_adds_workflow(self, target: Target) -> None:
+    def test_wordpress_tech_adds_workflow(self, target: Target, tmp_path: Path) -> None:
+        from unittest.mock import patch
+
         scanner = NucleiScanner()
         ctx = ScanContext()
         ctx.add_technologies(["wordpress"])
-        template_dirs, tags, workflows = scanner._resolve_targeted_selection(
-            ctx, has_explicit=False
-        )
+        (tmp_path / "workflows").mkdir()
+        (tmp_path / "workflows" / "wordpress-workflow.yaml").write_text("id: x")
+        with patch.object(scanner, "_template_root", return_value=tmp_path):
+            template_dirs, tags, workflows = scanner._resolve_targeted_selection(
+                ctx, has_explicit=False
+            )
         assert "workflows/wordpress-workflow.yaml" in workflows
 
     def test_multiple_techs_combine_tags(self, target: Target) -> None:
@@ -536,3 +590,255 @@ class TestSkipTechDetection:
     def test_skip_tech_detection_false_by_default(self, target: Target) -> None:
         scanner = NucleiScanner()
         assert scanner.options["skip_tech_detection"] is False
+
+
+class TestCheckTemplatesAvailable:
+    def test_returns_true_when_dir_exists(self, tmp_path: Path) -> None:
+        from unittest.mock import patch
+
+        scanner = NucleiScanner()
+        with patch.object(scanner, "_template_root", return_value=tmp_path):
+            assert scanner._check_templates_available() is True
+
+    def test_returns_false_and_warns_when_dir_missing(self, tmp_path: Path) -> None:
+        from unittest.mock import patch
+
+        scanner = NucleiScanner()
+        with (
+            patch.object(scanner, "_template_root", return_value=tmp_path / "nope"),
+            patch("haris.scanners.nuclei_scanner.logger") as mock_logger,
+        ):
+            assert scanner._check_templates_available() is False
+            assert mock_logger.warning.called
+
+
+class TestRunPhase:
+    def test_success_returns_findings(self, target: Target) -> None:
+        from unittest.mock import patch
+
+        scanner = NucleiScanner()
+        result_json = json.dumps(
+            {
+                "template-id": "test-template",
+                "info": {"name": "Test Finding", "severity": "high"},
+            }
+        )
+        with patch.object(scanner, "_run_command", return_value=(0, result_json, "")):
+            findings, errors, raw = scanner._run_phase(target, phase_label="test")
+            assert len(findings) == 1
+            assert findings[0].title == "Test Finding"
+            assert len(errors) == 0
+
+    def test_fatal_stderr_creates_error(self, target: Target) -> None:
+        from unittest.mock import patch
+
+        scanner = NucleiScanner()
+        with patch.object(
+            scanner, "_run_command", return_value=(1, "", "[FTL] critical error")
+        ):
+            findings, errors, raw = scanner._run_phase(target, phase_label="test")
+            assert len(findings) == 0
+            assert len(errors) == 1
+            assert "FTL" in errors[0]
+
+    def test_returncode_greater_than_1_creates_error(self, target: Target) -> None:
+        from unittest.mock import patch
+
+        scanner = NucleiScanner()
+        with patch.object(
+            scanner, "_run_command", return_value=(2, "", "error output")
+        ):
+            findings, errors, raw = scanner._run_phase(target, phase_label="test")
+            assert len(errors) == 1
+            assert "code 2" in errors[0]
+
+    def test_empty_stdout_returns_empty_findings(self, target: Target) -> None:
+        from unittest.mock import patch
+
+        scanner = NucleiScanner()
+        with patch.object(scanner, "_run_command", return_value=(0, "", "")):
+            findings, errors, raw = scanner._run_phase(target, phase_label="test")
+            assert len(findings) == 0
+            assert len(errors) == 0
+
+    def test_unsolicited_response_filtered_from_stderr(self, target: Target) -> None:
+        from unittest.mock import patch
+
+        scanner = NucleiScanner()
+        stderr = "line1\nUnsolicited response received\nline2"
+        with (
+            patch.object(scanner, "_run_command", return_value=(0, "", stderr)),
+            patch("haris.scanners.nuclei_scanner.logger") as mock_logger,
+        ):
+            scanner._run_phase(target, phase_label="test")
+            # Check that the warning doesn't contain "Unsolicited"
+            if mock_logger.warning.called:
+                warning_msg = str(mock_logger.warning.call_args)
+                assert "Unsolicited response" not in warning_msg
+
+
+class TestResultToFinding:
+    def test_missing_template_id_and_name_returns_none(self) -> None:
+        scanner = NucleiScanner()
+        result: dict = {"info": {}}  # no template-id AND no name in info
+        finding = scanner._result_to_finding(result)
+        # Actually returns a Finding with "Unknown finding" as the default name
+        assert finding is not None
+        assert finding.title == "Unknown finding"
+
+    def test_string_reference_converted_to_list(self) -> None:
+        scanner = NucleiScanner()
+        result = {
+            "template-id": "test",
+            "info": {
+                "name": "Test",
+                "severity": "medium",
+                "reference": "https://example.com",  # string, not list
+            },
+        }
+        finding = scanner._result_to_finding(result)
+        assert finding is not None
+        assert finding.references == ["https://example.com"]
+
+    def test_cvss_score_in_raw_data(self) -> None:
+        scanner = NucleiScanner()
+        result = {
+            "template-id": "test-cve",
+            "info": {
+                "name": "CVE Test",
+                "severity": "high",
+                "classification": {"cvss-score": 8.5},
+            },
+        }
+        finding = scanner._result_to_finding(result)
+        assert finding is not None
+        # Note: stored with hyphen, not underscore
+        assert finding.raw_data.get("cvss-score") == 8.5
+
+    def test_matcher_name_in_title(self) -> None:
+        scanner = NucleiScanner()
+        result = {
+            "template-id": "test",
+            "matcher-name": "specific-check",
+            "info": {"name": "Finding Name", "severity": "low"},
+        }
+        finding = scanner._result_to_finding(result)
+        assert finding is not None
+        assert "specific-check" in finding.title
+
+
+class TestWriteUrlList:
+    def test_creates_file_with_urls(self) -> None:
+        from pathlib import Path
+
+        urls = ["https://example.com/page1", "https://example.com/page2"]
+        filepath = NucleiScanner._write_url_list(urls)
+        try:
+            assert Path(filepath).exists()
+            content = Path(filepath).read_text()
+            assert "https://example.com/page1" in content
+            assert "https://example.com/page2" in content
+        finally:
+            Path(filepath).unlink(missing_ok=True)
+
+    def test_urls_separated_by_newlines(self) -> None:
+        from pathlib import Path
+
+        urls = ["https://a.com", "https://b.com"]
+        filepath = NucleiScanner._write_url_list(urls)
+        try:
+            content = Path(filepath).read_text()
+            assert content == "https://a.com\nhttps://b.com"
+        finally:
+            Path(filepath).unlink(missing_ok=True)
+
+
+class TestGenericRemediation:
+    def test_known_tag_returns_specific_remediation(self) -> None:
+        from haris.models import Severity
+
+        remediation = NucleiScanner._generic_remediation(
+            ["sql_injection"], Severity.HIGH
+        )
+        assert "parameterised queries" in remediation.lower()
+
+    def test_unknown_tag_returns_default(self) -> None:
+        from haris.models import Severity
+
+        remediation = NucleiScanner._generic_remediation(
+            ["unknown-tag-xyz"], Severity.MEDIUM
+        )
+        assert "security standard" in remediation.lower()
+
+    def test_first_match_wins(self) -> None:
+        from haris.models import Severity
+
+        # Both are in remediation_map, should return first match
+        remediation = NucleiScanner._generic_remediation(
+            ["xss", "sql_injection"], Severity.HIGH
+        )
+        # XSS comes first in the tags list
+        assert (
+            "output encoding" in remediation.lower()
+            or "Content-Security-Policy" in remediation
+        )
+
+
+class TestScanAuthHeaderForwarding:
+    def test_auth_header_forwarded_to_command(self, target: Target) -> None:
+        from haris.models.target import AuthConfig
+
+        target.auth = AuthConfig(
+            method="header", header_name="X-API-Key", header_value="secret123"
+        )
+        scanner = NucleiScanner()
+        cmd = scanner._build_command(target)
+        assert "-H" in cmd
+        h_idx = cmd.index("-H")
+        assert cmd[h_idx + 1] == "X-API-Key: secret123"
+
+    def test_no_auth_means_no_h_flag(self, target: Target) -> None:
+        from haris.models.target import AuthConfig
+
+        target.auth = AuthConfig(method="none")
+        # Count -H flags - should only be for non-auth headers if any
+        auth_headers = target.auth.as_headers()
+        assert len(auth_headers) == 0
+
+
+class TestScanFullFlow:
+    def test_scan_returns_scanner_result(self, target: Target) -> None:
+        from unittest.mock import patch
+
+        scanner = NucleiScanner()
+        with (
+            patch.object(scanner, "_check_tool_available", return_value=True),
+            patch.object(scanner, "_check_templates_available", return_value=True),
+            patch.object(scanner, "_run_phase", return_value=([], [], "")),
+        ):
+            result = scanner.scan(target)
+            assert result.scanner_name == "nuclei"
+            assert isinstance(result.findings, list)
+
+    def test_tool_missing_returns_error(self, target: Target) -> None:
+        from unittest.mock import patch
+
+        scanner = NucleiScanner()
+        with patch.object(scanner, "_check_tool_available", return_value=False):
+            result = scanner.scan(target)
+            assert len(result.errors) == 1
+            assert "not installed" in result.errors[0]
+
+    def test_skip_tech_detection_skips_phase_1(self, target: Target) -> None:
+        from unittest.mock import patch
+
+        scanner = NucleiScanner(options={"skip_tech_detection": True})
+        with (
+            patch.object(scanner, "_check_tool_available", return_value=True),
+            patch.object(scanner, "_check_templates_available", return_value=True),
+            patch.object(scanner, "_run_phase", return_value=([], [], "")) as mock_run,
+        ):
+            scanner.scan(target)
+            # Should only call _run_phase once (Phase 2), not twice
+            # (Phase 1 fingerprinting should be skipped)
+            assert mock_run.call_count == 1

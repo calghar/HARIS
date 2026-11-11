@@ -8,29 +8,29 @@ on:
   schedule:
     - cron: "0 6 * * 1" # Weekly on Monday at 06:00 UTC
 
+permissions:
+  contents: read
+
 jobs:
   sast:
     name: SAST (Bandit)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
 
-      - uses: astral-sh/setup-uv@v7
+      - uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7.6.0
         with:
           enable-cache: true
           python-version: "3.13"
 
       - name: Install dev dependencies
-        run: uv sync --extra dev
+        run: uv sync
 
       - name: Run Bandit (medium+ severity)
-        run: |
-          uv run bandit -r src/ -c pyproject.toml -ll -ii \
-            --format json --output bandit-report.json || true
-          uv run bandit -r src/ -c pyproject.toml -ll -ii
+        run: uv run bandit -r src/ -c pyproject.toml -ll -ii --format json --output bandit-report.json
 
       - name: Upload Bandit report
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
         with:
           name: bandit-report
@@ -39,42 +39,64 @@ jobs:
   dependency-audit:
     name: Dependency Audit (pip-audit)
     runs-on: ubuntu-latest
-    continue-on-error: true
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
 
-      - uses: astral-sh/setup-uv@v7
+      - uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7.6.0
         with:
           enable-cache: true
           python-version: "3.13"
 
       - name: Install dependencies
-        run: uv sync --extra dev --extra web --extra reporting --extra llm-anthropic --extra llm-openai
+        run: uv sync --extra web --extra reporting
 
       - name: Run pip-audit
-        run: |
-          uv run pip-audit \
-            --ignore-vuln CVE-2026-27205 \
-            --ignore-vuln CVE-2026-27448 \
-            --ignore-vuln CVE-2026-27459 \
-            --ignore-vuln GHSA-78cv-mqj4-43f7 \
-            --ignore-vuln CVE-2026-31958 \
-            --ignore-vuln CVE-2026-35536 \
-            --format=json --output=pip-audit-report.json || true
-          uv run pip-audit \
-            --ignore-vuln CVE-2026-27205 \
-            --ignore-vuln CVE-2026-27448 \
-            --ignore-vuln CVE-2026-27459 \
-            --ignore-vuln GHSA-78cv-mqj4-43f7 \
-            --ignore-vuln CVE-2026-31958 \
-            --ignore-vuln CVE-2026-35536
+        run: uv run pip-audit --skip-editable --format=json --output=pip-audit-report.json
 
       - name: Upload pip-audit report
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
         with:
           name: pip-audit-report
           path: pip-audit-report.json
+
+  sbom:
+    name: CycloneDX SBOM
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+
+      - uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7.6.0
+        with:
+          enable-cache: true
+          python-version: "3.13"
+
+      - name: Export CycloneDX SBOM
+        run: uv export --preview-features sbom-export --frozen --format cyclonedx1.5 --no-dev --extra web --extra reporting --output-file sbom.cdx.json
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: cyclonedx-sbom
+          path: sbom.cdx.json
+
+  trivy:
+    name: Trivy image scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+
+      - name: Build image
+        run: docker build -t haris:security .
+
+      - name: Scan fixed HIGH and CRITICAL vulnerabilities
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: haris:security
+          format: table
+          exit-code: "1"
+          ignore-unfixed: true
+          vuln-type: os,library
+          severity: HIGH,CRITICAL
 
   codeql:
     name: CodeQL
@@ -83,19 +105,19 @@ jobs:
     # continue-on-error keeps this job visible without blocking the workflow.
     continue-on-error: true
     permissions:
-      actions: read
-      contents: read
-      security-events: write
+      actions: read # CodeQL reads Actions metadata
+      contents: read # CodeQL checks out the repo
+      security-events: write # upload CodeQL alerts
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
 
-      - uses: github/codeql-action/init@v4
+      - uses: github/codeql-action/init@33d7b85da1a04171e211befe2c739303b9a4c066 # v4.39.3
         with:
           languages: python
           queries: security-and-quality
 
-      - uses: github/codeql-action/autobuild@v4
+      - uses: github/codeql-action/autobuild@33d7b85da1a04171e211befe2c739303b9a4c066 # v4.39.3
 
-      - uses: github/codeql-action/analyze@v4
+      - uses: github/codeql-action/analyze@33d7b85da1a04171e211befe2c739303b9a4c066 # v4.39.3
         with:
           category: python

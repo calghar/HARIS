@@ -1,0 +1,23 @@
+## Findings
+{% filter untrusted %}
+{% for f in findings %}
+- [{{ f.finding_id }}] {{ f.title[:limits.title] }} (severity={{ f.severity.value }}, url={{ f.url }}, tags={{ f.tags[:3] | join(',') }})
+{% endfor %}
+{% endfilter %}
+
+## Task
+Identify attack chains — sequences of findings that an attacker could combine to achieve a larger impact than any single finding alone.
+Each chain must reference at least two finding IDs from the list above.
+
+Respond with a JSON object whose "items" array holds attack chains:
+{
+  "chain_id": "chain_1",
+  "name": "Short descriptive name",
+  "description": "How these findings connect into an exploit chain",
+  "finding_ids": ["id1", "id2"],
+  "total_impact": "Description of combined impact",
+  "likelihood": "low | medium | high"
+}
+
+If no meaningful chains exist, return {"items": []}.
+Return ONLY the JSON object, no markdown fences or commentary.

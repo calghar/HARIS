@@ -2,11 +2,12 @@ import sqlite3
 
 import pytest
 
-from src.db.store import _SCHEMA_VERSION, ScanStore
+from haris.db.baseline import SCHEMA_VERSION
+from haris.db.store import ScanStore
 
 
 def test_schema_version_is_6():
-    assert _SCHEMA_VERSION == 6
+    assert SCHEMA_VERSION == 6
 
 
 def test_v6_fresh_install_creates_auth_tables(tmp_path):

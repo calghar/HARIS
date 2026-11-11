@@ -1,0 +1,177 @@
+# Seed set from the DVWA module list at security level low; the runner logs in first.
+target: dvwa
+kind: external
+entries:
+  - id: dvwa-sqli
+    method: GET
+    url: /vulnerabilities/sqli
+    parameter: id
+    vuln_class: sqli_error
+    cwe: CWE-89
+    expected: true_positive
+    source: https://github.com/digininja/DVWA
+  - id: dvwa-sqli-blind
+    method: GET
+    url: /vulnerabilities/sqli_blind
+    parameter: id
+    vuln_class: sqli_error
+    cwe: CWE-89
+    expected: true_positive
+    source: https://github.com/digininja/DVWA
+    notes: Wapiti 3.3 reports this blind injection as plain "SQL Injection", which maps to sqli_error.
+  - id: dvwa-xss-reflected
+    method: GET
+    url: /vulnerabilities/xss_r
+    parameter: name
+    vuln_class: xss_reflected
+    cwe: CWE-79
+    expected: true_positive
+    source: https://github.com/digininja/DVWA
+  - id: dvwa-xss-stored
+    method: POST
+    url: /vulnerabilities/xss_s
+    parameter: mtxMessage
+    vuln_class: xss_reflected
+    cwe: CWE-79
+    expected: true_positive
+    source: https://github.com/digininja/DVWA
+    notes: Wapiti reports stored XSS as reflected.
+  - id: dvwa-xss-stored-name
+    method: POST
+    url: /vulnerabilities/xss_s
+    parameter: txtName
+    vuln_class: xss_reflected
+    cwe: CWE-79
+    expected: true_positive
+    source: https://github.com/digininja/DVWA
+    notes: Wapiti reports stored XSS as reflected.
+  - id: dvwa-file-inclusion
+    method: GET
+    url: /vulnerabilities/fi
+    parameter: page
+    vuln_class: path_traversal
+    cwe: CWE-22
+    expected: true_positive
+    source: https://github.com/digininja/DVWA
+    notes: Local file inclusion through page; HARIS reports it as path_traversal.
+  - id: dvwa-command-injection
+    method: POST
+    url: /vulnerabilities/exec
+    parameter: ip
+    vuln_class: command_injection
+    cwe: CWE-78
+    expected: true_positive
+    source: https://github.com/digininja/DVWA
+  - id: dvwa-csrf
+    method: GET
+    url: /vulnerabilities/csrf
+    parameter: password_new
+    vuln_class: csrf
+    cwe: CWE-352
+    expected: true_positive
+    source: https://github.com/digininja/DVWA
+    notes: Wapiti's csrf module attacks POST forms only and sets no parameter, so this entry may stay a miss.
+  - id: dvwa-upload
+    method: POST
+    url: /vulnerabilities/upload
+    parameter: uploaded
+    vuln_class: unrestricted_upload
+    cwe: CWE-434
+    expected: true_positive
+    source: https://github.com/digininja/DVWA
+  - id: dvwa-brute-sqli
+    method: GET
+    url: /vulnerabilities/brute
+    parameter: username
+    vuln_class: sqli_error
+    cwe: CWE-89
+    expected: true_positive
+    source: https://github.com/digininja/DVWA
+    notes: The brute-force login interpolates username into SQL; a quote returns a MariaDB syntax error (checked live).
+  - id: dvwa-file-inclusion-remote
+    method: GET
+    url: /vulnerabilities/fi
+    parameter: page
+    vuln_class: ssrf
+    cwe: CWE-918
+    expected: true_positive
+    source: https://github.com/digininja/DVWA
+    notes: page=http://127.0.0.1/robots.txt returns the fetched file (checked live); HARIS reports remote inclusion as ssrf.
+  - id: dvwa-upload-filename-xss
+    method: POST
+    url: /vulnerabilities/upload
+    parameter: uploaded
+    vuln_class: xss_reflected
+    cwe: CWE-79
+    expected: true_positive
+    source: https://github.com/digininja/DVWA
+    notes: The uploaded file name is echoed unescaped (checked live).
+  - id: dvwa-open-redirect
+    method: GET
+    url: /vulnerabilities/open_redirect/source/low.php
+    parameter: redirect
+    vuln_class: open_redirect
+    cwe: CWE-601
+    expected: true_positive
+    source: https://github.com/digininja/DVWA
+    notes: redirect=https://evil.example returns a 302 to that host (checked live).
+  - id: dvwa-phpinfo
+    method: GET
+    url: /phpinfo.php
+    vuln_class: sensitive_file
+    cwe: CWE-538
+    expected: true_positive
+    source: https://github.com/digininja/DVWA
+    notes: phpinfo() page answers 200 for a logged-in session (checked live).
+  - id: dvwa-csp-xss
+    method: POST
+    url: /vulnerabilities/csp
+    parameter: include
+    vuln_class: xss_reflected
+    cwe: CWE-79
+    expected: true_positive
+    source: https://github.com/digininja/DVWA
+    notes: include lands unescaped in a script src attribute; the Wapiti payload closes the tag and reflects a raw script element (checked live).
+  - id: dvwa-fi-php-eval
+    method: GET
+    url: /vulnerabilities/fi
+    parameter: page
+    vuln_class: command_injection
+    cwe: CWE-78
+    expected: true_positive
+    source: https://github.com/digininja/DVWA
+    notes: The data wrapper runs PHP and the body starts with the echoed marker (checked live); Wapiti reports it as command execution.
+ignore:
+  - vuln_class: no_https
+    url: /*
+    reason: The target is served over plain HTTP by the compose file.
+  - vuln_class: missing_header
+    url: /*
+    reason: Header set is a property of the target image, not a seeded weakness.
+  - vuln_class: banner_disclosure
+    url: /*
+    reason: Version banner is a property of the target image, not a seeded weakness.
+  - vuln_class: sensitive_file
+    url: /robots.txt
+    reason: Info-level discovery record, not a weakness.
+  - vuln_class: sensitive_file
+    url: /sitemap.xml
+    reason: Info-level discovery record, not a weakness.
+  - vuln_class: sensitive_file
+    url: /.well-known/security.txt
+    reason: Info-level discovery record, not a weakness.
+  - vuln_class: cleartext_password_submission
+    url: /vulnerabilities/*
+    reason: Password forms are served over plain HTTP by the compose file.
+  - vuln_class: unclassified:wapiti:anomaly-internal-server-error-the-server-responded-with-a-500-http-error-code-while-attempting-to-inject-a-pay
+    url: /vulnerabilities/open_redirect/source/info.php
+    reason: Wapiti anomaly record from payload injection, not a weakness.
+  - vuln_class: unclassified:nuclei:php2shell-cve-2026-109618-cve-2026-109619-active-crash-detection-cve-2026-109618
+    url: /
+    reason: Version match only (PHP 8.5.11 is below the NVD fixed version 8.5.12); no crash or code execution was shown.
+  - vuln_class: unclassified:nikto:admin-login-page-section-found
+    url: /login.php
+    reason: Info-level discovery record of the login form, not a weakness.
+  - vuln_class: unclassified:nikto:web-server-returns-a-valid-response-with-junk-http-methods-which-may-cause-false-positives
+    url: /
+    reason: Apache treats an unknown method as GET; nikto flags its own possible false positive.

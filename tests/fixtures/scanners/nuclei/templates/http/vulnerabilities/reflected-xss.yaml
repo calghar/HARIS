@@ -1,0 +1,26 @@
+id: reflected-xss
+
+info:
+  name: Fixture reflected XSS
+  author: haris
+  severity: high
+  description: The q parameter is reflected without encoding.
+  classification:
+    cwe-id: CWE-79
+  tags: xss,vulnerability
+
+http:
+  - method: GET
+    path:
+      - "{{BaseURL}}/search?q=haris%3Cb%3Emarker"
+    matchers:
+      - type: word
+        part: body
+        words:
+          - "harisX<b>marker"
+        negative: true
+      - type: word
+        part: body
+        words:
+          - "haris<b>marker"
+    matchers-condition: and

@@ -1,4 +1,4 @@
-from src.models.scan_context import ScanContext
+from haris.models.scan_context import ScanContext
 
 
 class TestScanContextDefaults:

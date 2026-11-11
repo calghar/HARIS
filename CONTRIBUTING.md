@@ -4,9 +4,10 @@
 
 ```bash
 git clone <repo-url> && cd HARIS
-uv venv .venv && source .venv/bin/activate
-uv pip install -e ".[all]"
+uv sync --extra web --extra reporting
 ```
+
+Dev tools (pytest, ruff, mypy, bandit, pip-audit) come from the `dev` dependency group, which `uv sync` installs by default. Scanner CLIs are installed separately with `pipx` (see README).
 
 Copy `.env.example` to `.env` and fill in any API keys you need for testing.
 
@@ -24,26 +25,26 @@ All tests must pass before submitting a PR. Tests use pytest with mocked externa
 - Pydantic `BaseModel` for data models
 - `logging` module for output (no bare `print`)
 - Keep modules under ~300 lines
-- Lint with `ruff check src/ scripts/ tests/`
+- Lint with `ruff check src/haris/ tests/`
 
 ## Adding a Scanner
 
-1. Create `src/scanners/{name}_scanner.py` subclassing `BaseScanner`
+1. Create `src/haris/scanners/{name}_scanner.py` subclassing `BaseScanner`
 2. Implement `scan()` and `parse_results()`
 3. Decorate with `@register_scanner`
-4. Register in `src/scanners/__init__.py`
-5. Add config in `config/default_config.yaml`
+4. Register in `src/haris/scanners/__init__.py`
+5. Add config in `src/haris/resources/config/default_config.yaml`
 6. Add tests in `tests/test_{name}_scanner.py`
 
-See `src/scanners/nuclei_scanner.py` for a complete example.
+See `src/haris/scanners/nuclei_scanner.py` for a complete example.
 
 ## Adding a Check
 
-Same pattern as scanners, but in `src/checks/` with `@register_check`.
+Same pattern as scanners, but in `src/haris/checks/` with `@register_check`.
 
 ## Adding an LLM Prompt
 
-1. Create a `.j2` template in `src/llm/templates/qa/` or `src/llm/templates/enrichment/`
+1. Create a `.j2` template in `src/haris/llm/templates/qa/` or `src/haris/llm/templates/enrichment/`
 2. Add a method to `PromptBuilder` or `EnrichmentPromptBuilder` that calls `render_template()`
 3. All prompt methods return `(system_prompt, user_prompt)` tuples
 

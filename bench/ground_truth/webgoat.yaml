@@ -1,0 +1,84 @@
+# Seed set from WebGoat lesson endpoints and exposures, checked against the pinned image with a logged-in session.
+target: webgoat
+kind: external
+entries:
+  - id: webgoat-sqli-intro
+    method: POST
+    url: /WebGoat/SqlInjection/assignment5a
+    parameter: account
+    vuln_class: sqli_error
+    cwe: CWE-89
+    expected: true_positive
+    source: https://github.com/WebGoat/WebGoat
+    notes: SQL Injection (intro) lesson.
+  - id: webgoat-xxe-simple
+    method: POST
+    url: /WebGoat/xxe/simple
+    vuln_class: xxe
+    cwe: CWE-611
+    expected: true_positive
+    source: https://github.com/WebGoat/WebGoat
+    notes: XXE lesson; the XML body is the injection point.
+  - id: webgoat-xss-reflected
+    method: GET
+    url: /WebGoat/CrossSiteScripting/attack5a
+    parameter: field1
+    vuln_class: xss_reflected
+    cwe: CWE-79
+    expected: true_positive
+    source: https://github.com/WebGoat/WebGoat
+    notes: Cross Site Scripting lesson.
+  - id: webgoat-actuator
+    method: GET
+    url: /WebGoat/actuator
+    vuln_class: sensitive_file
+    cwe: CWE-538
+    expected: true_positive
+    source: https://github.com/WebGoat/WebGoat
+    notes: Spring Boot actuator index answers 200 without a login (checked live).
+  - id: webgoat-actuator-env
+    method: GET
+    url: /WebGoat/actuator/env
+    vuln_class: sensitive_file
+    cwe: CWE-538
+    expected: true_positive
+    source: https://github.com/WebGoat/WebGoat
+    notes: Environment endpoint answers 200 without a login; values are masked (checked live).
+  - id: webgoat-login-cache
+    method: GET
+    url: /WebGoat/login
+    vuln_class: cache_sensitive
+    cwe: CWE-525
+    expected: true_positive
+    source: https://github.com/WebGoat/WebGoat
+    notes: The login page sends no Cache-Control or Pragma header (checked live).
+  - id: webgoat-verbose-error
+    method: GET
+    url: /WebGoat
+    vuln_class: verbose_error
+    cwe: CWE-209
+    expected: true_positive
+    source: https://github.com/WebGoat/WebGoat
+    notes: Error responses carry a Java stack trace in the body (checked live on a missing path with a session).
+ignore:
+  - vuln_class: no_https
+    url: /*
+    reason: The target is served over plain HTTP by the compose file.
+  - vuln_class: missing_header
+    url: /*
+    reason: Header set is a property of the target image, not a seeded weakness.
+  - vuln_class: banner_disclosure
+    url: /*
+    reason: Version banner is a property of the target image, not a seeded weakness.
+  - vuln_class: sensitive_file
+    url: /robots.txt
+    reason: Info-level discovery record, not a weakness.
+  - vuln_class: sensitive_file
+    url: /sitemap.xml
+    reason: Info-level discovery record, not a weakness.
+  - vuln_class: sensitive_file
+    url: /.well-known/security.txt
+    reason: Info-level discovery record, not a weakness.
+  - vuln_class: unclassified:nikto:x-frame-options-header-is-deprecated-and-was-replaced-with-the-content-security-policy-http-header-with-the-frame-ancest
+    url: /WebGoat
+    reason: Advisory about the X-Frame-Options header the image sets; a property of the target.

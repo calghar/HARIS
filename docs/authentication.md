@@ -18,9 +18,16 @@ HARIS_SECRET_KEY=$(python -c "import secrets; print(secrets.token_hex(32))")
 docker compose up    # or: make reload
 ```
 
-On first start, if the `users` table is empty, the admin account is created automatically from the env vars. Visit `http://localhost:8000` — you will be redirected to `/auth/login`.
+On first start, when the user table is empty and both `HARIS_ADMIN_EMAIL` and `HARIS_ADMIN_PASSWORD` are set, startup creates that admin. An anonymous request to `http://localhost:8000` is redirected to `/login`.
 
-If no env vars are set, visit `/auth/setup` to create the first admin interactively (only accessible when zero users exist).
+`/auth/setup` answers 404 until `HARIS_SETUP_TOKEN` is set, and once a user exists.
+
+| Variable | Default | Effect |
+| -------- | ------- | ------ |
+| `HARIS_PUBLIC_URL` | unset | When set, the only base for emailed verification links. When unset, SMTP does not send and the link is logged from the request base URL |
+| `HARIS_ALLOWED_HOSTS` | unset | Comma-separated hosts. When set, any other Host header is rejected and www redirect is off. When unset, there is no host check |
+| `HARIS_COOKIE_SECURE` | `auto` | `true` forces the Secure flag and `false` omits it. Any other value, including `1` and `yes`, follows the request scheme. Session cookie and CSRF seed cookie |
+| `HARIS_SETUP_TOKEN` | unset | `/auth/setup` answers 404 until this is set, and once a user exists. The form field `setup_token` is compared with this value |
 
 ---
 
@@ -28,20 +35,14 @@ If no env vars are set, visit `/auth/setup` to create the first admin interactiv
 
 | Role | Permissions |
 | ---- | ----------- |
-| `user` | Start scans, view results, use LLM Q&A, manage own profile |
-| `admin` | All of the above + user management, settings, delete scans/templates, view audit log |
+| `user` | Start scans, view and delete own scans, use LLM Q&A, manage own templates and profile |
+| `admin` | All of the above on any user's scans and templates + user management, settings, view audit log |
 
 ---
 
 ## Self-Registration
 
-Users can register at `/auth/register`, subject to the domain allowlist in `config/default_config.yaml`:
-
-```yaml
-auth:
-  allowed_email_domains:
-    - "techforpalestine.org"   # leave empty [] to allow any domain
-```
+Users can register at `/auth/register`, subject to the comma-separated domain allowlist in `HARIS_ALLOWED_EMAIL_DOMAINS` (default `techforpalestine.org`; set it empty to allow any domain).
 
 Registration creates an **inactive** account. The user receives a verification email with a 24-hour token link. Clicking it activates the account. If SMTP is not configured, the admin activates accounts manually from `/auth/users`.
 
@@ -52,34 +53,37 @@ The error message on registration deliberately does not reveal which domains are
 ## Sessions
 
 - Sessions are stored server-side in the `user_sessions` SQLite table.
-- A `secrets.token_urlsafe(32)` token is placed in an `httponly`, `SameSite=lax` cookie (`haris_session`).
-- Default TTL: 8 hours (configurable via `auth.session_ttl_hours`).
+- A `secrets.token_urlsafe(32)` token is placed in an `httponly`, `SameSite=lax` cookie (`haris_session`). The table stores only its SHA-256 hash.
+- TTL: 8 hours.
 - Users can view and revoke individual sessions from `/auth/profile`.
+- A password change ends that user's other sessions. The session that sent the change stays.
+- Admin deactivation ends every session for that user.
 - Expired sessions are purged automatically on startup.
 
 ---
 
 ## CSRF Protection
 
-HARIS uses the **double-submit cookie** pattern:
+HARIS derives a CSRF token from the session cookie:
 
-- A JS-readable `haris_csrf` cookie is set on login (`SameSite=strict`, non-httponly).
+- The token is an HMAC-SHA256 of the `haris_session` cookie value, keyed with `HARIS_SECRET_KEY`. Before login, the `haris_csrf` seed cookie (`httponly`, `SameSite=lax`, 1 hour) takes its place.
 - The `<body>` tag injects it for all HTMX requests: `hx-headers='{"X-CSRF-Token": "..."}'`.
 - Traditional forms include it as `<input type="hidden" name="csrf_token">`.
-- Middleware validates that the cookie and the header/form value match using `secrets.compare_digest`.
+- Every POST, PUT and DELETE must send it in the `X-CSRF-Token` header or the form field. The app compares it with `secrets.compare_digest`.
+- Requests with a Bearer token on `/api/v1/*` skip the CSRF check.
 - HTMX-triggered 401s return an `HX-Redirect` header instead of a full redirect.
 
 ---
 
 ## Login Rate Limiting
 
-5 failed login attempts from the same IP within 60 seconds triggers a `429 Too Many Requests`. The counter resets after the window expires.
+Login, registration and resend-verification share a limit of 5 attempts per 60 seconds, per client IP and per lower-cased email. The counts are rows in `auth_attempt_counters` in the auth database. Past the limit the route returns 429.
 
 ---
 
 ## Security Headers
 
-The `SecurityHeadersMiddleware` (`src/auth/security_headers.py`) injects on every response:
+The `SecurityHeadersMiddleware` (`src/haris/auth/security_headers.py`) injects on every response:
 
 | Header | Value |
 | ------ | ----- |
@@ -87,10 +91,10 @@ The `SecurityHeadersMiddleware` (`src/auth/security_headers.py`) injects on ever
 | `X-Content-Type-Options` | `nosniff` |
 | `X-Frame-Options` | `DENY` |
 | `Referrer-Policy` | `strict-origin-when-cross-origin` |
-| `Content-Security-Policy` | `default-src 'self'; script-src 'self' unpkg.com cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' fonts.googleapis.com; font-src fonts.gstatic.com; img-src 'self' data:` |
+| `Content-Security-Policy` | Per-response nonce on `script-src` and `style-src`, `default-src 'self'`, `frame-ancestors 'none'`, `object-src 'none'` (see `build_csp`) |
 | `Permissions-Policy` | `geolocation=(), microphone=(), camera=()` |
 
-Set `deployment.force_https: true` in `config/default_config.yaml` to redirect all `http://` requests to `https://`.
+Set `HARIS_FORCE_HTTPS=true` to redirect all `http://` requests to `https://`.
 
 ---
 
@@ -100,7 +104,7 @@ Admins access `/auth/users` to:
 
 - Create new users (any role, any domain)
 - Activate accounts that are pending email verification
-- Toggle active/inactive status
+- Toggle active/inactive status. An admin-disabled account stays inactive through the verification email
 - Change role (`user` ↔ `admin`)
 - Delete users (cannot delete self)
 
@@ -110,27 +114,19 @@ The audit log at `/auth/audit-log` records all user and scan actions with actor,
 
 ## OIDC / KeyCloak Integration
 
-Enable SSO via any OIDC 2.0 provider (tested with KeyCloak):
-
-**`config/default_config.yaml`:**
-```yaml
-auth:
-  oidc:
-    enabled: true
-    issuer: "https://keycloak.example.com/realms/haris"
-    client_id: "haris"
-    role_claim: "haris_role"        # custom KeyCloak mapper attribute
-    admin_role_value: "haris-admin"
-```
+Enable SSO via an OIDC provider.
 
 **`.env`:**
 ```
+HARIS_OIDC_ENABLED=true
+HARIS_OIDC_ISSUER=https://keycloak.example.com/realms/haris
+HARIS_OIDC_CLIENT_ID=haris
 HARIS_OIDC_CLIENT_SECRET=<your-client-secret>
 ```
 
-PKCE (`code_challenge_method: S256`) is enabled by default. Account linking is by email (case-insensitive). The `role_claim` is checked first; if absent, `realm_access.roles` (KeyCloak default) is used as fallback.
+PKCE (`code_challenge_method: S256`) is enabled by default. Account linking is by email (case-insensitive). Creating a user on OIDC login applies `HARIS_ALLOWED_EMAIL_DOMAINS`. The `haris_role` claim is checked first for the value `haris-admin`; if absent, `realm_access.roles` (KeyCloak default) is used as fallback.
 
-The OIDC login button appears on `/auth/login` when OIDC is enabled. Requires `authlib` and `httpx`:
+The OIDC login button appears on `/login` when OIDC is enabled. Requires `authlib` and `httpx`:
 
 ```bash
 uv pip install authlib httpx
@@ -140,18 +136,13 @@ uv pip install authlib httpx
 
 ## Email Verification & SMTP
 
-```yaml
-auth:
-  smtp:
-    enabled: true
-    host: "smtp.example.com"
-    port: 587
-    use_tls: true
-    from_address: "noreply@example.com"
-    from_name: "HARIS Security Platform"
 ```
-
-```
+HARIS_SMTP_ENABLED=true
+HARIS_SMTP_HOST=smtp.example.com
+HARIS_SMTP_PORT=587
+HARIS_SMTP_USE_TLS=true
+HARIS_SMTP_FROM=noreply@example.com
+HARIS_SMTP_FROM_NAME=HARIS Security Platform
 HARIS_SMTP_USERNAME=smtp-user
 HARIS_SMTP_PASSWORD=smtp-pass
 ```
@@ -169,13 +160,11 @@ When running behind nginx or Caddy (Exoscale, DigitalOcean, etc.):
 --proxy-headers --forwarded-allow-ips=127.0.0.1
 ```
 
-This ensures `request.client.host` resolves to the real client IP (for rate limiting) and `request.url.scheme` is `https` (for the `secure` cookie flag and HSTS header).
+This ensures `request.client.host` resolves to the real client IP (for rate limiting) and `request.url.scheme` is `https` (for HSTS, and for the Secure cookie flag when `HARIS_COOKIE_SECURE` is `auto`).
 
-**`config/default_config.yaml`:**
-```yaml
-deployment:
-  force_https: true
-  trusted_proxy_ips: "127.0.0.1"
+**`.env`:**
+```
+HARIS_FORCE_HTTPS=true
 ```
 
 **nginx snippet:**
@@ -194,11 +183,12 @@ location / {
 
 | Route pattern | Minimum role |
 | ------------- | ------------ |
-| `/auth/login`, `/auth/register`, `/auth/setup`, `/auth/verify-email` | Public |
+| `/login`, `/auth/register`, `/auth/setup`, `/auth/verify-email`, `/health` | Public |
 | `/auth/oidc/*` | Public |
 | All dashboard routes (`/`, `/websites`, `/scans`, `/scan/*`, `/templates`) | `user` |
-| `POST /api/scan/start`, LLM routes | `user` |
-| `DELETE /api/scan/*`, `POST/PUT/DELETE /api/scan-templates/*` | `admin` |
+| `/api/v1/*` (session cookie or Bearer token `haris_pat_...`), including `POST /api/v1/scans` and `/api/v1/llm/*` | `user` |
+| `DELETE /api/v1/scans/{id}`, `PUT/DELETE /api/v1/scan-templates/{id}` | Owner or `admin` |
+| `POST /api/v1/scan-templates/{id}/set-default`, `POST /api/v1/templates/update` | `admin` |
 | `/settings`, `/auth/users`, `/auth/audit-log` | `admin` |
 
 ---
@@ -206,18 +196,19 @@ location / {
 ## Auth Module Structure
 
 ```
-src/auth/
+src/haris/auth/
 ├── __init__.py
 ├── models.py          — User, UserSession, AuditEvent, enums
 ├── service.py         — AuthService: CRUD, sessions, tokens, audit log
-├── middleware.py      — FastAPI deps: get_current_user, require_admin, CSRF, rate limit
+├── middleware.py      — FastAPI deps: require_user, require_admin, login, register and resend rate limits
+├── csrf.py            — CSRF token and app-wide guard
+├── bearer.py          — Bearer API token resolution (/api/v1 only)
 ├── security_headers.py — Starlette security headers middleware
-├── router.py          — All /auth/* HTTP routes
 ├── oidc.py            — OIDCClient with authlib + PKCE
 ├── email.py           — SMTP email sender (stdlib smtplib)
 └── bootstrap.py       — Env-var admin bootstrap (runs once at startup)
 
-src/web/templates/auth/
+src/haris/web/templates/auth/
 ├── login.html         — Sign-in form + optional OIDC button
 ├── register.html      — Self-registration (domain-restricted)
 ├── verify_email.html  — Email verification confirmation

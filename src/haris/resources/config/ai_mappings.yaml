@@ -1,0 +1,221 @@
+# Check kind -> finding fields. `owasp` ids are checked against haris/models/owasp.py at load; web ids such
+# as A01:2025 are allowed too. `confidence` is the prior for the first run; a replay or canary re-run
+# lifts the tier, not this number. `oracle` names the verification oracle recorded on replay.
+# CWE-1427 and CWE-770 were checked at cwe.mitre.org on 2026-11-08; the other ids come from the spec table.
+# [UNVERIFIED] MCP ids: the OWASP MCP Top 10 is a beta whose final ids may change.
+references:
+  LLM: https://genai.owasp.org/llm-top-10/
+  ASI: https://genai.owasp.org/download/52117
+  MCP: https://owasp.org/www-project-mcp-top-10/
+
+checks:
+  endpoint_discovered:
+    title: "AI endpoint discovered: {label}"
+    description: "{label} answered at this URL with a response that passed its body validator and did not match the host's soft-404 pages."
+    severity: info
+    owasp: []
+    cwe: ""
+    confidence: 0.9
+    oracle: content_validator
+    remediation: "Confirm the endpoint is meant to be public; put it behind authentication or a private network otherwise."
+  ai_widget:
+    title: "AI chat widget in use: {label}"
+    description: "A page or script of this site loads {label}."
+    severity: info
+    owasp: []
+    cwe: ""
+    confidence: 0.7
+    oracle: content_validator
+    remediation: "Review what the widget can reach and which keys or prompts its configuration exposes."
+  unauthenticated_inference:
+    title: "{label} reachable without authentication"
+    description: "{label} answered a model listing request with no credentials, so its chat route is probably open to anyone. Cost abuse, data exposure and prompt injection against the backend follow. HARIS did not send a prompt to confirm."
+    severity: medium
+    owasp: ["LLM06:2026", "ASI03"]
+    cwe: CWE-306
+    confidence: 0.75
+    oracle: content_validator
+    remediation: "Require an API key or session on every route, or bind the server to a private interface."
+  unauthenticated_admin:
+    title: "{label} management API reachable without authentication"
+    description: "{label} answered a management API request with no credentials. These APIs can read or change models, experiments, workflows or code execution."
+    severity: high
+    owasp: ["LLM06:2026", "ASI03"]
+    cwe: CWE-306
+    confidence: 0.85
+    oracle: content_validator
+    remediation: "Enable the product's authentication or restrict access to a private network."
+  mcp_unauthenticated:
+    title: "MCP server accepts sessions without authentication"
+    description: "The MCP server answered initialize (and tools/list when the transport allows it) with no credentials. Any client can enumerate its tools. HARIS never calls tools, so what they can do is untested."
+    severity: high
+    owasp: ["MCP07:2025", "MCP09:2025"]
+    cwe: CWE-306
+    confidence: 0.85
+    oracle: content_validator
+    remediation: "Require OAuth or another bearer credential on the MCP endpoint and register the server in the asset inventory."
+  plaintext_mcp_transport:
+    title: "MCP transport uses plaintext HTTP"
+    description: "An MCP endpoint on a non-loopback host is served over http, so tool calls and results cross the network unencrypted."
+    severity: medium
+    owasp: ["MCP07:2025"]
+    cwe: CWE-319
+    confidence: 0.9
+    oracle: content_validator
+    remediation: "Serve the endpoint over TLS only."
+  provider_key_in_bundle:
+    title: "{label} exposed in a client bundle"
+    description: "A script served to browsers contains what looks like a {label}; anyone can use it at the owner's expense."
+    severity: high
+    owasp: ["LLM02:2026"]
+    cwe: CWE-798
+    confidence: 0.85
+    oracle: content_validator
+    remediation: "Revoke the key and call the provider from a backend that holds it."
+  system_prompt_in_bundle:
+    title: "System prompt text in a client bundle"
+    description: "A script served to browsers contains what looks like a system prompt, which discloses the application's instructions and guardrails."
+    severity: medium
+    owasp: ["LLM08:2026"]
+    cwe: CWE-200
+    confidence: 0.7
+    oracle: content_validator
+    remediation: "Keep system prompts on the server and assume any text sent to the client is public."
+  model_config_in_bundle:
+    title: "Model configuration in a client bundle"
+    description: "A script served to browsers sets the model name together with sampling parameters, which discloses the backend choice and tuning."
+    severity: low
+    owasp: ["LLM08:2026"]
+    cwe: CWE-200
+    confidence: 0.6
+    oracle: content_validator
+    remediation: "Resolve model settings on the server."
+  verbose_provider_error:
+    title: "Verbose error from an AI endpoint"
+    description: "A malformed request to the chat route returned a stack trace or provider internals."
+    severity: medium
+    owasp: ["LLM02:2026"]
+    cwe: CWE-209
+    confidence: 0.85
+    oracle: error_signature
+    remediation: "Return a generic error body and log details server-side."
+  chat_cors:
+    title: "Permissive CORS on an AI chat API"
+    description: "The chat API allows any origin, or reflects the caller's origin with credentials, so a malicious page can drive it from a visitor's browser."
+    severity: medium
+    owasp: ["LLM02:2026", "A01:2025"]
+    cwe: CWE-942
+    confidence: 0.8
+    oracle: header_presence
+    remediation: "Allow only the application's own origins."
+  tool_description_injection:
+    title: "MCP tool definition contains injected instructions"
+    description: "A tool, resource or prompt definition carries text that addresses the model rather than describing the tool. This is the tool poisoning pattern."
+    severity: high
+    owasp: ["MCP03:2025", "MCP06:2025", "ASI04"]
+    cwe: CWE-1427
+    confidence: 0.8
+    oracle: content_validator
+    remediation: "Remove the text and review the server's source and update history."
+  hidden_unicode:
+    title: "MCP tool definition contains hidden Unicode"
+    description: "A definition holds invisible or bidirectional control characters that a human reviewer cannot see but the model reads."
+    severity: high
+    owasp: ["MCP03:2025", "ASI04"]
+    cwe: CWE-1427
+    confidence: 0.85
+    oracle: content_validator
+    remediation: "Strip these characters and re-audit the definition."
+  excessive_agency_schema:
+    title: "MCP tool takes a free-form command, code, query, path or URL"
+    description: "A tool parameter accepts an unconstrained string that is likely executed or fetched, which gives a hijacked model broad reach."
+    severity: medium
+    owasp: ["LLM03:2026", "MCP05:2025", "ASI05"]
+    cwe: ""
+    confidence: 0.6
+    oracle: content_validator
+    remediation: "Constrain the parameter with an enum or pattern and run the tool with least privilege."
+  toxic_flow:
+    title: "MCP server combines private-data and external-send tools"
+    description: "The server exposes both a tool that reads private data and a tool that sends data out, so one injected instruction can exfiltrate it."
+    severity: medium
+    owasp: ["ASI02", "MCP10:2025"]
+    cwe: ""
+    confidence: 0.5
+    oracle: content_validator
+    remediation: "Split the capabilities across servers or require approval before a send that follows a private read."
+  prompt_injection_canary:
+    title: "Model followed an injected instruction"
+    description: "The model repeated a random canary string it was told to output after an instruction override."
+    severity: high
+    owasp: ["LLM01:2026"]
+    cwe: CWE-1427
+    confidence: 0.8
+    oracle: canary
+    remediation: "Separate instructions from untrusted input and validate model output before acting on it."
+  jailbreak_canary:
+    title: "Model followed a jailbreak framing"
+    description: "A role-play or override framing made the model output a random canary string."
+    severity: medium
+    owasp: ["LLM01:2026"]
+    cwe: CWE-1427
+    confidence: 0.7
+    oracle: canary
+    remediation: "Harden the system prompt, add input and output filters, and test with a jailbreak suite."
+  system_prompt_leak:
+    title: "System prompt leaked on request"
+    description: "A reply to an override request contained a known system prompt marker."
+    severity: high
+    owasp: ["LLM08:2026"]
+    cwe: CWE-200
+    confidence: 0.85
+    oracle: canary
+    remediation: "Keep secrets out of system prompts and filter replies that quote them."
+  output_handling_xss:
+    title: "Chat page reflects input as live HTML"
+    description: "An inert marker sent as a chat question came back unescaped in an HTML page. Model output rendered the same way allows script injection."
+    severity: high
+    owasp: ["LLM10:2026"]
+    cwe: CWE-79
+    confidence: 0.85
+    oracle: reflection
+    remediation: "HTML-encode user input and model output before rendering."
+  missing_rate_limit:
+    title: "No rate limiting on the AI chat API"
+    description: "A short burst of chat requests got no 429 and no rate-limit headers."
+    severity: low
+    owasp: ["LLM06:2026"]
+    cwe: CWE-770
+    confidence: 0.5
+    oracle: none
+    remediation: "Limit requests per client and per key and cap spend."
+  ignored_token_cap:
+    title: "Chat API ignores the max_tokens limit"
+    description: "A request capped at one token returned a much longer reply, so clients can force long and costly generations."
+    severity: low
+    owasp: ["LLM06:2026"]
+    cwe: CWE-770
+    confidence: 0.5
+    oracle: none
+    remediation: "Enforce maximum output length on the server."
+
+# Tool result -> HARIS classification, keyed by garak probe module or promptfoo plugin id; `default` covers the rest.
+garak:
+  promptinject: {owasp: ["LLM01:2026"], cwe: CWE-1427, severity: medium}
+  latentinjection: {owasp: ["LLM01:2026"], cwe: CWE-1427, severity: medium}
+  goodside: {owasp: ["LLM01:2026"], cwe: CWE-1427, severity: medium}
+  dan: {owasp: ["LLM01:2026"], cwe: CWE-1427, severity: medium}
+  encoding: {owasp: ["LLM01:2026"], cwe: CWE-1427, severity: medium}
+  leakreplay: {owasp: ["LLM02:2026"], cwe: CWE-200, severity: medium}
+  apikey: {owasp: ["LLM02:2026"], cwe: CWE-200, severity: high}
+  sysprompt_extraction: {owasp: ["LLM08:2026"], cwe: CWE-200, severity: medium}
+  default: {owasp: ["LLM01:2026"], cwe: CWE-1427, severity: low}
+promptfoo:
+  prompt-injection: {owasp: ["LLM01:2026"], cwe: CWE-1427, severity: medium}
+  hijacking: {owasp: ["LLM01:2026"], cwe: CWE-1427, severity: medium}
+  system-prompt-override: {owasp: ["LLM01:2026"], cwe: CWE-1427, severity: medium}
+  ascii-smuggling: {owasp: ["LLM01:2026"], cwe: CWE-1427, severity: medium}
+  indirect-prompt-injection: {owasp: ["LLM01:2026"], cwe: CWE-1427, severity: medium}
+  prompt-extraction: {owasp: ["LLM08:2026"], cwe: CWE-200, severity: medium}
+  pii:direct: {owasp: ["LLM02:2026"], cwe: CWE-200, severity: medium}
+  default: {owasp: ["LLM01:2026"], cwe: CWE-1427, severity: low}

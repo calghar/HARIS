@@ -1,0 +1,332 @@
+{% extends "base.html" %}
+{% block title %}HARIS — Scan {{ scan.scan_id }}{% endblock %}
+
+{% block content %}
+<div id="scan-page" data-scan-id="{{ scan.scan_id }}">
+
+<!-- Header -->
+<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;">
+  <div>
+    <h1 style="font-size:1.3rem;">
+      Scan: <code>{{ scan.target_url }}</code>
+    </h1>
+    <p class="text-sm text-muted">
+      {{ scan.profile }} &middot; {{ scan.scan_id }} &middot; {{ scan.started_at[:19] }}
+    </p>
+  </div>
+  <span class="status-{{ scan.status }}" style="font-size:1rem;font-weight:600;">
+    {% if scan.status in ['pending', 'running'] %}<span class="spinner"></span>{% endif %}
+    {{ scan.status }}
+  </span>
+</div>
+
+{% if scan.status in ['cancelled', 'incomplete'] %}
+<div class="card" style="border-color:var(--medium);">
+  <strong>Scan {{ scan.status }}</strong>
+  <p class="mt-1">Results below are partial.{% if scan.error %} {{ scan.error }}{% endif %}</p>
+</div>
+{% endif %}
+
+{% if scan.status in ['pending', 'running'] %}
+<!-- Polling for status -->
+<div class="card" style="text-align:center;padding:2rem;"
+     hx-get="/api/v1/scans/{{ scan.scan_id }}" hx-trigger="every 3s"
+     hx-swap="none">
+  <span class="spinner" style="width:32px;height:32px;border-width:3px;"></span>
+  <p class="mt-2">Scan {{ 'queued' if scan.status == 'pending' else 'in progress' }}... this page will refresh when it ends.</p>
+  <button class="btn btn-sm mt-2" style="background:var(--critical);" data-action="cancel-scan">
+    Cancel Scan
+  </button>
+</div>
+
+{% elif scan.status == 'failed' %}
+<div class="card" style="border-color:var(--critical);">
+  <strong style="color:var(--critical);">Scan Failed</strong>
+  <p class="mt-1">{{ scan.error or 'Unknown error' }}</p>
+</div>
+
+{% elif session %}
+<!-- Risk posture + stats -->
+<div class="card">
+  <div style="display:flex;align-items:center;gap:1.5rem;flex-wrap:wrap;">
+    <div>
+      <span class="text-sm text-muted">Risk Posture</span><br>
+      <span class="posture posture-{{ session.risk_posture.value }}">
+        {{ session.risk_posture.value | upper }}
+      </span>
+    </div>
+    <div style="flex:1;min-width:200px;">
+      <p class="text-sm">{{ session.risk_posture_text }}</p>
+    </div>
+  </div>
+
+  <div class="stats-grid mt-2">
+    <div class="stat-card">
+      <div class="stat-value">{{ session.all_findings | length }}</div>
+      <div class="stat-label">Findings</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-value" style="color:var(--critical);">
+        {{ session.findings_by_severity[session.findings_by_severity.keys()|list|first] | length if session.findings_by_severity else 0 }}
+      </div>
+      <div class="stat-label">Critical + High</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-value">{{ session.multi_confirmed_count }}</div>
+      <div class="stat-label">Multi-confirmed</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-value">{{ "%.0f" | format(session.duration_seconds) }}s</div>
+      <div class="stat-label">Duration</div>
+    </div>
+  </div>
+
+  <!-- Severity bar -->
+  {% set total = session.all_findings | length %}
+  {% if total > 0 %}
+  <div class="severity-bar mt-2">
+    {% for sev, findings in session.findings_by_severity.items() %}
+    {% if findings | length > 0 %}
+    <span class="sev-{{ sev.value }}" style="width: '{{ (findings|length / total * 100)|round(1) }}%'"></span>
+    {% endif %}
+    {% endfor %}
+  </div>
+  <div class="flex gap-2 text-sm text-muted" style="flex-wrap:wrap;">
+    {% for sev, findings in session.findings_by_severity.items() %}
+    {% if findings | length > 0 %}
+    <span><span class="badge badge-{{ sev.value }}">{{ sev.value }}</span> {{ findings | length }}</span>
+    {% endif %}
+    {% endfor %}
+  </div>
+  {% endif %}
+</div>
+
+<!-- Download reports & actions -->
+<div class="flex gap-1 mt-2 mb-2" style="flex-wrap:wrap;">
+  {% for fmt in scan.report_formats %}
+  <a href="/api/v1/scans/{{ scan.scan_id }}/report.{{ fmt }}" class="btn btn-secondary btn-sm">
+    Download {{ fmt | upper }}
+  </a>
+  {% endfor %}
+  <button class="btn btn-sm" style="background:var(--critical);margin-left:auto;"
+          data-action="delete-scan">
+    Delete Scan
+  </button>
+</div>
+
+<!-- Tabs -->
+<div class="tabs">
+  <button class="tab active" data-tab="tab-findings">Findings</button>
+  <button class="tab" data-tab="tab-remediation">Remediation</button>
+  <button class="tab" data-tab="tab-ask">Ask the Report</button>
+  {% if session.llm_enrichments or session.attack_chains or session.triaged_findings %}
+  <button class="tab" data-tab="tab-ai-insights">AI Insights</button>
+  {% endif %}
+  <button class="tab" data-tab="tab-scanners">Scanners</button>
+</div>
+
+<!-- Findings tab -->
+<div id="tab-findings" class="tab-content active">
+  {% if session.all_findings %}
+  {% for finding in session.all_findings %}
+  <div class="finding-card sev-{{ finding.severity.value }}">
+    <div class="finding-title">
+      <span class="badge badge-{{ finding.severity.value }}">{{ finding.severity.value }}</span>
+      {{ finding.title }}
+    </div>
+    <div class="finding-meta">
+      <span>{{ finding.owasp_category or 'Unmapped' }}</span>
+      {% if finding.cwe_id %}<span>{{ finding.cwe_id }}</span>{% endif %}
+      <span>Scanner: {{ finding.scanner }}</span>
+      {% if finding.url %}<span><code>{{ finding.url }}</code></span>{% endif %}
+    </div>
+    <p class="text-sm">{{ finding.description }}</p>
+
+    {% if finding.finding_id in business_impacts %}
+    {% set impact = business_impacts[finding.finding_id] %}
+    <div class="business-impact">
+      <strong>Business Impact:</strong> {{ impact.headline }}<br>
+      <span class="text-muted">Worst case:</span> {{ impact.worst_case }}
+    </div>
+    {% endif %}
+
+    {% if finding.evidence %}
+    <details class="mt-1">
+      <summary class="text-sm" style="cursor:pointer;color:var(--accent);">Show evidence</summary>
+      <pre>{{ finding.evidence }}</pre>
+    </details>
+    {% endif %}
+
+    {% if finding.request_example %}
+    <details class="mt-1">
+      <summary class="text-sm" style="cursor:pointer;color:var(--accent);">Reproduction</summary>
+      <pre>{{ finding.request_example }}</pre>
+    </details>
+    {% endif %}
+
+    {% if finding.remediation %}
+    <p class="text-sm mt-1"><strong>Fix:</strong> {{ finding.remediation }}</p>
+    {% endif %}
+
+    <div class="flex gap-1 mt-1" style="flex-wrap:wrap;">
+      <button class="btn btn-secondary btn-sm" data-action="explain-finding" data-finding-id="{{ finding.finding_id }}">Explain</button>
+    </div>
+
+    {% if session.llm_enrichments and finding.finding_id in session.llm_enrichments %}
+    {% set enr = session.llm_enrichments[finding.finding_id] %}
+    <details class="mt-1">
+      <summary class="text-sm" style="cursor:pointer;color:var(--accent);">AI Analysis</summary>
+      <div class="enrichment-box">
+        {% if enr.attack_narrative %}
+        <p><strong>Attack Narrative:</strong> {{ enr.attack_narrative }}</p>
+        {% endif %}
+        {% if enr.business_impact_assessment %}
+        <p><strong>Business Impact:</strong> {{ enr.business_impact_assessment }}</p>
+        {% endif %}
+        <div class="flex gap-1 mt-1" style="flex-wrap:wrap;">
+          {% if enr.exploitation_complexity %}
+          <span class="badge badge-complexity-{{ enr.exploitation_complexity }}">Complexity: {{ enr.exploitation_complexity }}</span>
+          {% endif %}
+          {% if enr.false_positive_likelihood %}
+          <span class="badge badge-fp-{{ enr.false_positive_likelihood }}">FP likelihood: {{ enr.false_positive_likelihood }}</span>
+          {% endif %}
+          {% if enr.attack_chain_position %}
+          <span class="badge" style="background:var(--bg-input);color:var(--fg);">Chain: {{ enr.attack_chain_position | replace('_', ' ') }}</span>
+          {% endif %}
+        </div>
+        {% if enr.related_cwes %}
+        <p class="text-sm mt-1"><strong>Related CWEs:</strong> {{ enr.related_cwes | join(', ') }}</p>
+        {% endif %}
+        {% if enr.variant_suggestions %}
+        <div class="mt-1">
+          <strong class="text-sm">Variant Suggestions:</strong>
+          <ul class="text-sm text-muted" style="margin:.25rem 0 0 1.2rem;">
+            {% for vs in enr.variant_suggestions %}
+            <li>{{ vs }}</li>
+            {% endfor %}
+          </ul>
+        </div>
+        {% endif %}
+      </div>
+    </details>
+    {% endif %}
+  </div>
+  {% endfor %}
+  {% else %}
+  <p class="text-muted">No findings — the target looks clean for the checks that were run.</p>
+  {% endif %}
+</div>
+
+<!-- Remediation tab -->
+<div id="tab-remediation" class="tab-content">
+  {% if session.remediation_steps %}
+  <p class="text-sm text-muted mb-2">
+    Ordered by impact-to-effort ratio. Quick wins first.
+  </p>
+  <ul class="checklist">
+    {% for step in session.remediation_steps %}
+    <li>
+      <input type="checkbox">
+      <div>
+        <span class="badge badge-{{ step.impact.value }}">{{ step.impact.value }}</span>
+        <span class="effort-tag effort-{{ step.effort.value }}">{{ step.effort.value | replace('_', ' ') }}</span>
+        <strong style="margin-left:.3rem;">{{ step.title }}</strong>
+        <span class="text-sm text-muted">({{ step.finding_count }} finding{{ 's' if step.finding_count != 1 }})</span>
+        <p class="text-sm text-muted mt-1">{{ step.description }}</p>
+      </div>
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p class="text-muted">No remediation steps needed.</p>
+  {% endif %}
+</div>
+
+<!-- Ask the Report tab -->
+<div id="tab-ask" class="tab-content">
+  <div class="card" style="display:flex;flex-direction:column;height:520px;padding:0;">
+    <!-- Chat header -->
+    <div style="padding:.75rem 1rem;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:.75rem;flex-wrap:wrap;">
+      <span class="text-sm text-muted">Chat with your scan report</span>
+      <div style="margin-left:auto;display:flex;align-items:center;gap:.5rem;">
+        <label class="text-sm text-muted" for="llm-backend" style="margin:0;">Backend:</label>
+        <select id="llm-backend" class="btn btn-secondary btn-sm" style="padding:.2rem .4rem;font-size:.8rem;">
+          <option value="">Loading...</option>
+        </select>
+        <button class="btn btn-sm" data-action="new-chat" title="New conversation">New Chat</button>
+      </div>
+    </div>
+
+    <!-- Quick actions -->
+    <div class="flex gap-1" style="padding:.5rem 1rem;flex-wrap:wrap;border-bottom:1px solid var(--border);">
+      <button class="btn btn-secondary btn-sm" data-action="ask-preset" data-question="Summarize the top 3 risks for an executive audience">Top 3 Risks</button>
+      <button class="btn btn-secondary btn-sm" data-action="ask-preset" data-question="List all HIGH and CRITICAL findings related to authentication">Auth Issues</button>
+      <button class="btn btn-secondary btn-sm" data-action="ask-preset" data-question="Generate a remediation plan I can paste into a Jira epic">Jira Plan</button>
+      <button class="btn btn-secondary btn-sm" data-action="ask-preset" data-question="Draft an email to the product owner summarizing the risk posture">Draft Email</button>
+      <button class="btn btn-secondary btn-sm" data-action="ask-preset" data-question="Suggest security test cases for CI based on these findings">CI Test Cases</button>
+      <button class="btn btn-secondary btn-sm" data-action="ask-preset" data-question="Compare this scan with previous scans of the same target. Focus on what changed and any new findings.">Compare Scans</button>
+    </div>
+
+    <!-- Messages area -->
+    <div id="chat-messages" class="chat-messages">
+      <div class="chat-welcome text-sm text-muted" style="text-align:center;padding:2rem 1rem;">
+        Ask a question about this scan. You can follow up on any answer.
+      </div>
+    </div>
+
+    <!-- Input area -->
+    <div class="chat-input-area">
+      <form id="ask-form" style="display:flex;gap:.5rem;">
+        <textarea id="ask-input" name="question" rows="1"
+                  placeholder="Ask a question..."
+                  style="flex:1;resize:none;min-height:40px;max-height:100px;"></textarea>
+        <button type="submit" class="btn btn-primary" id="ask-btn" style="align-self:flex-end;">Send</button>
+      </form>
+      <div id="chat-meta" class="text-sm text-muted" style="margin-top:.25rem;display:none;"></div>
+    </div>
+  </div>
+</div>
+
+{% include "partials/scan_ai_insights.html" %}
+
+<!-- Scanners tab -->
+<div id="tab-scanners" class="tab-content">
+  <table>
+    <thead>
+      <tr><th>Scanner</th><th>Findings</th><th>Errors</th><th>Duration</th></tr>
+    </thead>
+    <tbody>
+      {% for result in session.scanner_results %}
+      <tr>
+        <td>{{ result.scanner_name }}</td>
+        <td>{{ result.findings | length }}</td>
+        <td>{% if result.errors %}<span style="color:var(--critical);">{{ result.errors | length }}</span>{% else %}0{% endif %}</td>
+        <td>{% if result.metadata.get('elapsed_seconds') is not none %}{{ result.metadata.get('elapsed_seconds') }}s{% else %}—{% endif %}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% if session.errors %}
+  <div class="mt-2">
+    <strong class="text-sm">Errors:</strong>
+    {% for err in session.errors %}
+    <p class="text-sm" style="color:var(--critical);">{{ err }}</p>
+    {% endfor %}
+  </div>
+  {% endif %}
+</div>
+
+{% else %}
+<div class="card">
+  <p class="text-muted">Scan is pending.</p>
+</div>
+{% endif %}
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/vendor/purify.min.js" integrity="sha384-P0JNneQf81HOl9VwNXK76cQ9VMD6Nfsnepxb0cCOg8+UzEdzgPHAPV4wVQrvYQSx"></script>
+<script src="/static/vendor/marked.umd.js" integrity="sha384-tp/syYhgK+FeVVrz2SPmgKX5atVZ8P8hReAvOPUn58M265VNy1IbdmZAY7Jmd0gF"></script>
+<script src="/static/js/scan_detail.js"></script>
+{% endblock %}

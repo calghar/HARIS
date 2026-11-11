@@ -1,0 +1,24 @@
+## Findings
+{% filter untrusted %}
+{% for f in findings %}
+- [{{ f.finding_id }}] {{ f.title[:limits.title] }} (severity={{ f.severity.value }}, owasp={{ f.owasp_category }}, url={{ f.url }})
+{% endfor %}
+{% endfilter %}
+
+## Business Context
+{{ ctx_text }}
+
+## Task
+Triage these findings considering exploitability, business impact, and the business context above.  For each finding, assess:
+
+Respond with a JSON object whose "items" array holds:
+{
+  "finding_id": "...",
+  "exploitability_score": 1-10,
+  "business_priority": 1-10,
+  "adjusted_severity": "critical | high | medium | low | info",
+  "triage_rationale": "Brief explanation",
+  "recommended_timeline": "immediate | this_sprint | next_quarter"
+}
+
+Return ONLY the JSON object.

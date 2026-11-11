@@ -1,0 +1,17 @@
+id: http-missing-security-headers
+
+info:
+  name: Fixture missing security headers
+  author: haris
+  severity: info
+  tags: misconfig,headers
+
+http:
+  - method: GET
+    path:
+      - "{{BaseURL}}/"
+    matchers:
+      - type: dsl
+        dsl:
+          - "!contains(tolower(all_headers), 'x-frame-options')"
+        name: x-frame-options

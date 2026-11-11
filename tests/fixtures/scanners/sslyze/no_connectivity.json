@@ -1,0 +1,32 @@
+{
+ "invalid_server_strings": [],
+ "server_scan_results": [
+  {
+   "uuid": "ca8452da-9562-421c-a340-244e6926df09",
+   "server_location": {
+    "hostname": "127.0.0.1",
+    "port": 18999,
+    "connection_type": "DIRECT",
+    "ip_address": "127.0.0.1",
+    "http_proxy_settings": null
+   },
+   "network_configuration": {
+    "tls_server_name_indication": "127.0.0.1",
+    "tls_opportunistic_encryption": null,
+    "tls_client_auth_credentials": null,
+    "xmpp_to_hostname": null,
+    "network_timeout": 5,
+    "network_max_retries": 3
+   },
+   "connectivity_status": "ERROR",
+   "connectivity_error_trace": "Traceback (most recent call last):\n  File \"/home/user/.local/share/uv/tools/sslyze/lib/python3.13/site-packages/sslyze/scanner/_mass_connectivity_tester.py\", line 120, in run\n    tls_probing_result = check_connectivity_to_server(\n        server_location=scan_request.server_location,\n        network_configuration=scan_request.network_configuration,\n    )\n  File \"/home/user/.local/share/uv/tools/sslyze/lib/python3.13/site-packages/sslyze/server_connectivity.py\", line 74, in check_connectivity_to_server\n    tls_detection_result = _detect_support_for_tls_1_3(\n        server_location=server_location,\n        network_config=network_configuration,\n    )\n  File \"/home/user/.local/share/uv/tools/sslyze/lib/python3.13/site-packages/sslyze/server_connectivity.py\", line 244, in _detect_support_for_tls_1_3\n    ssl_connection.connect(should_retry_connection=False)\n    ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/user/.local/share/uv/tools/sslyze/lib/python3.13/site-packages/sslyze/connection_helpers/tls_connection.py\", line 281, in connect\n    raise ServerRejectedConnection(\n    ...<3 lines>...\n    )\nsslyze.errors.ServerRejectedConnection: 127.0.0.1:18999 -> \"Server rejected the connection\".\n",
+   "connectivity_result": null,
+   "scan_status": "ERROR_NO_CONNECTIVITY",
+   "scan_result": null
+  }
+ ],
+ "date_scans_started": "2026-11-08T20:33:35.189606Z",
+ "date_scans_completed": "2026-11-08T20:33:35.199300Z",
+ "sslyze_version": "6.3.0",
+ "sslyze_url": "https://github.com/nabla-c0d3/sslyze"
+}

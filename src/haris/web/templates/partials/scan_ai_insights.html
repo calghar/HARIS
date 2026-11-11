@@ -1,0 +1,82 @@
+<!-- AI Insights tab -->
+{% if session.llm_enrichments or session.attack_chains or session.triaged_findings %}
+<div id="tab-ai-insights" class="tab-content">
+
+  {% if session.attack_chains %}
+  <h3 style="font-size:1.1rem;margin-bottom:.75rem;">Attack Chains</h3>
+  {% for chain in session.attack_chains %}
+  <div class="attack-chain-card">
+    <div class="finding-title">
+      <span class="badge" style="background:var(--high);color:#fff;">{{ chain.likelihood }}</span>
+      {{ chain.name }}
+    </div>
+    <p class="text-sm mt-1">{{ chain.description }}</p>
+    <div class="flex gap-1 mt-1" style="flex-wrap:wrap;">
+      <span class="text-sm text-muted">Impact: <strong>{{ chain.total_impact }}</strong></span>
+      <span class="text-sm text-muted" style="margin-left:1rem;">Findings:
+        {% for fid in chain.finding_ids %}
+        <code style="font-size:.75rem;">{{ fid }}</code>{{ ", " if not loop.last }}
+        {% endfor %}
+      </span>
+    </div>
+  </div>
+  {% endfor %}
+  {% endif %}
+
+  {% if session.triaged_findings %}
+  <h3 style="font-size:1.1rem;margin:1.5rem 0 .75rem;">Smart Triage</h3>
+  <p class="text-sm text-muted mb-2">Severity adjusted by exploitability and business context.</p>
+  <table class="triage-table">
+    <thead>
+      <tr>
+        <th>Finding</th>
+        <th>Original</th>
+        <th>Adjusted</th>
+        <th>Exploitability</th>
+        <th>Priority</th>
+        <th>Timeline</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for tf in session.triaged_findings %}
+      <tr>
+        <td class="text-sm">{{ tf.finding_id[:12] }}</td>
+        <td><span class="badge badge-{{ tf.original_severity.value }}">{{ tf.original_severity.value }}</span></td>
+        <td><span class="badge badge-{{ tf.adjusted_severity.value }}">{{ tf.adjusted_severity.value }}</span></td>
+        <td>
+          <span class="exploitability-bar" style="--score: {{ tf.exploitability_score }};">
+            {{ tf.exploitability_score }}/10
+          </span>
+        </td>
+        <td>
+          <span class="priority-bar" style="--score: {{ tf.business_priority }};">
+            {{ tf.business_priority }}/10
+          </span>
+        </td>
+        <td><span class="badge badge-timeline-{{ tf.recommended_timeline }}">{{ tf.recommended_timeline | replace('_', ' ') }}</span></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+
+  {% if session.llm_enrichments %}
+  <h3 style="font-size:1.1rem;margin:1.5rem 0 .75rem;">Enrichment Summary</h3>
+  <div class="stats-grid">
+    <div class="stat-card">
+      <div class="stat-value">{{ session.llm_enrichments | length }}</div>
+      <div class="stat-label">Enriched Findings</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-value">{{ session.attack_chains | length }}</div>
+      <div class="stat-label">Attack Chains</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-value">{{ session.triaged_findings | length }}</div>
+      <div class="stat-label">Triaged</div>
+    </div>
+  </div>
+  {% endif %}
+
+</div>
+{% endif %}

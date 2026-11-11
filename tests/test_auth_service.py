@@ -3,9 +3,9 @@ from pathlib import Path
 
 import pytest
 
-from src.auth.models import AuditAction, AuditEvent, AuthProvider, UserRole
-from src.auth.service import AuthService
-from src.db.store import ScanStore
+from haris.auth.models import AuditAction, AuditEvent, AuthProvider, UserRole
+from haris.auth.service import AuthService
+from haris.db.store import ScanStore
 
 
 @pytest.fixture()
@@ -332,9 +332,13 @@ class TestEmailVerificationTokens:
 
 
 class TestLinkOrCreateOidcUser:
+    @pytest.fixture(autouse=True)
+    def _allow_example_domain(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("HARIS_ALLOWED_EMAIL_DOMAINS", "example.com")
+
     def test_creates_new_user_when_no_match(self, auth_service):
         user = auth_service.link_or_create_oidc_user(
-            sub="sub-001", email="gale@example.com"
+            sub="sub-001", email="gale@example.com", email_verified=True
         )
         assert user.email == "gale@example.com"
         assert user.auth_provider == AuthProvider.OIDC
@@ -344,7 +348,7 @@ class TestLinkOrCreateOidcUser:
         local_user = auth_service.create_user("hal@example.com", "pass")
         assert local_user.auth_provider == AuthProvider.LOCAL
         linked = auth_service.link_or_create_oidc_user(
-            sub="sub-002", email="hal@example.com"
+            sub="sub-002", email="hal@example.com", email_verified=True
         )
         # Same user — same user_id.
         assert linked.user_id == local_user.user_id
@@ -352,22 +356,24 @@ class TestLinkOrCreateOidcUser:
         assert linked.oidc_sub == "sub-002"
 
     def test_finds_by_oidc_sub_on_second_call(self, auth_service):
-        auth_service.link_or_create_oidc_user(sub="sub-003", email="iris@example.com")
+        auth_service.link_or_create_oidc_user(
+            sub="sub-003", email="iris@example.com", email_verified=True
+        )
         # Second call with same sub (even different email) must return same user.
         user2 = auth_service.link_or_create_oidc_user(
-            sub="sub-003", email="iris@example.com"
+            sub="sub-003", email="iris@example.com", email_verified=True
         )
         assert user2.oidc_sub == "sub-003"
 
     def test_oidc_user_created_without_password_hash(self, auth_service):
         user = auth_service.link_or_create_oidc_user(
-            sub="sub-004", email="jake@example.com"
+            sub="sub-004", email="jake@example.com", email_verified=True
         )
         assert user.password_hash == ""
 
     def test_oidc_user_is_active_by_default(self, auth_service):
         user = auth_service.link_or_create_oidc_user(
-            sub="sub-005", email="kim@example.com"
+            sub="sub-005", email="kim@example.com", email_verified=True
         )
         assert user.is_active is True
 
@@ -376,9 +382,67 @@ class TestLinkOrCreateOidcUser:
         # does call update_user(last_login_at=...) on an existing record.
         auth_service.create_user("lara@example.com", "pass")
         linked = auth_service.link_or_create_oidc_user(
-            sub="sub-006", email="lara@example.com"
+            sub="sub-006", email="lara@example.com", email_verified=True
         )
         assert linked.last_login_at != ""
+
+    def test_unverified_email_creates_nothing(self, auth_service):
+        assert (
+            auth_service.link_or_create_oidc_user(
+                sub="sub-007", email="mo@example.com", email_verified=False
+            )
+            is None
+        )
+        assert auth_service.get_user_by_email("mo@example.com") is None
+
+    def test_unverified_email_does_not_link_local_account(self, auth_service):
+        local = auth_service.create_user("ned@example.com", "pass")
+        assert (
+            auth_service.link_or_create_oidc_user(
+                sub="sub-008", email="ned@example.com", email_verified=False
+            )
+            is None
+        )
+        unchanged = auth_service.get_user_by_id(local.user_id)
+        assert unchanged is not None
+        assert unchanged.oidc_sub == ""
+        assert unchanged.auth_provider == AuthProvider.LOCAL
+
+    def test_inactive_local_account_is_not_linked(self, auth_service):
+        local = auth_service.create_user("olga@example.com", "pass", is_active=False)
+        assert (
+            auth_service.link_or_create_oidc_user(
+                sub="sub-009", email="olga@example.com", email_verified=True
+            )
+            is None
+        )
+        stored = auth_service.get_user_by_id(local.user_id)
+        assert stored is not None
+        assert stored.oidc_sub == ""
+
+    def test_account_bound_to_other_sub_is_not_relinked(self, auth_service):
+        auth_service.link_or_create_oidc_user(
+            sub="sub-010", email="pia@example.com", email_verified=True
+        )
+        assert (
+            auth_service.link_or_create_oidc_user(
+                sub="sub-011", email="pia@example.com", email_verified=True
+            )
+            is None
+        )
+
+    def test_known_sub_of_deactivated_user_is_refused(self, auth_service):
+        user = auth_service.link_or_create_oidc_user(
+            sub="sub-012", email="quin@example.com", email_verified=True
+        )
+        assert user is not None
+        auth_service.update_user(user.user_id, is_active=False)
+        assert (
+            auth_service.link_or_create_oidc_user(
+                sub="sub-012", email="quin@example.com", email_verified=True
+            )
+            is None
+        )
 
 
 class TestAuditLog:

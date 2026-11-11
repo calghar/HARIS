@@ -55,13 +55,13 @@ Findings are mapped to the OWASP Top 10 2025 categories:
 
 ### A07: Authentication Failures
 
-- Cookie security flags (header_checks)
+- Cookie security flags (`cookie_checks`)
 - CSRF detection (Wapiti)
 - Session management analysis (Wapiti)
 
 ### A08: Software or Data Integrity Failures
 
-- Missing Subresource Integrity (future check)
+- Missing Subresource Integrity (`sri_checks`)
 - Insecure deserialization indicators (Wapiti)
 
 ### A09: Security Logging and Alerting Failures
@@ -83,37 +83,41 @@ Findings are mapped to the OWASP Top 10 2025 categories:
 | Nmap | Port scanning, service detection, recon | CLI adapter (subprocess) |
 | Nikto | Web server misconfigurations, outdated software | CLI adapter (subprocess) |
 | Nuclei | CVE detection, default credentials, exposed panels, tech fingerprinting | CLI adapter (subprocess, multi-phase) |
-| Built-in header_checks | HTTP security headers | Python requests |
+| ZAP | Active and passive web scan | CLI adapter, off by default, not in any profile |
+| Built-in header_checks | HTTP security headers | ScopedClient |
 | Built-in tls_checks | Certificate and TLS basics | Python ssl |
-| Built-in misc_checks | CORS, redirects, sensitive paths | Python requests |
-| Built-in info_disclosure | Error pages, debug endpoints, HTML comments | Python requests |
-| Built-in cookie_checks | Cookie security flags and configuration | Python requests |
+| Built-in misc_checks | CORS, redirects, sensitive paths | ScopedClient |
+| Built-in info_disclosure | Error pages, debug endpoints, HTML comments | ScopedClient |
+| Built-in cookie_checks | Cookie security flags and configuration | ScopedClient |
+| Built-in sri_checks | Subresource Integrity on third-party resources | ScopedClient |
+| Built-in cache_checks | Cache-Control on login and account responses | ScopedClient |
+| Built-in method_checks | OPTIONS and TRACE | ScopedClient |
+| Built-in redirect_checks | Open redirect parameters | ScopedClient |
+| Built-in graphql_checks | GraphQL introspection | ScopedClient |
+| Built-in openapi_checks | Exposed OpenAPI or Swagger documents | ScopedClient |
+| Built-in listing_checks | Directory listing | ScopedClient |
+| Built-in dns_checks | CAA, SPF and DMARC | DNS lookup |
+| Built-in ai_security | AI endpoints and MCP servers | ScopedClient |
 
 ## Safety Controls
 
 The framework enforces multiple safety mechanisms:
 
 1. **Scope enforcement**: Only domains in `allowed_domains` are scanned
-2. **Path exclusions**: Sensitive paths can be excluded via regex patterns
+2. **Path exclusions**: One entry per line, a plain path (`/logout`) or a path ending in `.*`. `Scope.is_url_in_scope` matches each entry with `re.search` on the URL path, so `/logout` also matches `/logout.php`. Built-in HTTP checks and `ai_security` send requests through `ScopedClient`, which calls that method. Wapiti (`wapiti_exclude_urls`) passes a plain path as `--exclude <origin><path>` and a trailing `.*` as `--exclude <origin><path>*`. Any other pattern is skipped with a warning. Nikto, Nuclei, Nmap and SSLyze leave `excluded_paths` unread. The agent proxy classifier and the guardrail host check match allowed domains only. The proxy's `ScopedClient` applies the target's excluded paths when it sends the request. Patterns are compiled when supplied. An invalid pattern, a pattern longer than 200 characters, or a nested-quantifier or quantified-alternation pattern is rejected. The API returns 422.
 3. **Rate limiting**: Configurable requests-per-second limit
 4. **Request cap**: Maximum total requests per scan
-5. **Authorisation prompt**: CLI requires explicit user confirmation
-6. **Non-destructive payloads**: Test payloads demonstrate vulnerabilities without data extraction
-7. **Timeouts**: All network operations have configurable timeouts
+5. **Authorisation prompt**: the CLI asks for confirmation unless `--yes` is set
+6. **Timeouts**: network operations take their timeout from configuration
 
 ## Cross-Scanner Intelligence
 
-HARIS accumulates intelligence between scanner runs via a `ScanContext` model:
+The recon stage runs the built-in checks and nmap, one at a time, in profile order. It is the only stage that writes `ScanContext`. `header_checks`, `misc_checks` and `info_disclosure` copy `Server`, `X-Powered-By` and `X-AspNet-Version`. nmap copies open ports and product or service names. The scan stage runs the other scanners in parallel and only reads that context.
 
-1. **Nmap** runs first and detects open ports, service versions, and software
-2. **Nikto** identifies server technologies from its findings
-3. **header_checks** captures `Server`, `X-Powered-By`, and related response headers
-4. **Wapiti** contributes crawled URLs for broader attack surface
-
-This context flows into **Nuclei**, which uses a three-phase strategy:
+Nuclei, in the scan stage, uses a three-phase strategy:
 
 - **Phase 1**: Technology fingerprinting via `http/technologies` templates — identifies CMS, WAF, frameworks
 - **Phase 2a**: Broad vulnerability scan across 8 template directories (CVEs, exposures, panels, vulnerabilities, default-logins, takeovers, misconfigurations, DAST)
 - **Phase 2b**: Tech-targeted scan using Nuclei tags and workflows specific to detected technologies (e.g. WordPress, Django, Jenkins)
 
-This approach ensures Nuclei produces meaningful vulnerability findings rather than just informational fingerprints.
+Phase 1 is stored as technologies, not as findings. Phase 2 passes `-es info` unless the scanner options set `severity`.
