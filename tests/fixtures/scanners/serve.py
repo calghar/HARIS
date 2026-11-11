@@ -79,14 +79,16 @@ def main() -> None:
     parser.add_argument("--cert")
     parser.add_argument("--key")
     parser.add_argument(
-        "--min-tls", help="ssl.TLSVersion member, e.g. TLSv1 for legacy captures"
+        "--min-tls",
+        default="TLSv1_2",
+        help="ssl.TLSVersion member; lower it (e.g. TLSv1) for legacy captures",
     )
     args = parser.parse_args()
     server = ThreadingHTTPServer(("127.0.0.1", args.port), Handler)
     if args.cert and args.key:
         context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
-        if args.min_tls:
-            context.minimum_version = getattr(ssl.TLSVersion, args.min_tls)
+        context.minimum_version = getattr(ssl.TLSVersion, args.min_tls)
+        if context.minimum_version < ssl.TLSVersion.TLSv1_2:
             context.set_ciphers("ALL:@SECLEVEL=0")
         context.load_cert_chain(args.cert, args.key)
         server.socket = context.wrap_socket(server.socket, server_side=True)
