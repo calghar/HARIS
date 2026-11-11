@@ -1,14 +1,11 @@
-import json
 import logging
 import threading
 import uuid
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime
-from pathlib import Path
 from typing import Any
 
-from ..db.connection import connect
 from ..db.jobs import Job, JobRepository, JobStatus
 
 logger = logging.getLogger(__name__)
@@ -45,16 +42,6 @@ class CancelToken:
 
 
 type JobRunner = Callable[[Job, CancelToken], JobStatus]
-
-
-def _keep_skip_note(db_path: Path, scan_id: str, note: str) -> None:
-    # Before dispatch: a later empty job error leaves this note in place.
-    payload = json.dumps([note])
-    with connect(db_path) as conn:
-        conn.execute(
-            "UPDATE scans SET errors = ?, stage_log = ? WHERE session_id = ?",
-            (payload, payload, scan_id),
-        )
 
 
 def _now() -> str:
@@ -110,7 +97,7 @@ class JobQueue:
             now=_now(),
         )
         if note:
-            _keep_skip_note(self._repo._db_path, scan_id, note)
+            self._repo.keep_skip_note(scan_id, note)
         self.dispatch()
 
     def dispatch(self) -> None:
