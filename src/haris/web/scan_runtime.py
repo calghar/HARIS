@@ -1,7 +1,5 @@
 import logging
-import re
 from typing import Any
-from urllib.parse import urlparse
 
 from fastapi import HTTPException
 from pydantic import BaseModel, Field
@@ -12,6 +10,7 @@ from ..db.jobs import Job, JobStatus
 from ..models import AuthConfig, ScanSession, ScanState, Scope, Target
 from ..net import NetworkPolicy
 from ..reporting import REPORTER_REGISTRY
+from ..reporting import write_reports as emit_reports
 from ..verify.settings import VerifyMode
 from .access import Access, require_scan_access
 from .agent_gate import (
@@ -60,12 +59,6 @@ class ScanJobParams(BaseModel):
             ),
             auth=AuthConfig(method=self.auth_method, header_value=header_value),
         )
-
-
-def domain_slug(url: str) -> str:
-    """Filesystem-safe hostname for report file names."""
-    hostname = urlparse(url).hostname or "unknown"
-    return re.sub(r"[^a-zA-Z0-9._-]", "_", hostname)
 
 
 def execute_scan(state: AppState, job: Job, token: CancelToken) -> JobStatus:
@@ -126,15 +119,7 @@ def execute_scan(state: AppState, job: Job, token: CancelToken) -> JobStatus:
 def write_reports(
     state: AppState, session: ScanSession, report_formats: list[str]
 ) -> None:
-    reports_dir = state.settings.reports_dir
-    reports_dir.mkdir(parents=True, exist_ok=True)
-    domain = domain_slug(session.target.base_url)
-    for fmt in report_formats:
-        reporter_cls = REPORTER_REGISTRY.get(fmt)
-        if reporter_cls:
-            reporter = reporter_cls()
-            filename = f"report_{domain}_{session.session_id}{reporter.file_extension}"
-            reporter.write(session, state.settings.reports_dir / filename)
+    emit_reports(session, state.settings.reports_dir, report_formats)
 
 
 def _record_or_404(state: AppState, scan_id: str) -> dict[str, Any]:

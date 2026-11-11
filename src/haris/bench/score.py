@@ -86,10 +86,6 @@ def key_tiers(report: dict[str, Any]) -> dict[Key, VerificationTier]:
     return tiers
 
 
-def unique_finding_keys(report: dict[str, Any]) -> set[Key]:
-    return set(key_tiers(report))
-
-
 def _ratio(numerator: int, denominator: int, empty: float) -> float:
     return numerator / denominator if denominator else empty
 

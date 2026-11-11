@@ -1,10 +1,14 @@
 import json
 import tempfile
 from pathlib import Path
+from types import SimpleNamespace
 
+from haris.cli import _write_reports
+from haris.diff import LoadedReport
 from haris.models import Confidence, Finding, ScanSession, Severity, Target
 from haris.reporting.json_report import JSONReporter
 from haris.reporting.markdown_report import MarkdownReporter
+from haris.web.scan_runtime import write_reports
 
 
 def _make_session() -> ScanSession:
@@ -136,3 +140,24 @@ class TestMarkdownReporter:
         output = reporter.generate(session)
 
         assert "No findings" in output
+
+
+def test_cli_and_web_write_the_same_report_filename(tmp_path: Path) -> None:
+    session = _make_session()
+    session.session_id = "sess-1"
+    session.target = Target(base_url="https://app.example.com:8443/admin")
+    cli_dir = tmp_path / "cli"
+    web_dir = tmp_path / "web"
+    _write_reports(
+        session,
+        SimpleNamespace(output_dir=str(cli_dir), report_formats=["json"]),
+        LoadedReport(),
+    )
+    write_reports(
+        SimpleNamespace(settings=SimpleNamespace(reports_dir=web_dir)),
+        session,
+        ["json"],
+    )
+    names = ["report_app.example.com_sess-1.json"]
+    assert sorted(p.name for p in cli_dir.iterdir()) == names
+    assert sorted(p.name for p in web_dir.iterdir()) == names

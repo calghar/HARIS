@@ -1,22 +1,11 @@
-import functools
 from typing import Any
 
-import yaml
-
-from ..config.paths import resolve_config_file
+from ..core.confidence import _priors
 from ..core.vuln_class import get_registry
 from ..models import Finding
 from ..net import ScopedResponse
 
-CONFIDENCE_FILE = "confidence.yaml"
 TECH_HEADERS = ("server", "x-powered-by", "x-aspnet-version")
-
-
-@functools.cache
-def _priors() -> tuple[float, dict[str, float]]:
-    with open(resolve_config_file(CONFIDENCE_FILE), encoding="utf-8") as fh:
-        raw: dict[str, Any] = yaml.safe_load(fh)
-    return float(raw["default"]), {k: float(v) for k, v in raw["priors"].items()}
 
 
 def prior(key: str) -> float:
