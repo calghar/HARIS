@@ -122,6 +122,8 @@
 - Fixed the Nuclei `sensitive_file` aliases to use the real template ids (`prometheus-metrics`, `phpinfo-files`), which the earlier names never matched; added `springboot-env` and `gocd-encryption-key`
 - Fixed nikto missing-header, banner, CORS, robots.txt and phpinfo records reporting as unclassified; they now map to `missing_header`, `banner_disclosure`, `cors_misconfiguration` and `sensitive_file`, and replay checks the header named in a nikto title
 - Fixed the DVWA, Juice Shop and WebGoat ground truth: blind SQL injection is `sqli_error`, WebGoat gains a stack-trace entry, and four nikto notes are ignored
+- Fixed saved scans reloading with the default scope: excluded paths, rate limit, request cap, methods and redirect limits are now stored, and older rows without a scope still load
+- Fixed a failed result write leaving a queue slot taken, which stopped later scans from starting
 
 ### Changed
 

@@ -137,7 +137,12 @@ class JobQueue:
         except Exception:
             logger.exception("Scan %s failed", job.scan_id)
             status, error = JobStatus.FAILED, FAILURE_ERROR
-        self._repo.finish(job.scan_id, status, _now(), error)
-        with self._lock:
-            self._running.pop(job.scan_id, None)
-        self.dispatch()
+        try:
+            self._repo.finish(job.scan_id, status, _now(), error)
+        except Exception:
+            # Leave the row running; startup recover() marks other workers incomplete.
+            logger.exception("Scan %s result was not saved", job.scan_id)
+        finally:
+            with self._lock:
+                self._running.pop(job.scan_id, None)
+            self.dispatch()

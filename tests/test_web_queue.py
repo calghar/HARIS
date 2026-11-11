@@ -1,15 +1,22 @@
 import logging
+import threading
 import time
 from collections.abc import Iterator
 from pathlib import Path
+from typing import override
 
 import pytest
 
 from haris.auth.cookies import SESSION_COOKIE
 from haris.db.connection import connect
-from haris.db.jobs import JobStatus
+from haris.db.jobs import Job, JobRepository, JobStatus
 from haris.web.app import create_app
-from haris.web.job_queue import FAILURE_ERROR, RESTART_ERROR
+from haris.web.job_queue import (
+    FAILURE_ERROR,
+    RESTART_ERROR,
+    CancelToken,
+    JobQueue,
+)
 
 from .test_web_env import Browser, FakeRunner, WebEnv, stub_scan_runner, wait_for
 from .web_helpers import SETTLE_S, cancel, job_status, start_scan, status
@@ -209,3 +216,77 @@ def test_target_credentials_are_never_written_to_the_database(
         dump = "\n".join(conn.iterdump())
     assert "s3cret-credential" not in dump
     assert env.state.scan_credentials[scan_id] == "Bearer s3cret-credential"
+
+
+class _DiskFullJobs(JobRepository):
+    def __init__(self, queued: list[Job]) -> None:
+        super().__init__(Path("."))
+        self.queued = queued
+        self.claimed: list[str] = []
+
+    @override
+    def recover(self, worker_id: str, now: str, error: str) -> list[str]:
+        return []
+
+    @override
+    def claim_next(self, worker_id: str, now: str) -> Job | None:
+        if not self.queued:
+            return None
+        job = self.queued.pop(0)
+        self.claimed.append(job.scan_id)
+        return job
+
+    @override
+    def finish(
+        self, scan_id: str, status: JobStatus, now: str, error: str = ""
+    ) -> None:
+        raise OSError("disk full")
+
+
+def test_finish_failure_frees_queue_slot(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    secret = "Bearer s3cret-credential"
+    repo = _DiskFullJobs(
+        [
+            Job(
+                scan_id="next",
+                owner_user_id="owner",
+                status=JobStatus.QUEUED,
+                created_at="2026-01-01T00:00:00+00:00",
+            )
+        ]
+    )
+    started: list[str] = []
+    started_next = threading.Event()
+
+    def run(job: Job, token: CancelToken) -> JobStatus:
+        started.append(job.scan_id)
+        if job.scan_id == "next":
+            started_next.set()
+        return JobStatus.COMPLETED
+
+    queue = JobQueue(repo, run, max_concurrent=1)
+    current = Job(
+        scan_id="s",
+        owner_user_id="owner",
+        status=JobStatus.RUNNING,
+        created_at="2026-01-01T00:00:00+00:00",
+        params={"header_value": secret},
+    )
+    token = CancelToken()
+    queue._running[current.scan_id] = token
+    try:
+        with caplog.at_level(logging.ERROR):
+            queue._work(current, token)
+        assert current.scan_id not in queue._running
+        assert repo.claimed == ["next"]
+        assert started_next.wait(2)
+        assert started == ["s", "next"]
+    finally:
+        queue.shutdown()
+    saved = [r for r in caplog.records if "result was not saved" in r.getMessage()]
+    assert len(saved) == 1
+    assert saved[0].levelno == logging.ERROR
+    assert "disk full" in caplog.text
+    assert secret not in caplog.text
