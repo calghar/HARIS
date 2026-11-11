@@ -42,3 +42,4 @@
 - [ ] 4.10 Gave replay its own soft-404 control timeout (it uses the 30 s `policy.timeout_s` today), replayed every PoC request (only the first today), and kept the skip note in `errors` on a failed scan (`finish()` can drop it)
 - [ ] 4.11 Live-verified the unverified surfaces: ZAP end to end, garak and promptfoo output shapes, `action.yml` and the GitLab template, the web UI in a browser, the web agent with real Docker, XXE out of band
 - [ ] 4.12 Ran the benchmark with a baseline profile and recorded the scores with raw artifacts
+- [ ] 4.13 Closed the DNS-rebinding window for external scanners: pin the vetted IP per tool (nuclei, nmap, nikto, sslyze, Wapiti) or run them in a network that blocks private ranges; the 0.7.0 fix only re-vets the host right before each tool starts (security review H-2)
