@@ -7,7 +7,7 @@ The harness in `bench/` measures how many of HARIS's findings are real (precisio
 | Target | Kind | Ground truth |
 |---|---|---|
 | OWASP Juice Shop `v20.4.0` | external | seed set of 5 entries from the [companion guide](https://pwning.owasp-juice.shop/); 0 known gaps |
-| DVWA (digest of `latest`) | external | seed set of 13 entries from the [module list](https://github.com/digininja/DVWA), security level low; 0 known gaps |
+| DVWA (digest of `latest`) | external | seed set of 14 entries from the [module list](https://github.com/digininja/DVWA), security level low; 0 known gaps |
 | WebGoat `v2026.5` | external | seed set of 6 entries from the [WebGoat repository](https://github.com/WebGoat/WebGoat) |
 | `spa_catchall` | fixture | the fixture's real properties: plain HTTP, `Server` banner, five missing security headers; any path or debug finding is a false positive |
 | `vuln_ai_app` | fixture | 7 deliberate weaknesses (prompt injection, system-prompt leak, unauthenticated inference, verbose error, output XSS, unauthenticated MCP `tools/list`, poisoned MCP tool description) plus 4 real properties (plain HTTP, `Server` banner, no rate limit, ignored `max_tokens`); the `/health` path and `ai_endpoint_discovered` records are ignored |

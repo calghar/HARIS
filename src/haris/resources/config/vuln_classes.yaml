@@ -87,6 +87,12 @@ classes:
     aliases:
       wapiti: ["Unrestricted File Upload"]
 
+  - id: cleartext_password_submission
+    primary_cwe: CWE-319
+    granularity: parameter
+    aliases:
+      wapiti: ["Cleartext Submission of Password"]
+
   - id: missing_header
     primary_cwe: CWE-693
     granularity: host
@@ -109,6 +115,7 @@ classes:
     aliases:
       builtin: ["Accessible sensitive path: .*", "Exposed debug endpoint: .*"]
       wapiti: ["Backup file"]
+      nuclei: ["^prometheus-metrics-detect$", "^phpinfo-page-detect$"]
 
   - id: tls_weak_protocol
     primary_cwe: CWE-326
