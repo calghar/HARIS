@@ -46,7 +46,7 @@ python -m haris.bench score <report.json | reports-dir> <ground_truth.yaml> [--b
 ```bash
 uv sync --extra web --extra reporting
 uv run python bench/run.py --runs 3
-# optional: --targets spa_catchall,vuln_ai_app  --profile <profile>  --baseline-profile <profile>
+# optional: --targets spa_catchall,vuln_ai_app  --profile <profile>  --baseline-profile <profile>  --verify replay
 ```
 
 Each target has its own profile: `quick` by default, `ai-security` with `--ai-active --i-have-authorization` for `vuln_ai_app`. `--profile` overrides the profile of every target and keeps each target's extra flags. `--baseline-profile` adds baseline runs for the false-positive reduction rate. A target can also carry its own excluded paths (DVWA: `/logout.php`, `/setup.php`), which the runner adds to the default exclusions in the generated `--config`. Juice Shop's nikto run is bounded to 40 s (`-maxtime 40s`, set in the generated `--config` only) because the target aborts under nikto's full request volume.

@@ -38,6 +38,17 @@ def test_profile_option_is_optional() -> None:
     assert runner.parse_args(["--profile", "full"]).profile == "full"
 
 
+def test_verify_option_is_appended_after_target_args() -> None:
+    target = runner.TARGETS["vuln_ai_app"]
+    assert runner.parse_args([]).verify is None
+    assert runner.run_args(target, None) == target.haris_args
+    assert runner.run_args(target, "replay") == (
+        *target.haris_args,
+        "--verify",
+        "replay",
+    )
+
+
 def test_vuln_ai_app_runs_with_active_probes_and_authorization() -> None:
     assert runner.TARGETS["vuln_ai_app"].haris_args == (
         "--ai-active",

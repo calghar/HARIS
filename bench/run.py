@@ -46,6 +46,7 @@ COOKIE_HEADER = "Cookie"
 AUTH_HEADER_ENV = "HARIS_AUTH_HEADER"
 REDACTED = "<redacted>"
 PARTIAL_REPORT = "session.partial.json"
+VERIFY_MODES = ("off", "replay", "llm")
 # Juice Shop's per-request query fan-out aborts its heap near 5500 GETs.
 JUICE_NIKTO_MAX_TIME = "40s"
 
@@ -345,6 +346,10 @@ def score(reports: Path, truth: Path, baseline: Path | None) -> None:
     subprocess.run(cmd, check=True, capture_output=True, text=True)
 
 
+def run_args(target: Target, verify: str | None) -> tuple[str, ...]:
+    return (*target.haris_args, *(("--verify", verify) if verify else ()))
+
+
 def scan_target(name: str, args: argparse.Namespace, results: Path) -> None:
     target = TARGETS[name]
     compose("up", "--detach", "--build", target.service)
@@ -375,7 +380,7 @@ def scan_target(name: str, args: argparse.Namespace, results: Path) -> None:
                 profile,
                 results / name / "raw" / label / f"run{run}",
                 results / name / label / f"run{run}.json",
-                target.haris_args if label == "runs" else (),
+                run_args(target, args.verify) if label == "runs" else (),
                 session_cookie,
             )
     baseline_dir = results / name / "baseline" if args.baseline_profile else None
@@ -401,6 +406,9 @@ def parse_args(argv: list[str] | None) -> argparse.Namespace:
         help="HARIS profile for every target (default: each target's own profile)",
     )
     parser.add_argument("--baseline-profile", help="Profile for FP-reduction baseline")
+    parser.add_argument(
+        "--verify", choices=VERIFY_MODES, help="haris --verify mode for the runs"
+    )
     parser.add_argument("--runs", type=int, default=3)
     parser.add_argument("--haris", default="haris", help="HARIS command line")
     parser.add_argument("--health-timeout", type=float, default=300.0)
