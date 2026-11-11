@@ -1,12 +1,10 @@
 import argparse
 import importlib
 import logging
-import re
 import sys
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any, NoReturn
-from urllib.parse import urlparse
 
 from pydantic import ValidationError
 
@@ -27,7 +25,7 @@ from haris.ignore import DEFAULT_IGNORE_FILE
 from haris.llm.base import create_backend
 from haris.models import ScanSession, Severity
 from haris.net import NetworkPolicy
-from haris.reporting import REPORTER_REGISTRY
+from haris.reporting import REPORTER_REGISTRY, write_reports
 from haris.scan_files import (
     baseline_summary,
     resolve_ignore_file,
@@ -514,27 +512,14 @@ def _build_overrides(args: argparse.Namespace) -> dict[str, Any]:
     return overrides
 
 
-def _domain_slug(url: str) -> str:
-    """Extract a filesystem-safe domain slug from a URL."""
-    hostname = urlparse(url).hostname or "unknown"
-    return re.sub(r"[^a-zA-Z0-9._-]", "_", hostname)
-
-
 def _write_reports(session: Any, config: Any, baseline: Any = None) -> None:
-    output_dir = Path(config.output_dir)
-    output_dir.mkdir(parents=True, exist_ok=True)
-
-    domain = _domain_slug(session.target.base_url)
-
-    for fmt in config.report_formats:
-        reporter_cls = REPORTER_REGISTRY.get(fmt)
-        if reporter_cls is None:
-            logging.warning("Unknown report format: %s", fmt)
-            continue
-        reporter = reporter_cls(baseline=baseline)
-        filename = f"report_{domain}_{session.session_id}{reporter.file_extension}"
-        out_path = reporter.write(session, output_dir / filename)
-        print(f"Report: {out_path}")
+    for path in write_reports(
+        session,
+        Path(config.output_dir),
+        config.report_formats,
+        baseline,
+    ):
+        print(f"Report: {path}")
 
 
 def _save_session_to_db(session: Any, *, quiet: bool = False) -> None:

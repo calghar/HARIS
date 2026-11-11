@@ -51,12 +51,6 @@ web = [
 reporting = [
     "markdown>=3.11.3",
 ]
-# Scanner CLIs. Pins cryptography<47 and tornado<6.6 (known CVEs), so it is
-# excluded from `all`; install as isolated tools (pipx) instead.
-scanners = [
-    "sslyze>=6.3.1",
-    "wapiti3>=3.3.2",
-]
 # Everything installable alongside the web dashboard
 all = [
     "haris[web,reporting]",
@@ -96,11 +90,6 @@ haris = [
     "resources/config/**/*",
     "resources/schema/**/*",
     "db/migrations/*",
-]
-
-[tool.uv]
-conflicts = [
-    [{ extra = "scanners" }, { extra = "web" }],
 ]
 
 [tool.pytest.ini_options]

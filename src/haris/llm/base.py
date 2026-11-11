@@ -8,7 +8,6 @@ from .backend import (
     LLMRequest,
     ProviderBackend,
     ResponseCache,
-    _response_cache,
 )
 from .catalog import API_KEY_ENV, resolve_model
 from .providers import AnthropicBackend, OllamaBackend, OpenAIBackend
@@ -24,7 +23,6 @@ __all__ = [
     "OpenAIBackend",
     "ProviderBackend",
     "ResponseCache",
-    "_response_cache",
     "create_backend",
     "get_available_backends",
     "get_default_backend_name",

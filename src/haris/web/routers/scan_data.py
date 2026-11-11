@@ -3,9 +3,9 @@ from fastapi.responses import FileResponse
 
 from ...auth.middleware import require_user
 from ...auth.models import User
-from ...reporting import REPORTER_REGISTRY
+from ...reporting import REPORTER_REGISTRY, domain_slug
 from ..routing import api_router
-from ..scan_runtime import domain_slug, get_completed_session, get_scan_for_user
+from ..scan_runtime import get_completed_session, get_scan_for_user
 from ..schemas.llm import Enrichment
 from ..schemas.scans import FindingOut
 from ..state import AppState, get_state

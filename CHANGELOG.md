@@ -224,11 +224,18 @@
 - LLM routes return 429 when the budget is exhausted and a generic message for other failures; exception text is logged, not returned
 - Scans survive a server restart as `incomplete`; target credentials are held in memory only and never stored with the job
 - `haris --web` builds the app with `create_app()`; the compose healthcheck calls `/health`
+- Changed CLI and web report files to one shared filename and writer, including CLI `--baseline` injection
+- Changed built-in checks to read confidence priors from the cached lookup in `haris.core.confidence`
 
 ### Removed
 
 - `web/ownership.py` (`ResourceOwners`) and `web/scoped_views.py`, replaced by owner-aware queries
 - Removed the unused `haris.ai_security.jsonrpc` module
+- Removed unused re-exports from `haris.data`; the package stays so `scanner_config.py` ships in the wheel
+- Removed unused modules `haris.core.target` and `haris.core.finding`
+- Removed unused `unique_finding_keys` from the benchmark scorer
+- Removed the `scanners` extra and its conflict with `web`; install SSLyze and Wapiti with `pipx`
+- Removed the `_response_cache` re-export from `haris.llm.base`
 
 ## 0.6.2 — 2026-04-04
 

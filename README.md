@@ -33,9 +33,9 @@ Orchestrates security scanners, correlates findings, and writes one prioritised 
 | garak | Injection and leakage probes on a discovered chat route. Runs only with `--ai-active` and `--i-have-authorization` | install the binary | 0.17 |
 | promptfoo | Red-team plugins on a discovered chat route. Same flags as garak | install the binary | 0.125 |
 
-The version column is the adapter `version` attribute. `pyproject.toml` floors are `sslyze>=6.3.1` and `wapiti3>=3.3.2`. The Wapiti docstring names 3.3.2. The Nikto docstring names 2.6. Nuclei fixtures in `tests/fixtures/scanners/README.md` are 3.7.1. `garak.yaml` comments 0.17.1 and `promptfoo.yaml` comments 0.125.1. HARIS does not check the tool version at runtime.
+The version column is the adapter `version` attribute. The Wapiti docstring names 3.3.2. The Nikto docstring names 2.6. Nuclei fixtures in `tests/fixtures/scanners/README.md` are 3.7.1. `garak.yaml` comments 0.17.1 and `promptfoo.yaml` comments 0.125.1. HARIS does not check the tool version at runtime.
 
-Install Wapiti and SSLyze with `pipx`, outside the HARIS environment. `pyproject.toml` records pins `cryptography<47` and `tornado<6.6` and excludes the `scanners` extra from `all` because that extra conflicts with `web`.
+Install Wapiti and SSLyze with `pipx`, outside the HARIS environment.
 
 ## Built-in checks
 
