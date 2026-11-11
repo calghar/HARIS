@@ -12,3 +12,7 @@ templates/
 *.egg-info
 .claude/
 node_modules/
+tmp/
+tests/
+bench/
+docs/

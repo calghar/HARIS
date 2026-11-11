@@ -47,6 +47,7 @@
 - Mapped common ZAP plugin ids to vulnerability classes and set the `zap` confidence prior to 0.6
 - Added vulnerability class `cleartext_password_submission` (CWE-319) for Wapiti cleartext password forms, and mapped Nuclei `prometheus-metrics-detect` and `phpinfo-page-detect` to `sensitive_file`
 - Added `--verify` to `bench/run.py`, passed through to `haris` for every target run
+- Added a CycloneDX SBOM, a Trivy image scan that fails on fixed HIGH and CRITICAL findings, and an OpenSSF Scorecard workflow with SARIF upload
 
 ### Changed (packaging)
 
@@ -62,6 +63,9 @@
 - Dependabot uses the `uv` ecosystem and groups minor/patch updates
 - Raised the documented Wapiti minimum to 3.3.2 and mapped its new categories `Stack Trace Disclosure` (`verbose_error`) and `CVE-2024-55591`; the flags, module names and session database that HARIS uses are unchanged, and `stacktrace_disclosure` now runs in the default module set
 - Wapiti 3.3.2 sends one extra probe request per crawled directory to detect soft 404 pages, so the crawl can drop catch-all pages; `information_disclosure` stays excluded until a live run shows its 3.3 regex is safe
+- Pinned third-party GitHub Actions by commit SHA, tested Python 3.13 and 3.14, skipped docker-marked tests in CI and added a coverage threshold input (default 70, not yet measured)
+- Release tags build the sdist and wheel, publish to PyPI with attestations, push and sign `ghcr.io/<owner>/haris` with cosign, and open a GitHub Release from the matching changelog section; the tag must equal the project version
+- Rewrote the container image: multi-stage, digest-pinned base, uid 10001, checksummed nuclei 3.11.1 and nikto 2.6.0, health check; compose adds memory and CPU limits and a read-only root, and no longer mounts a volume over nikto
 
 ### Fixed
 
