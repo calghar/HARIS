@@ -49,6 +49,8 @@
 - Added `--verify` to `bench/run.py`, passed through to `haris` for every target run
 - Added `docs/verification.md` covering finding tiers, replay oracles, the soft-404 control and the uncalibrated LLM abstain threshold
 - Added a CycloneDX SBOM, a Trivy image scan that fails on fixed HIGH and CRITICAL findings, and an OpenSSF Scorecard workflow with SARIF upload
+- Added a security policy, the Contributor Covenant 2.1, a governance note, a roadmap, issue forms, a pull request template and `CODEOWNERS`
+- Added an MkDocs Material configuration for the pages in `docs/`
 
 ### Changed (packaging)
 
