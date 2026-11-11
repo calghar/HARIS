@@ -41,6 +41,15 @@ ERROR_REASON = 2
 OK_RETURNCODES = (0, 100)
 
 
+def prompt_budget(max_prompts: int, plugins: list[str]) -> tuple[list[str], int]:
+    """One test on the first plugins when the cap is below the plugin count."""
+    if not plugins:
+        return [], 0
+    if max_prompts < len(plugins):
+        return plugins[:max_prompts], 1
+    return list(plugins), max_prompts // len(plugins)
+
+
 class MalformedOutputError(ValueError):
     pass
 
@@ -208,7 +217,9 @@ class PromptfooScanner(ExternalToolScanner):
         max_tokens = int(
             self.options.get("max_tokens_per_prompt", limits.max_tokens_per_prompt)
         )
-        plugins = selection(TOOL, self.options.get("plugins"))
+        plugins, num_tests = prompt_budget(
+            max_prompts, selection(TOOL, self.options.get("plugins"))
+        )
         config = {
             "prompts": [PROMPT_VAR],
             "targets": [
@@ -229,7 +240,7 @@ class PromptfooScanner(ExternalToolScanner):
             ],
             "redteam": {
                 "purpose": tool_config(TOOL).purpose,
-                "numTests": max(1, max_prompts // len(plugins)),
+                "numTests": num_tests,
                 "plugins": plugins,
             },
         }

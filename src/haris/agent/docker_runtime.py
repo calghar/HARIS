@@ -1,15 +1,40 @@
 import json
+import logging
+import select
 import subprocess
-from typing import Any
+import threading
+import time
+from typing import IO, Any
 
 from pydantic import BaseModel
 
 from .runtime import RuntimeSpec, SandboxRuntime, container_argv
 from .settings import AgentSettings, load_agent_settings
 
+logger = logging.getLogger(__name__)
+
 PREFIX = "haris-agent-"
 EXEC_TIMEOUT_S = 30
+EXEC_OUTPUT_CAP_BYTES = 1_048_576  # stored stdout+stderr; anything past this is killed
 PROBE_TIMEOUT_S = 10  # a hung daemon must not block web submit
+# Print the pid, then replace the process so a timeout can kill it inside the container.
+_PID_LINE = (
+    "import os, sys\n"
+    "print(os.getpid(), flush=True)\n"
+    "try:\n"
+    "    os.setsid()\n"
+    "except OSError:\n"
+    "    pass\n"
+    "os.execvp(sys.argv[1], sys.argv[1:])\n"
+)
+_KILL_GROUP = (
+    "import os, signal, sys\n"
+    "pid = int(sys.argv[1])\n"
+    "try:\n"
+    "    os.killpg(pid, signal.SIGKILL)\n"
+    "except OSError:\n"
+    "    os.kill(pid, signal.SIGKILL)\n"
+)
 
 
 class ExecResult(BaseModel):
@@ -120,6 +145,89 @@ def _run(argv: list[str]) -> None:
         raise RuntimeError(proc.stderr.strip() or f"docker exited {proc.returncode}")
 
 
+def _pid_argv(argv: list[str]) -> list[str]:
+    return ["python3", "-B", "-c", _PID_LINE, *argv]
+
+
+def _write_stdin(proc: subprocess.Popen[bytes], data: bytes) -> None:
+    stdin = proc.stdin
+    if stdin is None:
+        return
+    try:
+        stdin.write(data)
+        stdin.close()
+    except (BrokenPipeError, OSError, ValueError):
+        return
+
+
+def _read_line(stream: IO[bytes], deadline: float) -> bytes:
+    buf = bytearray()
+    while time.monotonic() < deadline and len(buf) < 32:
+        remaining = max(0.0, deadline - time.monotonic())
+        ready, _, _ = select.select([stream], [], [], remaining)
+        if not ready:
+            break
+        piece = stream.read(1)
+        if not piece:
+            break
+        buf += piece
+        if piece == b"\n":
+            break
+    return bytes(buf)
+
+
+def _collect(
+    proc: subprocess.Popen[bytes], cap: int, timeout_s: float
+) -> tuple[str, bytes, bytes, bool, bool]:
+    stdout, stderr = proc.stdout, proc.stderr
+    if stdout is None or stderr is None:
+        raise RuntimeError("exec pipes were not created")
+    deadline = time.monotonic() + timeout_s
+    pid = _read_line(stdout, deadline).strip().decode("ascii", "replace")
+    if not pid.isdecimal():
+        pid = ""
+    out, err = bytearray(), bytearray()
+    done = {stdout: False, stderr: False}
+    buffers = {stdout: out, stderr: err}
+    timed_out = False
+    while not all(done.values()):
+        if len(out) + len(err) >= cap:
+            break
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            timed_out = True
+            break
+        open_streams = [stream for stream, finished in done.items() if not finished]
+        ready, _, _ = select.select(open_streams, [], [], remaining)
+        if not ready:
+            timed_out = proc.poll() is None
+            break
+        for stream in ready:
+            room = cap - (len(out) + len(err))
+            if room <= 0:
+                break
+            chunk = stream.read(room)
+            if not chunk:
+                done[stream] = True
+                continue
+            buffers[stream] += chunk
+    truncated = len(out) + len(err) >= cap and not all(done.values())
+    return pid, bytes(out), bytes(err), timed_out, truncated
+
+
+def _kill_pid(sandbox: str, pid: str) -> None:
+    if not pid.isdecimal():
+        return
+    try:
+        subprocess.run(
+            ["docker", "exec", sandbox, "python3", "-B", "-c", _KILL_GROUP, pid],
+            capture_output=True,
+            timeout=PROBE_TIMEOUT_S,
+        )
+    except (OSError, subprocess.SubprocessError):
+        logger.warning("sandbox process %s was not killed", pid)
+
+
 class DockerRuntime(SandboxRuntime):
     """One non-root container per job, egress only via the scope proxy."""
 
@@ -191,15 +299,37 @@ class DockerRuntime(SandboxRuntime):
         return ""
 
     def exec(self, argv: list[str], stdin: str = "") -> ExecResult:
-        proc = subprocess.run(
-            ["docker", "exec", "-i", self._sandbox, *argv],
-            input=stdin,
-            text=True,
-            capture_output=True,
-            timeout=EXEC_TIMEOUT_S,
+        proc: subprocess.Popen[bytes] = subprocess.Popen(
+            ["docker", "exec", "-i", self._sandbox, *_pid_argv(argv)],
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            bufsize=0,
         )
-        text = proc.stdout if proc.returncode == 0 else proc.stderr or proc.stdout
-        return ExecResult(ok=proc.returncode == 0, text=text)
+        feeder = threading.Thread(
+            target=_write_stdin, args=(proc, stdin.encode()), daemon=True
+        )
+        feeder.start()
+        try:
+            pid, out, err, timed_out, truncated = _collect(
+                proc, EXEC_OUTPUT_CAP_BYTES, EXEC_TIMEOUT_S
+            )
+        finally:
+            feeder.join(timeout=PROBE_TIMEOUT_S)
+        if timed_out or truncated:
+            _kill_pid(self._sandbox, pid)
+            proc.kill()
+        try:
+            proc.wait(timeout=PROBE_TIMEOUT_S)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+            proc.wait(timeout=PROBE_TIMEOUT_S)
+        if timed_out:
+            raise subprocess.TimeoutExpired(proc.args, EXEC_TIMEOUT_S)
+        text = out.decode("utf-8", "replace")
+        if proc.returncode != 0:
+            text = err.decode("utf-8", "replace") or text
+        return ExecResult(ok=proc.returncode == 0 and not truncated, text=text)
 
     def inspect(self) -> dict[str, Any]:
         raw = subprocess.check_output(["docker", "inspect", self._sandbox], text=True)

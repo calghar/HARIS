@@ -3,7 +3,95 @@
 import re
 from urllib.parse import urlparse
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
+
+MAX_EXCLUDED_PATH_CHARS = 200
+_QUANTIFIER = re.compile(r"\d*(,\d*)?")
+
+
+def check_excluded_paths(patterns: object) -> None:
+    """Compile every pattern now; reject long, invalid, or nested-quantifier ones."""
+    if not isinstance(patterns, list):
+        raise ValueError("excluded_paths must be a list of strings")
+    for pattern in patterns:
+        if not isinstance(pattern, str):
+            raise ValueError("excluded_paths must be a list of strings")
+        if len(pattern) > MAX_EXCLUDED_PATH_CHARS:
+            raise ValueError(
+                f"excluded path is longer than {MAX_EXCLUDED_PATH_CHARS} characters"
+            )
+        if _has_nested_quantifier(pattern):
+            raise ValueError(
+                f"excluded path pattern has nested quantifiers ({pattern})"
+            )
+        try:
+            re.compile(pattern)
+        except re.error as exc:
+            raise ValueError(
+                f"excluded path pattern is not a valid regex ({pattern})"
+            ) from exc
+
+
+def _has_nested_quantifier(pattern: str) -> bool:
+    """A group that contains a quantifier is itself quantified, as in (a+)+."""
+    contains: list[bool] = []
+    index = 0
+    size = len(pattern)
+    while index < size:
+        char = pattern[index]
+        if char == "\\" and index + 1 < size:
+            index += 2
+            continue
+        if char == "[":
+            index = _skip_class(pattern, index) + 1
+            continue
+        if char == "(":
+            contains.append(False)
+        elif char == ")" and contains:
+            inner = contains.pop()
+            if inner and contains:
+                contains[-1] = True
+            nxt = pattern[index + 1] if index + 1 < size else ""
+            if inner and nxt in {"+", "*", "{"}:
+                return True
+        elif char in "+*":
+            if contains:
+                contains[-1] = True
+        elif char == "{":
+            end = _quantifier_end(pattern, index)
+            if end is not None:
+                if contains:
+                    contains[-1] = True
+                index = end
+        index += 1
+    return False
+
+
+def _quantifier_end(pattern: str, start: int) -> int | None:
+    end = pattern.find("}", start + 1)
+    if end == -1 or end > start + 12:
+        return None
+    body = pattern[start + 1 : end]
+    if not any(char.isdigit() for char in body):
+        return None
+    return end if _QUANTIFIER.fullmatch(body) else None
+
+
+def _skip_class(pattern: str, start: int) -> int:
+    index = start + 1
+    size = len(pattern)
+    if index < size and pattern[index] == "^":
+        index += 1
+    if index < size and pattern[index] == "]":
+        index += 1
+    while index < size:
+        if pattern[index] == "\\" and index + 1 < size:
+            index += 2
+            continue
+        if pattern[index] == "]":
+            return index
+        index += 1
+    return index
 
 
 class Scope(BaseModel):
@@ -23,6 +111,12 @@ class Scope(BaseModel):
     )
     follow_redirects: bool = True
     max_redirect_depth: int = 5
+
+    @field_validator("excluded_paths")
+    @classmethod
+    def _compile_excluded_paths(cls, patterns: list[str]) -> list[str]:
+        check_excluded_paths(patterns)
+        return patterns
 
     def is_url_in_scope(self, url: str) -> bool:
         """Check whether *url* falls within the allowed scope."""

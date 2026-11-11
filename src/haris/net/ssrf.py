@@ -50,6 +50,26 @@ def is_blocked(ip: IPAddress) -> bool:
     return is_metadata(ip) or ip.is_multicast or ip.is_reserved or not ip.is_global
 
 
+def vet_host(
+    host: str,
+    port: int,
+    *,
+    allow_private: bool,
+    resolver: Resolver = system_resolver,
+) -> str:
+    """Resolve *host* now and return one address, or raise SSRFBlocked."""
+    try:
+        ipaddress.ip_address(host)
+    except ValueError:
+        try:
+            addresses = resolver(host, port)
+        except OSError as exc:
+            raise SSRFBlocked(f"{host} did not resolve") from exc
+    else:
+        addresses = [host]
+    return vet_addresses(host, addresses, allow_private=allow_private)
+
+
 def vet_addresses(host: str, addresses: list[str], *, allow_private: bool) -> str:
     """Return the first address when every one passes; else raise SSRFBlocked."""
     if host.lower() in METADATA_HOSTS:

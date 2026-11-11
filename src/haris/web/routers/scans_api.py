@@ -10,6 +10,8 @@ from ...auth.middleware import get_auth_service, require_user
 from ...auth.models import AuditAction, AuditEvent, User
 from ...auth.service import AuthService
 from ...models import ScanState
+from ...models.target import check_excluded_paths
+from ...scanners.option_policy import prepare_web_scanner_options
 from ...verify.settings import VerifyMode
 from ..access import Access, require_scan_access, require_template_access, visible_owner
 from ..agent_gate import (
@@ -69,6 +71,15 @@ def _with_template(
         update["llm_enrich"] = True
         update["llm_backend_name"] = params.llm_backend_name or tpl.llm_backend or None
     return params.model_copy(update=update)
+
+
+def _checked_params(params: ScanJobParams) -> ScanJobParams:
+    try:
+        check_excluded_paths(params.excluded_paths)
+        options = prepare_web_scanner_options(params.scanner_options)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return params.model_copy(update={"scanner_options": options})
 
 
 def _verify_mode(form: FormData) -> VerifyMode | None:
@@ -147,6 +158,7 @@ async def start_scan(
     )
     if params.template_id:
         params = _with_template(state, user, form, params)
+    params = _checked_params(params)
     if params.verify is VerifyMode.LLM and not params.llm_enrich:
         raise HTTPException(
             status_code=422, detail="verify=llm requires LLM enrichment (llm_enrich)"

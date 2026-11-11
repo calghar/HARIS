@@ -122,6 +122,13 @@
 - Fixed the Nuclei `sensitive_file` aliases to use the real template ids (`prometheus-metrics`, `phpinfo-files`), which the earlier names never matched; added `springboot-env` and `gocd-encryption-key`
 - Fixed nikto missing-header, banner, CORS, robots.txt and phpinfo records reporting as unclassified; they now map to `missing_header`, `banner_disclosure`, `cors_misconfiguration` and `sensitive_file`, and replay checks the header named in a nikto title
 - Fixed the DVWA, Juice Shop and WebGoat ground truth: blind SQL injection is `sqli_error`, WebGoat gains a stack-trace entry, and four nikto notes are ignored
+- Fixed web templates and scan starts accepting unvalidated `scanner_options`: unknown keys, unsafe endpoint URLs and web `extra_args` of `-fr` or `-followredirects` return HTTP 422, and `active` and `authorised` are dropped
+- Fixed external scanners starting after the target name resolved to a blocked address; each tool is checked again right before it starts (the tool still resolves the name itself afterwards)
+- Fixed `excluded_paths` accepting invalid, over-long or nested-quantifier regexes; they are compiled when supplied and rejected by the API (HTTP 422) and the CLI
+- Fixed agent sandbox `exec` keeping full output and leaving a timed-out process in the container; output is capped at 1 MiB and the timeout kills that process
+- Fixed Nuclei receiving discovered URLs that are out of scope or resolve to a blocked address
+- Fixed an empty scanner status reporting risk posture `excellent`; it is now `unknown`
+- Fixed promptfoo scheduling more tests than `max_prompts` when the cap is below the plugin count
 
 ### Changed
 
@@ -198,6 +205,7 @@
 ### Removed
 
 - `web/ownership.py` (`ResourceOwners`) and `web/scoped_views.py`, replaced by owner-aware queries
+- Removed the unused `haris.ai_security.jsonrpc` module
 
 ## 0.6.2 — 2026-04-04
 

@@ -6,6 +6,7 @@ import pytest
 from haris.models import Finding, Severity
 from haris.models.scan_context import ScanContext
 from haris.models.target import Scope, Target
+from haris.net.scoped_client import ScopedClient
 from haris.scanners.nuclei_scanner import (
     DEFAULT_TEMPLATE_DIRS,
     TECH_FINGERPRINT_DIR,
@@ -402,14 +403,19 @@ class TestExtractTechnologies:
         assert techs == []
 
 
+def _vetted(target: Target) -> ScanContext:
+    ctx = ScanContext()
+    ctx.http = ScopedClient(target, resolver=lambda _host, _port: ["93.184.216.34"])
+    return ctx
+
+
 class TestBuildUrlList:
     def test_base_url_only_when_no_context_urls(self, target: Target) -> None:
-        ctx = ScanContext()
-        urls = NucleiScanner._build_url_list(target, ctx)
+        urls = NucleiScanner._build_url_list(target, ScanContext())
         assert urls == []
 
     def test_combines_base_and_discovered_urls(self, target: Target) -> None:
-        ctx = ScanContext()
+        ctx = _vetted(target)
         ctx.add_urls(["https://example.com/admin", "https://example.com/login"])
         urls = NucleiScanner._build_url_list(target, ctx)
         assert target.base_url in urls
@@ -417,19 +423,19 @@ class TestBuildUrlList:
         assert "https://example.com/login" in urls
 
     def test_deduplicates_base_url(self, target: Target) -> None:
-        ctx = ScanContext()
+        ctx = _vetted(target)
         ctx.add_urls([target.base_url, "https://example.com/admin"])
         urls = NucleiScanner._build_url_list(target, ctx)
         assert urls.count(target.base_url) == 1
 
     def test_caps_at_500_urls(self, target: Target) -> None:
-        ctx = ScanContext()
+        ctx = _vetted(target)
         ctx.add_urls([f"https://example.com/page{i}" for i in range(1000)])
         urls = NucleiScanner._build_url_list(target, ctx)
         assert len(urls) <= 500
 
     def test_filters_non_http_urls(self, target: Target) -> None:
-        ctx = ScanContext()
+        ctx = _vetted(target)
         ctx.discovered_urls = [
             "https://example.com/valid",
             "ftp://example.com/invalid",
@@ -441,10 +447,37 @@ class TestBuildUrlList:
         assert not any(u.startswith("file://") for u in urls)
 
     def test_returns_empty_when_only_base_url(self, target: Target) -> None:
-        ctx = ScanContext()
+        ctx = _vetted(target)
         ctx.add_urls([target.base_url])
         urls = NucleiScanner._build_url_list(target, ctx)
         assert urls == []
+
+    def test_l4_discovered_urls_drop_off_scope_and_blocked_hosts(
+        self, target: Target
+    ) -> None:
+        seen: list[str] = []
+
+        def resolver(host: str, _port: int) -> list[str]:
+            seen.append(host)
+            if host == "rebind.example.com":
+                return ["10.0.0.5"]
+            return ["93.184.216.34"]
+
+        ctx = ScanContext()
+        ctx.http = ScopedClient(target, resolver=resolver)
+        ctx.discovered_urls = [
+            "https://example.com/admin",
+            "https://rebind.example.com/secret",
+            "https://other.test/x",
+            "http://10.0.0.5/meta",
+        ]
+        urls = NucleiScanner._build_url_list(target, ctx)
+        assert "https://example.com/admin" in urls
+        assert "https://rebind.example.com/secret" not in urls
+        assert "https://other.test/x" not in urls
+        assert "http://10.0.0.5/meta" not in urls
+        assert "other.test" not in seen
+        assert "10.0.0.5" not in seen
 
 
 class TestResolveTargetedSelection:
