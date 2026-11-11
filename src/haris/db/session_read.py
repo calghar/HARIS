@@ -10,6 +10,7 @@ from ..models import (
     ScannerResult,
     ScanSession,
     ScanState,
+    Scope,
     Severity,
     Target,
 )
@@ -108,6 +109,18 @@ def _scanner_results(
     ]
 
 
+def _target(raw: str | None, fallback_url: str) -> Target:
+    # A row with no scope key keeps Scope defaults (0.6.x and earlier).
+    data = json.loads(raw or "{}")
+    base_url = data.get("base_url") or fallback_url
+    scope = data.get("scope")
+    return (
+        Target(base_url=base_url, scope=Scope.model_validate(scope))
+        if isinstance(scope, dict)
+        else Target(base_url=base_url)
+    )
+
+
 def read_session(conn: sqlite3.Connection, session_id: str) -> ScanSession | None:
     scan_row = conn.execute(
         "SELECT * FROM scans WHERE session_id = ?", (session_id,)
@@ -139,11 +152,9 @@ def read_session(conn: sqlite3.Connection, session_id: str) -> ScanSession | Non
     enrichments, chains, triaged = read_llm_data(conn, session_id)
     scanners_used = json.loads(scan_row["scanners_used"])
     session_errors = json.loads(scan_row["errors"])
-    target_data = json.loads(scan_row["target_json"] or "{}")
-
     return ScanSession(
         session_id=scan_row["session_id"],
-        target=Target(base_url=target_data.get("base_url", scan_row["target_url"])),
+        target=_target(scan_row["target_json"], scan_row["target_url"]),
         started_at=scan_row["started_at"],
         finished_at=scan_row["finished_at"],
         profile_name=scan_row["profile_name"],

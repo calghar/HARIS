@@ -6,18 +6,11 @@ from .llm_data import write_llm_data
 
 
 def _target_json(session: ScanSession) -> str:
-    scope = session.target.scope
+    # Auth and metadata stay out: this blob is the stored scan row.
     return json.dumps(
         {
             "base_url": session.target.base_url,
-            "scope": {
-                "allowed_domains": scope.allowed_domains,
-                "excluded_paths": scope.excluded_paths,
-                "max_depth": scope.max_depth,
-                "rate_limit_rps": scope.rate_limit_rps,
-                "max_requests": scope.max_requests,
-                "allowed_methods": scope.allowed_methods,
-            },
+            "scope": session.target.scope.model_dump(mode="json"),
         }
     )
 
