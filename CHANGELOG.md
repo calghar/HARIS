@@ -55,8 +55,39 @@
 - Added `HARIS_ALLOWED_HOSTS`; when set, the web app rejects any other Host header
 - Added `HARIS_COOKIE_SECURE` (`true`, `false` or `auto`) for the session and CSRF seed cookies
 - Added `HARIS_SETUP_TOKEN`; `/auth/setup` answers 404 while it is unset
+- Added `resources/config/llm_models.yaml` with default model IDs (`[UNVERIFIED]`, re-check at release), a per-model capability table, optional prices, runtime limits and the per-scan budget
+- Added `resolve_model()`, which uses the provider model-list API when a key is present and the config default otherwise
+- Added redaction of API keys, `Authorization` and `Cookie` values, bearer tokens, JWTs, private keys and URL credentials (emails via `redaction.emails`) before every provider call
+- Added per-scan token and cost budgets; LLM stages expose `last_report` with a status per finding (`ok`, `invalid`, `failed`, `skipped_budget`)
+- Added an offline LLM eval set in `tests/evals/` with prompt-injection and malformed-output cases
+- Added a benchmark harness in `bench/`: loopback-only Docker Compose targets (Juice Shop, DVWA, WebGoat, an SPA catch-all fixture, a vulnerable AI app with a toy MCP server), YAML ground truth, a runner (`bench/run.py`) and a nightly `bench.yml` workflow
+- Added the `haris.bench` scorer (`python -m haris.bench score <report> <ground_truth.yaml>`) reporting precision, recall, F1, false-positive reduction, request count, cost and wall time with mean and stddev over runs
+- Added `docs/benchmarks.md` describing the benchmark methodology and what it does not claim
+- Validated `scanner_options.extra_args` against a per-scanner allow-list in `config/scanners/*.yaml`; other flags are rejected with an error
+- Placed `--` before the host argument for Nmap and SSLyze
+- Passed Nmap NSE scripts through the new `nse_scripts` option instead of `extra_args`
+- Switched Nuclei to `-or`, `-es info` (phases 2a and 2b), `-ept code,file,headless`, `-mhe` and `-eid http-missing-security-headers`; added the opt-in `automatic_scan` (`-as`) and `update_templates` (`-ut`) options
+- Added golden fixtures from real nuclei, nikto, nmap, wapiti and sslyze output under `tests/fixtures/scanners/`
+- Split `web/app.py` and `auth/router.py` into routers under `web/routers/` with a `create_app()` factory; routers are authenticated by default (`protected_router`, `admin_router`)
+- Scans, websites, conversations and scan templates are visible only to their owner and admins (404 otherwise); `HARIS_SHARE_SCANS_ORG_WIDE=true` makes scans readable to all users
+- Moved `GET/POST /auth/login` to `/login`; `/docs`, `/redoc` and `/openapi.json` are disabled
+- Replaced Google Fonts and CDN scripts with vendored, SRI-pinned htmx 2, DOMPurify, marked and Chart.js and self-hosted Inter (`static/vendor/README`); LLM markdown is sanitised before insertion
+- CSP now sets `base-uri 'none'`, `form-action 'self'`, `object-src 'none'` and `frame-ancestors 'none'`
+- The Docker image runs as non-root user `haris` (uid 10001) and starts uvicorn with `--proxy-headers`; the nuclei template volume moved to `/home/haris/nuclei-templates`
+- App-wide CSRF check on every `POST`, `PUT`, `PATCH` and `DELETE` (`X-CSRF-Token` header or `csrf_token` form field); the token is derived from the session cookie
+- `TestClient` suites for the route matrix, ownership, CSRF, login redirects, template rendering and OIDC (`tests/test_web_*.py`, `tests/test_auth_oidc.py`)
+- Migrations `0003`–`0007`: finding identity columns (`observation_id`, `fingerprint`, `vuln_class`, `confidence_score`, `verification_json`, `suppression_json`), scan owner and state columns, and the `api_tokens`, `authorized_targets` and `jobs` tables; every step has a rollback
+- Persisted scans reload with fingerprint, observation id, confidence, verification, suppression, correlated findings, scan state and scanner status; 0.6 rows get their identity recomputed on read
+- Scan and template ownership are columns (`scans.owner_user_id`, backfilled from `started_by`, and `scan_config_templates.owner_user_id`); list, dashboard and trend queries filter by owner in SQL
+- Web scans need an authorised target: the host must pass the SSRF guard (400 otherwise) and match `HARIS_TARGET_ALLOWLIST` or hold a proof verified in the last 30 days (403 otherwise)
+- Proof of ownership per (user, host): `haris-verify=<32 hex>` in a DNS TXT record at `<host>` or `_haris-verify.<host>`, or in `/.well-known/haris-verify.txt`, fetched without redirects
+- `POST/GET /api/v1/targets`, `POST /api/v1/targets/{host}/verify` and `DELETE /api/v1/targets/{host}` manage proofs
+- API tokens (`haris_pat_…`, SHA-256 at rest, scopes `scans:read`, `scans:write`, `targets:write`, `admin`, 90-day default and 365-day maximum expiry, revocable) via `/api/v1/tokens`; accepted only as `Authorization: Bearer` on `/api/v1/*` and exempt from CSRF
+- DB-backed scan queue with persisted `queued`, `running`, `completed`, `failed`, `cancelled` and `incomplete` states, cancellation (`POST /api/v1/scans/{id}/cancel`), restart recovery and `HARIS_MAX_CONCURRENT_SCANS` (default 2)
+- `GET /api/v1/llm/conversations` and `GET /api/v1/admin/users`
+- `haris --web --proxy-headers`
 
-### Changed (packaging)
+### Changed
 
 - Renamed package `src` to `haris` (`src/haris/`); project name `haris`; console script `haris` replaces `scripts/run_scan.py`; `python -m haris` works
 - `config/` moved to `src/haris/resources/config/` and ships in the wheel; override with `HARIS_CONFIG` or `./config/` in the working directory
@@ -73,6 +104,36 @@
 - Pinned third-party GitHub Actions by commit SHA, tested Python 3.13 and 3.14, skipped docker-marked tests in CI and added a coverage threshold input (default 70, not yet measured)
 - Release tags build the sdist and wheel, publish to PyPI with attestations, push and sign `ghcr.io/<owner>/haris` with cosign, and open a GitHub Release from the matching changelog section; the tag must equal the project version
 - Rewrote the container image: multi-stage, digest-pinned base, uid 10001, checksummed nuclei 3.11.1 and nikto 2.6.0, health check; compose adds memory and CPU limits and a read-only root, and no longer mounts a volume over nikto
+- Improved test coverage for `NucleiScanner`: added 19 new tests covering `_run_phase()`, `_result_to_finding()`, `_write_url_list()`, `_generic_remediation()`, auth header forwarding, and full scan flow
+- Added 5 new tests for nuclei config schema validation in `tests/test_scanner_config.py`
+- Replaced the hand-rolled SQLite schema versioning with `yoyo-migrations`; a 0.6 database is backed up to `<db>.pre-0.7.bak` and adopted as the baseline, and `ScanStore` opens the database through one connection helper
+- Split `ScanStore` into scan, finding, template and website repositories behind an unchanged facade
+- Stored session, remember-me and email-verification tokens as SHA-256 hashes; existing rows were hashed in place so current sessions stay valid
+- Risk posture weights each correlated finding by its confidence score; `RiskPosture.UNKNOWN` replaces `EXCELLENT` when no scanner completed
+- Scanners after the recon stage run in parallel (default 3); remediation and risk use active (not suppressed, not refuted) correlated findings
+- Duplicate findings are collapsed by fingerprint, so `finding_id` is now the first 16 characters of the fingerprint
+- Moved the context extractors from `ScanEngine` to `core/context_extract.py` and the LLM stage to `core/llm_enrichment.py`
+- Removed the unused `core/context.py`
+- Changed LLM enrichment, attack-chain, triage, false-positive and variant output to one shared pydantic parser; a malformed item is dropped and recorded without losing the batch
+- Changed LLM prompts to wrap scanner and target text in a per-call nonce `<untrusted-data>` fence, and the system prompts to state that fenced text is data
+- Changed LLM calls to use provider structured output where the capability table allows it, a request timeout, jittered retries that honour `Retry-After`, and a bounded concurrency gate
+- Changed LLM backends to default to the models in `llm_models.yaml`; `create_backend()` resolves the model through the provider model list when a key is set
+- Changed the Ollama backend to call `/api/chat` for single and multi-turn requests
+- Changed the chat retrieval threshold and prompt field limits to read from `llm_models.yaml`
+- Changed every built-in check to send requests through `context.http` (`ScopedClient`); the per-check `timeout` option is replaced by `NetworkPolicy.timeout_s`
+- Changed built-in findings to carry a confidence score from `confidence.yaml` (`<check>.<kind>`); a passed validator raises it
+- Changed `robots.txt`, `sitemap.xml` and `security.txt` findings to INFO and moved the API-document paths from `info_disclosure` to `openapi_checks`
+- Changed the agent proxy and PoC re-execution to forward `POST` only with `--agent-allow-unsafe-methods`, to the finding's own URL, for a finding observed on `POST`; `PUT`, `PATCH` and `DELETE` stay rejected
+- Changed `haris bench score` to compute precision over active findings, count refuted findings and per-tier findings, and add `verified_precision`
+- Updated README and docs to match the registered scanners, checks, profiles and CLI, and to quote the recorded benchmark scores with their limits
+- Documented the new auth environment variables, the web scanner-option rules, the sandbox output cap, the DNS-rebinding limit and the `excluded_paths` rules
+- JSON endpoints moved from `/api/*` to `/api/v1/*` with declared response models; the old paths return 404. Migration: `/api/scan/start` is `POST /api/v1/scans`, `/api/scan/{id}/status` is `GET /api/v1/scans/{id}`, `/api/scan/{id}/report/{fmt}` is `GET /api/v1/scans/{id}/report.{fmt}`, `/api/scan/{id}/findings|enrichment` sit under `/api/v1/scans/{id}/`, `/api/website/{host}/…` is `/api/v1/websites/{host}/…`, and the LLM routes are `/api/v1/llm/{ask,chat,summarize,explain,remediation-plan,test-cases,mitigations,filter-findings}` with `scan_id` in the JSON body
+- `DELETE /api/v1/scans/{id}` returns 204 and 409 while the scan is queued or running
+- LLM routes return 429 when the budget is exhausted and a generic message for other failures; exception text is logged, not returned
+- Scans survive a server restart as `incomplete`; target credentials are held in memory only and never stored with the job
+- `haris --web` builds the app with `create_app()`; the compose healthcheck calls `/health`
+- Changed CLI and web report files to one shared filename and writer, including CLI `--baseline` injection
+- Changed built-in checks to read confidence priors from the cached lookup in `haris.core.confidence`
 
 ### Fixed
 
@@ -156,82 +217,6 @@
 - Fixed sandbox cleanup on exec timeout or output truncation killing only the first process group; it now kills every other process in the container, and a failed cleanup marks the sandbox unusable
 - Fixed web `scanner_options` accepting a non-numeric `nuclei` `timeout` and other mistyped values; each option must be a bool, a bounded number, or a bounded string or list
 - Fixed template URL downloads reading the whole response into memory; the body streams to a temporary file capped at 50 MiB over http(s) only, then replaces the target, and the temporary file is removed on failure
-
-### Changed
-
-- Improved test coverage for `NucleiScanner`: added 19 new tests covering `_run_phase()`, `_result_to_finding()`, `_write_url_list()`, `_generic_remediation()`, auth header forwarding, and full scan flow
-- Added 5 new tests for nuclei config schema validation in `tests/test_scanner_config.py`
-- Replaced the hand-rolled SQLite schema versioning with `yoyo-migrations`; a 0.6 database is backed up to `<db>.pre-0.7.bak` and adopted as the baseline, and `ScanStore` opens the database through one connection helper
-- Split `ScanStore` into scan, finding, template and website repositories behind an unchanged facade
-- Stored session, remember-me and email-verification tokens as SHA-256 hashes; existing rows were hashed in place so current sessions stay valid
-- Risk posture weights each correlated finding by its confidence score; `RiskPosture.UNKNOWN` replaces `EXCELLENT` when no scanner completed
-- Scanners after the recon stage run in parallel (default 3); remediation and risk use active (not suppressed, not refuted) correlated findings
-- Duplicate findings are collapsed by fingerprint, so `finding_id` is now the first 16 characters of the fingerprint
-- Moved the context extractors from `ScanEngine` to `core/context_extract.py` and the LLM stage to `core/llm_enrichment.py`
-- Removed the unused `core/context.py`
-- Changed LLM enrichment, attack-chain, triage, false-positive and variant output to one shared pydantic parser; a malformed item is dropped and recorded without losing the batch
-- Changed LLM prompts to wrap scanner and target text in a per-call nonce `<untrusted-data>` fence, and the system prompts to state that fenced text is data
-- Changed LLM calls to use provider structured output where the capability table allows it, a request timeout, jittered retries that honour `Retry-After`, and a bounded concurrency gate
-- Changed LLM backends to default to the models in `llm_models.yaml`; `create_backend()` resolves the model through the provider model list when a key is set
-- Changed the Ollama backend to call `/api/chat` for single and multi-turn requests
-- Changed the chat retrieval threshold and prompt field limits to read from `llm_models.yaml`
-- Changed every built-in check to send requests through `context.http` (`ScopedClient`); the per-check `timeout` option is replaced by `NetworkPolicy.timeout_s`
-- Changed built-in findings to carry a confidence score from `confidence.yaml` (`<check>.<kind>`); a passed validator raises it
-- Changed `robots.txt`, `sitemap.xml` and `security.txt` findings to INFO and moved the API-document paths from `info_disclosure` to `openapi_checks`
-- Changed the agent proxy and PoC re-execution to forward `POST` only with `--agent-allow-unsafe-methods`, to the finding's own URL, for a finding observed on `POST`; `PUT`, `PATCH` and `DELETE` stay rejected
-- Changed `haris bench score` to compute precision over active findings, count refuted findings and per-tier findings, and add `verified_precision`
-- Updated README and docs to match the registered scanners, checks, profiles and CLI, and to quote the recorded benchmark scores with their limits
-- Documented the new auth environment variables, the web scanner-option rules, the sandbox output cap, the DNS-rebinding limit and the `excluded_paths` rules
-
-### Added
-
-- Added `resources/config/llm_models.yaml` with default model IDs (`[UNVERIFIED]`, re-check at release), a per-model capability table, optional prices, runtime limits and the per-scan budget
-- Added `resolve_model()`, which uses the provider model-list API when a key is present and the config default otherwise
-- Added redaction of API keys, `Authorization` and `Cookie` values, bearer tokens, JWTs, private keys and URL credentials (emails via `redaction.emails`) before every provider call
-- Added per-scan token and cost budgets; LLM stages expose `last_report` with a status per finding (`ok`, `invalid`, `failed`, `skipped_budget`)
-- Added an offline LLM eval set in `tests/evals/` with prompt-injection and malformed-output cases
-
-### Added
-
-- Added a benchmark harness in `bench/`: loopback-only Docker Compose targets (Juice Shop, DVWA, WebGoat, an SPA catch-all fixture, a vulnerable AI app with a toy MCP server), YAML ground truth, a runner (`bench/run.py`) and a nightly `bench.yml` workflow
-- Added the `haris.bench` scorer (`python -m haris.bench score <report> <ground_truth.yaml>`) reporting precision, recall, F1, false-positive reduction, request count, cost and wall time with mean and stddev over runs
-- Added `docs/benchmarks.md` describing the benchmark methodology and what it does not claim
-- Validated `scanner_options.extra_args` against a per-scanner allow-list in `config/scanners/*.yaml`; other flags are rejected with an error
-- Placed `--` before the host argument for Nmap and SSLyze
-- Passed Nmap NSE scripts through the new `nse_scripts` option instead of `extra_args`
-- Switched Nuclei to `-or`, `-es info` (phases 2a and 2b), `-ept code,file,headless`, `-mhe` and `-eid http-missing-security-headers`; added the opt-in `automatic_scan` (`-as`) and `update_templates` (`-ut`) options
-- Added golden fixtures from real nuclei, nikto, nmap, wapiti and sslyze output under `tests/fixtures/scanners/`
-- Split `web/app.py` and `auth/router.py` into routers under `web/routers/` with a `create_app()` factory; routers are authenticated by default (`protected_router`, `admin_router`)
-- Scans, websites, conversations and scan templates are visible only to their owner and admins (404 otherwise); `HARIS_SHARE_SCANS_ORG_WIDE=true` makes scans readable to all users
-- Moved `GET/POST /auth/login` to `/login`; `/docs`, `/redoc` and `/openapi.json` are disabled
-- Replaced Google Fonts and CDN scripts with vendored, SRI-pinned htmx 2, DOMPurify, marked and Chart.js and self-hosted Inter (`static/vendor/README`); LLM markdown is sanitised before insertion
-- CSP now sets `base-uri 'none'`, `form-action 'self'`, `object-src 'none'` and `frame-ancestors 'none'`
-- The Docker image runs as non-root user `haris` (uid 10001) and starts uvicorn with `--proxy-headers`; the nuclei template volume moved to `/home/haris/nuclei-templates`
-
-### Added
-
-- App-wide CSRF check on every `POST`, `PUT`, `PATCH` and `DELETE` (`X-CSRF-Token` header or `csrf_token` form field); the token is derived from the session cookie
-- `TestClient` suites for the route matrix, ownership, CSRF, login redirects, template rendering and OIDC (`tests/test_web_*.py`, `tests/test_auth_oidc.py`)
-- Migrations `0003`–`0007`: finding identity columns (`observation_id`, `fingerprint`, `vuln_class`, `confidence_score`, `verification_json`, `suppression_json`), scan owner and state columns, and the `api_tokens`, `authorized_targets` and `jobs` tables; every step has a rollback
-- Persisted scans reload with fingerprint, observation id, confidence, verification, suppression, correlated findings, scan state and scanner status; 0.6 rows get their identity recomputed on read
-- Scan and template ownership are columns (`scans.owner_user_id`, backfilled from `started_by`, and `scan_config_templates.owner_user_id`); list, dashboard and trend queries filter by owner in SQL
-- Web scans need an authorised target: the host must pass the SSRF guard (400 otherwise) and match `HARIS_TARGET_ALLOWLIST` or hold a proof verified in the last 30 days (403 otherwise)
-- Proof of ownership per (user, host): `haris-verify=<32 hex>` in a DNS TXT record at `<host>` or `_haris-verify.<host>`, or in `/.well-known/haris-verify.txt`, fetched without redirects
-- `POST/GET /api/v1/targets`, `POST /api/v1/targets/{host}/verify` and `DELETE /api/v1/targets/{host}` manage proofs
-- API tokens (`haris_pat_…`, SHA-256 at rest, scopes `scans:read`, `scans:write`, `targets:write`, `admin`, 90-day default and 365-day maximum expiry, revocable) via `/api/v1/tokens`; accepted only as `Authorization: Bearer` on `/api/v1/*` and exempt from CSRF
-- DB-backed scan queue with persisted `queued`, `running`, `completed`, `failed`, `cancelled` and `incomplete` states, cancellation (`POST /api/v1/scans/{id}/cancel`), restart recovery and `HARIS_MAX_CONCURRENT_SCANS` (default 2)
-- `GET /api/v1/llm/conversations` and `GET /api/v1/admin/users`
-- `haris --web --proxy-headers`
-
-### Changed
-
-- JSON endpoints moved from `/api/*` to `/api/v1/*` with declared response models; the old paths return 404. Migration: `/api/scan/start` is `POST /api/v1/scans`, `/api/scan/{id}/status` is `GET /api/v1/scans/{id}`, `/api/scan/{id}/report/{fmt}` is `GET /api/v1/scans/{id}/report.{fmt}`, `/api/scan/{id}/findings|enrichment` sit under `/api/v1/scans/{id}/`, `/api/website/{host}/…` is `/api/v1/websites/{host}/…`, and the LLM routes are `/api/v1/llm/{ask,chat,summarize,explain,remediation-plan,test-cases,mitigations,filter-findings}` with `scan_id` in the JSON body
-- `DELETE /api/v1/scans/{id}` returns 204 and 409 while the scan is queued or running
-- LLM routes return 429 when the budget is exhausted and a generic message for other failures; exception text is logged, not returned
-- Scans survive a server restart as `incomplete`; target credentials are held in memory only and never stored with the job
-- `haris --web` builds the app with `create_app()`; the compose healthcheck calls `/health`
-- Changed CLI and web report files to one shared filename and writer, including CLI `--baseline` injection
-- Changed built-in checks to read confidence priors from the cached lookup in `haris.core.confidence`
 
 ### Removed
 

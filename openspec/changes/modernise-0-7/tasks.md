@@ -23,7 +23,7 @@
 ## 3. Integration and release
 
 - [x] 3.1 Merged workstreams in dependency order; full gate green in chunks; benchmark run with replay verification and scored per tier (juice_shop, dvwa, webgoat: `bench/results/2026-11-11-202728`); verdict threshold calibration and a baseline comparison moved to Phase 6 (4.2, 4.12)
-- [ ] 3.2 Independent code, security, structural and simplification reviews; findings fixed
+- [x] 3.2 Independent code, security, structural and simplification reviews; findings fixed (structural refactors deferred to 4.14 to 4.17)
 - [ ] 3.3 README and docs updated; counts verified against code; prose gate passed; CHANGELOG complete
 - [ ] 3.4 Community files, CI hardening, SBOM, image scan, release automation, Dockerfile rewrite
 - [ ] 3.5 Tagged 0.7.0 after maintainer approval of commit messages
