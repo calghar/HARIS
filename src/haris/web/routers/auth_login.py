@@ -20,7 +20,7 @@ from ...auth.cookies import (
 )
 from ...auth.middleware import check_rate_limit, get_auth_service
 from ...auth.models import AuditAction, AuditEvent, UserRole
-from ...auth.redirects import LOGIN_PATH, safe_next
+from ...auth.redirects import LOGIN_PATH, redirect_to_next, safe_next
 from ...auth.service import AuthService
 from ..templating import template_context, templates
 
@@ -68,7 +68,7 @@ async def login_page(
 ) -> Response:
     token = request.cookies.get(SESSION_COOKIE, "")
     if token and auth_service.get_session(token):
-        return RedirectResponse(safe_next(next), status_code=303)
+        return redirect_to_next(next)
     return _login_page(
         request,
         next=safe_next(next),
@@ -112,7 +112,7 @@ async def login_submit(
             ip_address=ip,
         )
     )
-    response = RedirectResponse(safe_next(next), status_code=303)
+    response = redirect_to_next(next)
     set_session_cookie(response, session.token, secure=is_https(request))
     return response
 

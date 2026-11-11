@@ -12,7 +12,7 @@ from haris.models import (
     VerificationOracle,
     VerificationTier,
 )
-from haris.verify.oracles import ORACLES
+from haris.verify.oracles import INERT_HTML, ORACLES
 from haris.verify.probe import Prober
 from haris.verify.replay import CAP_REASON, ReplayReport, replay
 from haris.verify.settings import load_verify_settings
@@ -33,6 +33,11 @@ def run(
     with make_client(url, scope) as client:
         report = replay(list(cases), client, fast_settings(**settings))
         return report, [e.url for e in client.log.entries()]
+
+
+@pytest.mark.parametrize("closing", ["</script>", "</SCRIPT >", "</script\t\n bar>"])
+def test_inert_html_strips_script_with_any_closing_tag(closing):
+    assert INERT_HTML.sub("", f"a<script>x{closing}b") == "ab"
 
 
 @pytest.mark.parametrize(

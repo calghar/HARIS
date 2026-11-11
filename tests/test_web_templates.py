@@ -247,7 +247,7 @@ def test_all_template_sources_are_free_of_inline_code() -> None:
         rel = file.relative_to(TEMPLATES_DIR)
         assert not re.search(r"\son[a-z]+\s*=", text), rel
         assert "<style" not in text, rel
-        for tag in re.findall(r"<script\b[^>]*>", text):
+        for tag in re.findall(r"<script\b[^>]*>", text, re.I):
             assert re.search(r'\b(src|type)="', tag) or "nonce=" in tag, (rel, tag)
 
 

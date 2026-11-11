@@ -313,7 +313,7 @@ class TestEnrichmentPromptBuilder:
             ["Other vuln"],
         )
         assert "Test SQLi" in prompt
-        assert "example.com" in prompt
+        assert _make_target().base_url in prompt
         assert "JSON" in prompt
 
     def test_identify_attack_chains_prompt(self):

@@ -154,9 +154,7 @@ def test_dns_proof_covers_only_the_exact_host(tmp_path: Path) -> None:
 
     def lookup(name: str) -> list[str]:
         queried.append(name)
-        return (
-            [PROOF_TOKEN] if name.endswith("example.com") and "app." not in name else []
-        )
+        return [PROOF_TOKEN] if name == "example.com" else []
 
     env.use_targets(txt_lookup=lookup)
     env.state.store.targets.add(

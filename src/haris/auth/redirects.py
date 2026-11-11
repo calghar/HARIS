@@ -1,6 +1,7 @@
 from urllib.parse import quote, urlsplit
 
 from fastapi import Request
+from fastapi.responses import RedirectResponse
 
 DEFAULT_NEXT = "/"
 LOGIN_PATH = "/login"
@@ -17,6 +18,15 @@ def safe_next(target: str | None) -> str:
     if parts.scheme or parts.netloc:
         return DEFAULT_NEXT
     return target
+
+
+def redirect_to_next(target: str | None) -> RedirectResponse:
+    """303 to a same-origin path; the guard sits at the sink so CodeQL sees it."""
+    destination = safe_next(target)
+    parts = urlsplit(destination)
+    if parts.netloc or parts.scheme:
+        destination = DEFAULT_NEXT
+    return RedirectResponse(destination, status_code=303)
 
 
 def login_url(request: Request) -> str:

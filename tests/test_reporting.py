@@ -2,6 +2,7 @@ import json
 import tempfile
 from pathlib import Path
 from types import SimpleNamespace
+from typing import cast
 
 from haris.cli import _write_reports
 from haris.diff import LoadedReport
@@ -9,6 +10,7 @@ from haris.models import Confidence, Finding, ScanSession, Severity, Target
 from haris.reporting.json_report import JSONReporter
 from haris.reporting.markdown_report import MarkdownReporter
 from haris.web.scan_runtime import write_reports
+from haris.web.state import AppState
 
 
 def _make_session() -> ScanSession:
@@ -154,7 +156,7 @@ def test_cli_and_web_write_the_same_report_filename(tmp_path: Path) -> None:
         LoadedReport(),
     )
     write_reports(
-        SimpleNamespace(settings=SimpleNamespace(reports_dir=web_dir)),
+        cast(AppState, SimpleNamespace(settings=SimpleNamespace(reports_dir=web_dir))),
         session,
         ["json"],
     )

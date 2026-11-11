@@ -15,7 +15,7 @@ type OracleFn = Callable[[Finding, Prober, VerifySettings], OracleResult]
 
 MARKER_TAG = "haris"
 HTML_TYPES = frozenset({"text/html", "application/xhtml+xml"})
-INERT_HTML = re.compile(r"<!--.*?-->|<script\b.*?</script\s*>", re.DOTALL | re.I)
+INERT_HTML = re.compile(r"<!--.*?-->|<script\b.*?</script[^>]*>", re.DOTALL | re.I)
 HEADER_TITLE = re.compile(
     r"missing\s+(\S+)\s+header"
     r"|header missing:\s*([\w-]+)"

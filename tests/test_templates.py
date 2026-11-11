@@ -1,5 +1,7 @@
+import io
 import urllib.error
 import urllib.request
+from http.client import HTTPMessage
 from unittest.mock import patch
 
 import pytest
@@ -519,8 +521,8 @@ class _FakeBody:
     def __enter__(self) -> "_FakeBody":
         return self
 
-    def __exit__(self, *_exc: object) -> bool:
-        return False
+    def __exit__(self, *_exc: object) -> None:
+        return None
 
 
 class _FakeOpener:
@@ -536,4 +538,6 @@ def test_download_redirect_rejects_a_non_http_scheme() -> None:
     handler = _HttpsOnlyRedirect()
     request = urllib.request.Request("https://example.com/a.nse")
     with pytest.raises(urllib.error.URLError):
-        handler.redirect_request(request, None, 302, "Found", {}, "file:///etc/passwd")
+        handler.redirect_request(
+            request, io.BytesIO(), 302, "Found", HTTPMessage(), "file:///etc/passwd"
+        )

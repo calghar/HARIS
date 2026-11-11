@@ -1,5 +1,6 @@
 import json
 from pathlib import Path
+from urllib.parse import urlsplit
 
 import pytest
 
@@ -167,7 +168,9 @@ class TestParseResults:
         assert len(findings) == 1
         finding = findings[0]
         assert "CVE-2021-44228" in finding.title
-        assert any("nvd.nist.gov" in ref for ref in finding.references)
+        assert any(
+            urlsplit(ref).hostname == "nvd.nist.gov" for ref in finding.references
+        )
         assert finding.cwe_id == "CWE-917"
 
 
@@ -695,7 +698,7 @@ class TestResultToFinding:
         }
         finding = scanner._result_to_finding(result)
         assert finding is not None
-        assert "https://example.com" in finding.references
+        assert finding.references == ["https://example.com"]
 
     def test_cvss_score_in_raw_data(self) -> None:
         scanner = NucleiScanner()

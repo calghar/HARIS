@@ -285,7 +285,9 @@ def test_finish_failure_frees_queue_slot(
         assert started == ["s", "next"]
     finally:
         queue.shutdown()
-    saved = [r for r in caplog.records if "result was not saved" in r.getMessage()]
+    saved = [
+        r for r in caplog.records if r.getMessage() == "Scan s result was not saved"
+    ]
     assert len(saved) == 1
     assert saved[0].levelno == logging.ERROR
     assert "disk full" in caplog.text

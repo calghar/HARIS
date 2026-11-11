@@ -5,7 +5,7 @@ from typing import Any
 import pytest
 
 from haris.auth.cookies import SEED_COOKIE, SESSION_COOKIE
-from haris.auth.redirects import safe_next
+from haris.auth.redirects import redirect_to_next, safe_next
 from haris.db.connection import connect
 
 from .test_web_env import PASSWORD, Browser, Resources, WebEnv, stub_scan_runner
@@ -218,6 +218,9 @@ def test_login_redirect_is_same_origin(
 )
 def test_safe_next(target: str | None, expected: str) -> None:
     assert safe_next(target) == expected
+    response = redirect_to_next(target)
+    assert response.status_code == 303
+    assert response.headers["location"] == expected
 
 
 def test_anonymous_page_redirects_to_login_with_next(env: WebEnv) -> None:

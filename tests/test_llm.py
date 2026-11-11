@@ -103,7 +103,7 @@ class TestPromptBuilder:
         assert "executive" in prompt.lower() or "non-technical" in prompt.lower()
         assert "f001" in prompt
         assert "f002" in prompt
-        assert "example.com" in prompt
+        assert session.target.base_url in prompt
 
     def test_summarize_report_technical(self):
         session = _make_session()
