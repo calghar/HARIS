@@ -18,9 +18,16 @@ HARIS_SECRET_KEY=$(python -c "import secrets; print(secrets.token_hex(32))")
 docker compose up    # or: make reload
 ```
 
-On first start, if the `users` table is empty, the admin account is created automatically from the env vars. An anonymous request to `http://localhost:8000` is redirected to `/login`.
+On first start, when the user table is empty and both `HARIS_ADMIN_EMAIL` and `HARIS_ADMIN_PASSWORD` are set, startup creates that admin. An anonymous request to `http://localhost:8000` is redirected to `/login`.
 
-If no env vars are set, visit `/auth/setup` to create the first admin interactively (only accessible when zero users exist).
+`/auth/setup` answers 404 until `HARIS_SETUP_TOKEN` is set, and once a user exists.
+
+| Variable | Default | Effect |
+| -------- | ------- | ------ |
+| `HARIS_PUBLIC_URL` | unset | When set, the only base for emailed verification links. When unset, the request base URL is used |
+| `HARIS_ALLOWED_HOSTS` | unset | Comma-separated hosts. When set, any other Host header is rejected and www redirect is off. When unset, there is no host check |
+| `HARIS_COOKIE_SECURE` | `auto` | `true` forces the Secure flag and `false` omits it. Any other value, including `1` and `yes`, follows the request scheme. Session cookie and CSRF seed cookie |
+| `HARIS_SETUP_TOKEN` | unset | `/auth/setup` answers 404 until this is set, and once a user exists. The form field `setup_token` is compared with this value |
 
 ---
 
@@ -49,6 +56,8 @@ The error message on registration deliberately does not reveal which domains are
 - A `secrets.token_urlsafe(32)` token is placed in an `httponly`, `SameSite=lax` cookie (`haris_session`). The table stores only its SHA-256 hash.
 - TTL: 8 hours.
 - Users can view and revoke individual sessions from `/auth/profile`.
+- A password change ends that user's other sessions. The session that sent the change stays.
+- Admin deactivation ends every session for that user.
 - Expired sessions are purged automatically on startup.
 
 ---
@@ -68,7 +77,7 @@ HARIS derives a CSRF token from the session cookie:
 
 ## Login Rate Limiting
 
-5 failed login attempts from the same IP within 60 seconds triggers a `429 Too Many Requests`. The counter resets after the window expires.
+Login, registration and resend-verification share a limit of 5 attempts per 60 seconds, per client IP and per lower-cased email. The counts are rows in `auth_attempt_counters` in the auth database. Past the limit the route returns 429.
 
 ---
 
@@ -95,7 +104,7 @@ Admins access `/auth/users` to:
 
 - Create new users (any role, any domain)
 - Activate accounts that are pending email verification
-- Toggle active/inactive status
+- Toggle active/inactive status. An admin-disabled account stays inactive through the verification email
 - Change role (`user` ↔ `admin`)
 - Delete users (cannot delete self)
 
@@ -115,7 +124,7 @@ HARIS_OIDC_CLIENT_ID=haris
 HARIS_OIDC_CLIENT_SECRET=<your-client-secret>
 ```
 
-PKCE (`code_challenge_method: S256`) is enabled by default. Account linking is by email (case-insensitive). The `haris_role` claim is checked first for the value `haris-admin`; if absent, `realm_access.roles` (KeyCloak default) is used as fallback.
+PKCE (`code_challenge_method: S256`) is enabled by default. Account linking is by email (case-insensitive). Creating a user on OIDC login applies `HARIS_ALLOWED_EMAIL_DOMAINS`. The `haris_role` claim is checked first for the value `haris-admin`; if absent, `realm_access.roles` (KeyCloak default) is used as fallback.
 
 The OIDC login button appears on `/login` when OIDC is enabled. Requires `authlib` and `httpx`:
 
@@ -151,7 +160,7 @@ When running behind nginx or Caddy (Exoscale, DigitalOcean, etc.):
 --proxy-headers --forwarded-allow-ips=127.0.0.1
 ```
 
-This ensures `request.client.host` resolves to the real client IP (for rate limiting) and `request.url.scheme` is `https` (for the `secure` cookie flag and HSTS header).
+This ensures `request.client.host` resolves to the real client IP (for rate limiting) and `request.url.scheme` is `https` (for HSTS, and for the Secure cookie flag when `HARIS_COOKIE_SECURE` is `auto`).
 
 **`.env`:**
 ```
@@ -191,7 +200,7 @@ src/haris/auth/
 ├── __init__.py
 ├── models.py          — User, UserSession, AuditEvent, enums
 ├── service.py         — AuthService: CRUD, sessions, tokens, audit log
-├── middleware.py      — FastAPI deps: require_user, require_admin, login rate limit
+├── middleware.py      — FastAPI deps: require_user, require_admin, login, register and resend rate limits
 ├── csrf.py            — CSRF token and app-wide guard
 ├── bearer.py          — Bearer API token resolution (/api/v1 only)
 ├── security_headers.py — Starlette security headers middleware

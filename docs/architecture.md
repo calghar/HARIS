@@ -32,6 +32,8 @@ The `Target` dataclass represents the system under test:
 
 `ScanEngine` calls `ScopedClient.preflight` on the target URL before any scanner runs. `ScopedClient` calls `scope.is_url_in_scope()` on each HTTP request it sends.
 
+`external_target_block` vets each external tool's target host again immediately before that tool starts. The tool still receives the hostname and resolves it itself, so a DNS change in that window can point the tool at a blocked address. Task 4.13 in `openspec/changes/modernise-0-7/tasks.md` is the open item that pins the vetted address.
+
 ### 3. Scanner Interface (`src/haris/core/scanner.py`)
 
 `BaseScanner` defines the contract for all scanners:
@@ -82,7 +84,7 @@ The recon stage writes `ScanContext`. The scan stage reads it. Nuclei phase 2b u
 3. OWASP tags and stable finding identity.
 4. Correlation: one finding per fingerprint. The inputs are not mutated.
 5. Ignore file, then verification (`off`, `replay` or `llm`). The engine default is `off`. The CLI default is `replay`.
-6. Risk and remediation.
+6. Risk and remediation. An empty scanner status, or a status with no completed scanner, gives posture `unknown`.
 
 `extract_context` runs only in recon. `header_checks`, `misc_checks` and `info_disclosure` copy `Server`, `X-Powered-By` and `X-AspNet-Version`. nmap copies open ports and product or service names. `extract_context` also copies each finding URL that starts with `http`. Nikto's extractor stays idle because Nikto runs in the scan stage. Wapiti has no extractor.
 
@@ -96,7 +98,7 @@ All web routes except the public ones are protected by a session-based authentic
 
 - **`models.py`** — Pydantic models: `User`, `UserSession`, `AuditEvent`; enums: `UserRole` (`admin`/`user`), `AuthProvider` (`local`/`oidc`), `AuditAction`
 - **`service.py`** — `AuthService`: user CRUD, bcrypt password hashing, server-side session management, email verification tokens, audit logging
-- **`middleware.py`** — FastAPI dependencies: `require_user`, `require_admin`, IP-based login rate limiting (5 attempts / 60 s)
+- **`middleware.py`** — FastAPI dependencies: `require_user`, `require_admin`, rate limits on login, register and resend (5 attempts / 60 s per IP and per email, stored in the auth database)
 - **`csrf.py`** — CSRF token derived from the session cookie and the app-wide guard; Bearer calls on `/api/v1/*` are exempt
 - **`bearer.py`** — Resolves `Authorization: Bearer haris_pat_...` tokens on `/api/v1/*` only
 - **`security_headers.py`** — Starlette middleware injecting CSP, HSTS, `X-Frame-Options`, `X-Content-Type-Options`, `Referrer-Policy`, `Permissions-Policy` on every response
@@ -152,7 +154,7 @@ The baseline schema version in `schema_version` is 6. Yoyo migrations `0002` thr
 
 Baseline tables:
 
-- `scans`, including `template_id` and `started_by`. `false_positive_assessments` and `executive_priorities` are columns on this table.
+- `scans`, including `template_id` and `started_by`. A saved scan keeps its scope when the row is loaded again. `false_positive_assessments` and `executive_priorities` are columns on this table.
 - `findings`
 - `remediation_steps`
 - `llm_enrichments`, `attack_chains`, `triaged_findings`
@@ -185,6 +187,8 @@ Per-scanner options per template:
 - **Wapiti**: `modules`, `scope`, `max_scan_time`, `max_links`, `timeout`
 - **Nmap**: `ports`, `script_categories`, `timeout`
 - See `src/haris/models/scan_config_template.py` for the full option set.
+
+Web template saves and web scan starts check `scanner_options`. An unknown key or scanner name returns HTTP 422. URL-valued options go through the SSRF vet. Web `extra_args` reject `-fr` and `-followredirects`. The keys `active` and `authorised` are dropped. The CLI passes scanner options through unchanged.
 
 **API**: `GET/POST /api/v1/scan-templates`, `GET/PUT/DELETE /api/v1/scan-templates/{id}`, `POST /api/v1/scan-templates/{id}/set-default`
 **Web UI**: `/templates` → *Scan Configurations* tab — create, edit, clone, delete, set default.

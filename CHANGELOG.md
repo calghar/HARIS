@@ -174,6 +174,7 @@
 - Changed the agent proxy and PoC re-execution to forward `POST` only with `--agent-allow-unsafe-methods`, to the finding's own URL, for a finding observed on `POST`; `PUT`, `PATCH` and `DELETE` stay rejected
 - Changed `haris bench score` to compute precision over active findings, count refuted findings and per-tier findings, and add `verified_precision`
 - Updated README and docs to match the registered scanners, checks, profiles and CLI, and to quote the recorded benchmark scores with their limits
+- Documented the new auth environment variables, the web scanner-option rules, the sandbox output cap, the DNS-rebinding limit and the `excluded_paths` rules
 
 ### Added
 

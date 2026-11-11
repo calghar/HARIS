@@ -47,3 +47,7 @@ Out of scope:
 ## Safe harbour
 
 The safe harbour in this policy is good-faith research on a local install of HARIS.
+
+## Known limits
+
+Each external tool's target host is vetted again immediately before the tool starts, and the tool resolves the name itself afterwards, so a DNS rebind in that window remains possible.
