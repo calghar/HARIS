@@ -40,6 +40,7 @@ other host). Parser tests read these files. Re-capture after a tool upgrade.
 ```sh
 python tests/fixtures/scanners/serve.py --port 18080
 python tests/fixtures/scanners/serve.py --port 18443 --cert cert.pem --key key.pem
+python tests/fixtures/scanners/serve.py --port 18444 --cert cert.pem --key key.pem --min-tls TLSv1  # legacy-protocol capture
 nikto -host http://127.0.0.1:18080 -Format json -output out -nointeractive -nocheck -Tuning 123b
 nmap -oX scan.xml -p 18080,18443 -sV --open -- 127.0.0.1
 wapiti -u http://127.0.0.1:18080/ -f json -o out.json -m common,-cookieflags,-csp,-http_headers,-https_redirect,-ssl --no-bugreport

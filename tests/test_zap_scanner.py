@@ -27,7 +27,7 @@ from haris.scanners.zap_scanner import LAUNCHERS, ZapScanner
 
 FIXTURE = Path(__file__).parent / "fixtures" / "scanners" / "zap" / "traditional.json"
 PUBLIC_IP = "93.184.216.34"
-SECRET = "zap-secret-token"
+CANARY = "zap-canary-token"
 
 
 def _target(url: str = "https://example.com/app", **scope: Any) -> Target:
@@ -97,14 +97,14 @@ class TestPlan:
     def test_auth_is_a_replacer_rule_not_left_out(self) -> None:
         target = _target()
         target.auth = AuthConfig(
-            method="header", header_name="Authorization", header_value=SECRET
+            method="header", header_name="Authorization", header_value=CANARY
         )
         plan = ZapScanner()._plan(target, Path("."), None)
         rule = plan["jobs"][0]["rules"][0]
         assert plan["jobs"][0]["type"] == "replacer"
         assert rule["matchType"] == "req_header"
         assert rule["matchString"] == "Authorization"
-        assert rule["replacementString"] == SECRET
+        assert rule["replacementString"] == CANARY
 
 
 class TestRun:
@@ -120,7 +120,7 @@ class TestRun:
         monkeypatch.setenv("PATH", str(tmp_path))
         target = _target()
         target.auth = AuthConfig(
-            method="header", header_name="Authorization", header_value=SECRET
+            method="header", header_name="Authorization", header_value=CANARY
         )
         seen: dict[str, Any] = {}
 
@@ -130,9 +130,9 @@ class TestRun:
             seen["mode"] = stat.S_IMODE(plan_path.stat().st_mode)
             seen["dir"] = plan_path.parent
             loaded = yaml.safe_load(plan_path.read_text())
-            assert loaded["jobs"][0]["rules"][0]["replacementString"] == SECRET
+            assert loaded["jobs"][0]["rules"][0]["replacementString"] == CANARY
             (plan_path.parent / REPORT_FILE).write_text(
-                report.replace("<script>", SECRET)
+                report.replace("<script>", CANARY)
             )
             return 0, "", ""
 
@@ -144,13 +144,13 @@ class TestRun:
         assert seen["cmd"][0] == "zap.sh"
         assert seen["cmd"][1:3] == ["-cmd", "-autorun"]
         assert "-dir" in seen["cmd"] and "-silent" in seen["cmd"]
-        assert SECRET not in seen["cmd"]
-        assert SECRET not in caplog.text
+        assert CANARY not in seen["cmd"]
+        assert CANARY not in caplog.text
         assert seen["mode"] == 0o600
         assert not seen["dir"].exists()
         assert result.findings
-        assert SECRET not in result.raw_output
-        assert all(SECRET not in item.evidence for item in result.findings)
+        assert CANARY not in result.raw_output
+        assert all(CANARY not in item.evidence for item in result.findings)
 
     def test_falls_back_to_zap_name(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
