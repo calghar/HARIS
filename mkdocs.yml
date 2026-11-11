@@ -12,6 +12,7 @@ nav:
   - Integrating External Tools: integrating_tools.md
   - LLM Integration Architecture: llm_integration.md
   - Authentication & User Management: authentication.md
+  - Verification: verification.md
   - Agent safety: agent_safety.md
   - AI security: ai_security.md
   - Benchmarks: benchmarks.md

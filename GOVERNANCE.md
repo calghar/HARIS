@@ -24,7 +24,7 @@ The maintainer appoints a further maintainer by merging a pull request that adds
 
 ## Releases
 
-The maintainer owns version tags and GitHub releases. `.github/workflows/release.yml` opens a GitHub release from `CHANGELOG.md` when a tag matching `v[0-9]+.[0-9]+.[0-9]+` is pushed. Item 3.5 tags `0.7.0` after the maintainer approves the commit messages.
+The maintainer owns version tags and releases. A tag `X.Y.Z` or `vX.Y.Z` runs `.github/workflows/release.yml`, which checks the tag against the project version, publishes to PyPI, pushes and signs the container image to GHCR, and opens a GitHub release from the matching `CHANGELOG.md` section.
 
 ## Conflicts
 
