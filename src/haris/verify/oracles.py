@@ -16,7 +16,12 @@ type OracleFn = Callable[[Finding, Prober, VerifySettings], OracleResult]
 MARKER_TAG = "haris"
 HTML_TYPES = frozenset({"text/html", "application/xhtml+xml"})
 INERT_HTML = re.compile(r"<!--.*?-->|<script\b.*?</script\s*>", re.DOTALL | re.I)
-HEADER_TITLE = re.compile(r"missing\s+(\S+)\s+header", re.I)
+HEADER_TITLE = re.compile(
+    r"missing\s+(\S+)\s+header"
+    r"|header missing:\s*([\w-]+)"
+    r"|^The ([\w-]+) header is not set",
+    re.I,
+)
 
 
 class OracleResult(BaseModel):
@@ -103,7 +108,7 @@ def header_name(finding: Finding) -> str:
     if finding.parameter:
         return finding.parameter
     match = HEADER_TITLE.search(finding.title)
-    return match.group(1) if match else ""
+    return next(filter(None, match.groups()), "") if match else ""
 
 
 def header_state(

@@ -185,7 +185,7 @@ METRICS_BODY = "# HELP up up\n# TYPE up gauge\nup 1\n"
 def nuclei_exposure(url: str, path: str, template_id: str) -> CorrelatedFinding:
     title = (
         "PHPinfo Page - Detect"
-        if template_id == "phpinfo-page-detect"
+        if template_id == "phpinfo-files"
         else "Prometheus Metrics - Detect"
     )
     finding = Finding(
@@ -211,8 +211,8 @@ def replay_nuclei(url: str, path: str, template_id: str) -> Finding:
 @pytest.mark.parametrize(
     ("template_id", "path", "body", "ctype"),
     [
-        ("phpinfo-page-detect", "/phpinfo.php", PHPINFO_BODY, "text/html"),
-        ("prometheus-metrics-detect", "/metrics", METRICS_BODY, "text/plain"),
+        ("phpinfo-files", "/phpinfo.php", PHPINFO_BODY, "text/html"),
+        ("prometheus-metrics", "/metrics", METRICS_BODY, "text/plain"),
     ],
 )
 def test_nuclei_sensitive_file_on_a_registered_path_is_replay_verified(
@@ -231,7 +231,7 @@ def test_failed_validator_refutes_a_nuclei_sensitive_file() -> None:
     with host(
         catch_all=False, files={"/phpinfo.php": (LOGIN_PAGE, "text/html")}
     ) as url:
-        canonical = replay_nuclei(url, "/phpinfo.php", "phpinfo-page-detect")
+        canonical = replay_nuclei(url, "/phpinfo.php", "phpinfo-files")
     assert canonical.vuln_class == "sensitive_file"
     assert canonical.verification.tier == T.REFUTED
     assert canonical.verification.oracle == VerificationOracle.CONTENT_VALIDATOR
@@ -243,7 +243,7 @@ def test_nuclei_sensitive_file_off_the_validator_registry_stays_unverified() -> 
     with host(
         catch_all=False, files={"/custom/phpinfo.php": (body, "text/html")}
     ) as url:
-        canonical = replay_nuclei(url, "/custom/phpinfo.php", "phpinfo-page-detect")
+        canonical = replay_nuclei(url, "/custom/phpinfo.php", "phpinfo-files")
     assert canonical.vuln_class == "sensitive_file"
     assert canonical.verification.tier == T.UNVERIFIED
     assert canonical.verification.oracle == VerificationOracle.CONTENT_VALIDATOR

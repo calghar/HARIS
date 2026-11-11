@@ -52,6 +52,14 @@ entries:
     expected: true_positive
     source: https://github.com/WebGoat/WebGoat
     notes: The login page sends no Cache-Control or Pragma header (checked live).
+  - id: webgoat-verbose-error
+    method: GET
+    url: /WebGoat
+    vuln_class: verbose_error
+    cwe: CWE-209
+    expected: true_positive
+    source: https://github.com/WebGoat/WebGoat
+    notes: Error responses carry a Java stack trace in the body (checked live on a missing path with a session).
 ignore:
   - vuln_class: no_https
     url: /*
@@ -71,3 +79,6 @@ ignore:
   - vuln_class: sensitive_file
     url: /.well-known/security.txt
     reason: Info-level discovery record, not a weakness.
+  - vuln_class: unclassified:nikto:x-frame-options-header-is-deprecated-and-was-replaced-with-the-content-security-policy-http-header-with-the-frame-ancest
+    url: /WebGoat
+    reason: Advisory about the X-Frame-Options header the image sets; a property of the target.
