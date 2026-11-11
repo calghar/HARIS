@@ -1,10 +1,13 @@
 import hmac
+import logging
 import os
 
 from starlette.requests import Request
 
 from .email import EmailSender, SMTPConfig
 from .oidc import OIDCClient, OIDCConfig
+
+logger = logging.getLogger(__name__)
 
 TRUE_VALUES = {"1", "true", "yes"}
 MIN_PASSWORD_LENGTH = 12
@@ -43,12 +46,15 @@ def email_domain_allowed(email: str) -> bool:
     return domain.lower() in allowed
 
 
-def emailed_link_base(request: Request) -> str:
-    """HARIS_PUBLIC_URL when set; otherwise the request base URL."""
+def emailed_link_base(request: Request) -> str | None:
+    """Public URL, or the request base when SMTP is off. None means do not send."""
     configured = os.environ.get("HARIS_PUBLIC_URL", "").strip().rstrip("/")
     if configured:
         return configured
-    return str(request.base_url).rstrip("/")
+    if not env_flag("HARIS_SMTP_ENABLED"):
+        return str(request.base_url).rstrip("/")
+    logger.error("HARIS_PUBLIC_URL is unset; refusing to send a verification email")
+    return None
 
 
 def trusted_hosts() -> list[str]:

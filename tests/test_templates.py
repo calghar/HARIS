@@ -1,4 +1,8 @@
+import urllib.error
+import urllib.request
 from unittest.mock import patch
+
+import pytest
 
 from haris.models.templates import (
     TemplateConfig,
@@ -14,7 +18,11 @@ from haris.templates.adapters import (
 )
 from haris.templates.manager import TemplateManager
 from haris.templates.report import TemplateUpdateReporter
-from haris.templates.updater import TemplateUpdater
+from haris.templates.updater import (
+    MAX_TEMPLATE_DOWNLOAD_BYTES,
+    TemplateUpdater,
+    _HttpsOnlyRedirect,
+)
 
 # ---------------------------------------------------------------------------
 # Model tests
@@ -460,3 +468,72 @@ class TestTemplateUpdater:
             )
             == 0
         )
+
+    def test_download_file_rejects_body_over_the_cap(self, tmp_path, monkeypatch):
+        payload = b"x" * (MAX_TEMPLATE_DOWNLOAD_BYTES + 1)
+        monkeypatch.setattr(
+            urllib.request, "build_opener", lambda *_a, **_k: _FakeOpener(payload)
+        )
+        target = tmp_path / "custom.nse"
+        assert (
+            TemplateUpdater.download_file("https://example.com/custom.nse", target)
+            is False
+        )
+        assert not target.exists()
+        assert list(tmp_path.iterdir()) == []
+
+    def test_download_file_renames_a_small_body(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(
+            urllib.request, "build_opener", lambda *_a, **_k: _FakeOpener(b"rule body")
+        )
+        target = tmp_path / "custom.nse"
+        assert (
+            TemplateUpdater.download_file("https://example.com/custom.nse", target)
+            is True
+        )
+        assert target.read_bytes() == b"rule body"
+        assert list(tmp_path.iterdir()) == [target]
+
+    def test_download_file_refuses_non_http(self, tmp_path, monkeypatch):
+        def boom(*_args, **_kwargs):
+            raise AssertionError("should not open")
+
+        monkeypatch.setattr(urllib.request, "build_opener", boom)
+        target = tmp_path / "custom.nse"
+        assert TemplateUpdater.download_file("file:///etc/passwd", target) is False
+        assert not target.exists()
+
+
+class _FakeBody:
+    def __init__(self, payload: bytes) -> None:
+        self._payload = payload
+        self._offset = 0
+
+    def read(self, size: int = -1) -> bytes:
+        if size < 0:
+            size = len(self._payload) - self._offset
+        chunk = self._payload[self._offset : self._offset + size]
+        self._offset += len(chunk)
+        return chunk
+
+    def __enter__(self) -> "_FakeBody":
+        return self
+
+    def __exit__(self, *_exc: object) -> bool:
+        return False
+
+
+class _FakeOpener:
+    def __init__(self, payload: bytes) -> None:
+        self._payload = payload
+
+    def open(self, _request: object, timeout: float = 0) -> _FakeBody:
+        assert timeout > 0
+        return _FakeBody(self._payload)
+
+
+def test_download_redirect_rejects_a_non_http_scheme() -> None:
+    handler = _HttpsOnlyRedirect()
+    request = urllib.request.Request("https://example.com/a.nse")
+    with pytest.raises(urllib.error.URLError):
+        handler.redirect_request(request, None, 302, "Found", {}, "file:///etc/passwd")

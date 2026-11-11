@@ -1,10 +1,60 @@
 import logging
+import os
 import shutil
 import subprocess
+import tempfile
+import urllib.error
 import urllib.request
+from http.client import HTTPMessage
 from pathlib import Path
+from typing import IO, BinaryIO
+from urllib.parse import urlsplit
 
 logger = logging.getLogger(__name__)
+
+MAX_TEMPLATE_DOWNLOAD_BYTES = 50 * 1024 * 1024
+_DOWNLOAD_CHUNK_BYTES = 64 * 1024
+_DOWNLOAD_TIMEOUT_S = 60
+_DOWNLOAD_SCHEMES = frozenset({"http", "https"})
+
+
+class _HttpsOnlyRedirect(urllib.request.HTTPRedirectHandler):
+    def redirect_request(
+        self,
+        req: urllib.request.Request,
+        fp: IO[bytes],
+        code: int,
+        msg: str,
+        headers: HTTPMessage,
+        newurl: str,
+    ) -> urllib.request.Request | None:
+        if urlsplit(newurl).scheme not in _DOWNLOAD_SCHEMES:
+            raise urllib.error.URLError("redirect scheme is not http or https")
+        redirected = super().redirect_request(req, fp, code, msg, headers, newurl)
+        if not isinstance(redirected, urllib.request.Request):
+            return None
+        return redirected
+
+
+def _temporary_file(target_path: Path) -> Path:
+    descriptor, raw_name = tempfile.mkstemp(
+        dir=target_path.parent, prefix=".", suffix=".partial"
+    )
+    os.close(descriptor)
+    return Path(raw_name)
+
+
+def _stream_capped(source: BinaryIO, path: Path, limit: int) -> None:
+    total = 0
+    with path.open("wb") as handle:
+        while True:
+            chunk = source.read(_DOWNLOAD_CHUNK_BYTES)
+            if not chunk:
+                return
+            total += len(chunk)
+            if total > limit:
+                raise OSError(f"download exceeds {limit} bytes")
+            handle.write(chunk)
 
 
 class TemplateUpdater:
@@ -109,20 +159,30 @@ class TemplateUpdater:
 
     @staticmethod
     def download_file(url: str, target_path: Path) -> bool:
-        """Download a single file via HTTP(S).
-
-        Returns ``True`` on success, ``False`` on failure.
-        """
+        """Stream an http(s) file to *target_path* with a byte cap. False on failure."""
+        if urlsplit(url).scheme not in _DOWNLOAD_SCHEMES:
+            logger.error(
+                "Download refused for %s: only http and https are allowed", url
+            )
+            return False
         target_path.parent.mkdir(parents=True, exist_ok=True)
+        temporary: Path | None = None
         try:
-            req = urllib.request.Request(url)
-            with urllib.request.urlopen(req, timeout=60) as resp:  # nosec B310
-                target_path.write_bytes(resp.read())
+            request = urllib.request.Request(url)
+            opener = urllib.request.build_opener(_HttpsOnlyRedirect)
+            with opener.open(request, timeout=_DOWNLOAD_TIMEOUT_S) as resp:  # nosec B310
+                temporary = _temporary_file(target_path)
+                _stream_capped(resp, temporary, MAX_TEMPLATE_DOWNLOAD_BYTES)
+            os.replace(temporary, target_path)
+            temporary = None
             logger.info("Downloaded %s -> %s", url, target_path)
             return True
         except Exception as exc:
             logger.error("Download failed for %s: %s", url, exc)
             return False
+        finally:
+            if temporary is not None:
+                temporary.unlink(missing_ok=True)
 
     # File counting
 

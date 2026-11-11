@@ -24,7 +24,7 @@ On first start, when the user table is empty and both `HARIS_ADMIN_EMAIL` and `H
 
 | Variable | Default | Effect |
 | -------- | ------- | ------ |
-| `HARIS_PUBLIC_URL` | unset | When set, the only base for emailed verification links. When unset, the request base URL is used |
+| `HARIS_PUBLIC_URL` | unset | When set, the only base for emailed verification links. When unset, SMTP does not send and the link is logged from the request base URL |
 | `HARIS_ALLOWED_HOSTS` | unset | Comma-separated hosts. When set, any other Host header is rejected and www redirect is off. When unset, there is no host check |
 | `HARIS_COOKIE_SECURE` | `auto` | `true` forces the Secure flag and `false` omits it. Any other value, including `1` and `yes`, follows the request scheme. Session cookie and CSRF seed cookie |
 | `HARIS_SETUP_TOKEN` | unset | `/auth/setup` answers 404 until this is set, and once a user exists. The form field `setup_token` is compared with this value |
