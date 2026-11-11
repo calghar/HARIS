@@ -1,4 +1,5 @@
 import logging
+from urllib.parse import urljoin, urlsplit
 
 from pydantic import BaseModel, Field
 
@@ -30,20 +31,41 @@ class ReplayReport(BaseModel):
     requests: int = 0
 
 
-def oracle_names(case: CorrelatedFinding) -> list[str]:
+def _request_path(base_url: str, url: str) -> str:
+    # Same join as oracles_baseline.judge: the path is against the target base.
+    return urlsplit(urljoin(f"{base_url}/", url)).path
+
+
+def _soft404_only(case: CorrelatedFinding, base_url: str) -> bool:
+    finding = case.canonical
+    if not (
+        base_url
+        and finding.vuln_class.startswith("unclassified:")
+        and get_registry().is_external(finding.scanner)
+        and finding.method.upper() == "GET"
+    ):
+        return False
+    return _request_path(base_url, finding.url) != "/"
+
+
+def oracle_names(case: CorrelatedFinding, base_url: str = "") -> list[str]:
     """The class's oracle chain (``oracle:`` is comma separated), in run order."""
+    if _soft404_only(case, base_url):
+        return ["soft404"]
     cls = get_registry().classes.get(case.canonical.vuln_class)
     names = [n.strip() for n in cls.oracle.split(",")] if cls else []
     return [n for n in names if n != NO_ORACLE]
 
 
-def replayable(case: CorrelatedFinding, allowed_methods: set[str]) -> bool:
+def replayable(
+    case: CorrelatedFinding, allowed_methods: set[str], base_url: str
+) -> bool:
     finding = case.canonical
     return (
         finding.verification.tier == VerificationTier.UNVERIFIED
         and finding.suppression is None
         and finding.method.upper() in allowed_methods
-        and bool(oracle_names(case))
+        and bool(oracle_names(case, base_url))
     )
 
 
@@ -87,11 +109,12 @@ def replay(
     """Replay each eligible finding; stop at the request cap, leaving the rest as is."""
     report = ReplayReport()
     prober = Prober(client, settings.max_requests, settings.request_timeout_s)
+    base_url = client.target.base_url
     allowed = {m.upper() for m in client.target.scope.allowed_methods}
-    pending = [c for c in cases if replayable(c, allowed)]
+    pending = [c for c in cases if replayable(c, allowed, base_url)]
     for index, case in enumerate(pending):
         finding_id = case.canonical.finding_id
-        names = oracle_names(case)
+        names = oracle_names(case, base_url)
         missing = [n for n in names if n not in ORACLES]
         if missing:
             report.skipped[finding_id] = f"oracle {missing[0]} is not available"
