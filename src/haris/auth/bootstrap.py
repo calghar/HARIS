@@ -1,7 +1,7 @@
 import logging
 import os
 
-from .models import AuditAction, AuditEvent, UserRole
+from .models import AuditAction, AuditEvent
 from .service import AuthService
 
 logger = logging.getLogger(__name__)
@@ -17,16 +17,14 @@ def bootstrap_admin_from_env(auth_service: AuthService) -> None:
     password = os.environ.get("HARIS_ADMIN_PASSWORD", "").strip()
     if not email or not password:
         return
-    if auth_service.has_any_user():
-        logger.debug("Admin bootstrap skipped: users already exist")
-        return
-    user = auth_service.create_user(
+    user = auth_service.create_initial_admin(
         email=email,
         password=password,
         display_name="Administrator",
-        role=UserRole.ADMIN,
-        is_active=True,
     )
+    if user is None:
+        logger.debug("Admin bootstrap skipped: users already exist")
+        return
     logger.info("Bootstrap: created admin user %s", user.email)
     auth_service.log_audit(
         AuditEvent(

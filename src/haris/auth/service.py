@@ -1,15 +1,21 @@
 import logging
 import secrets
+import sqlite3
+import time
 from typing import Any
 
 import bcrypt as _bcrypt_lib
 
+from .config import email_domain_allowed
 from .database import future_iso, now_iso
 from .models import AuthProvider, User, UserRole, UserSession
 from .tokens import hash_token
 from .verification import VerificationTokens
 
 logger = logging.getLogger(__name__)
+
+# Real bcrypt cost so an unknown or inactive account is not faster to reject.
+_DUMMY_PASSWORD_HASH = "$2b$12$8wGMKhknf6o6uOppbsn4ZOSGLKYFdG2mGnBLQYWq1kVOspKINItOC"
 
 
 class AuthService(VerificationTokens):
@@ -22,6 +28,7 @@ class AuthService(VerificationTokens):
     def authenticate(self, email: str, password: str) -> User | None:
         user = self.get_user_by_email(email)
         if user is None or not user.is_active:
+            self.verify_password(password, _DUMMY_PASSWORD_HASH)
             return None
         if not user.password_hash or not self.verify_password(
             password, user.password_hash
@@ -130,9 +137,76 @@ class AuthService(VerificationTokens):
             )
         return cur.rowcount > 0
 
-    def delete_all_user_sessions(self, user_id: str) -> None:
+    def delete_all_user_sessions(self, user_id: str, *, keep_token: str = "") -> None:
         with self._connect() as conn:
+            if keep_token:
+                conn.execute(
+                    "DELETE FROM user_sessions WHERE user_id = ? AND token != ?",
+                    (user_id, hash_token(keep_token)),
+                )
+                return
             conn.execute("DELETE FROM user_sessions WHERE user_id = ?", (user_id,))
+
+    def record_attempt(self, bucket: str, *, limit: int, window_seconds: int) -> bool:
+        """Count one attempt. False when the bucket is already at the limit."""
+        now = time.time()
+        with self._connect() as conn:
+            conn.execute("BEGIN IMMEDIATE")
+            row = conn.execute(
+                "SELECT attempts, window_started FROM auth_attempt_counters"
+                " WHERE bucket = ?",
+                (bucket,),
+            ).fetchone()
+            if row is None or now - float(row["window_started"]) > window_seconds:
+                conn.execute(
+                    """INSERT INTO auth_attempt_counters
+                        (bucket, attempts, window_started)
+                       VALUES (?, 1, ?)
+                       ON CONFLICT(bucket) DO UPDATE SET
+                         attempts = 1,
+                         window_started = excluded.window_started""",
+                    (bucket, now),
+                )
+                return True
+            if int(row["attempts"]) >= limit:
+                return False
+            conn.execute(
+                "UPDATE auth_attempt_counters SET attempts = attempts + 1"
+                " WHERE bucket = ?",
+                (bucket,),
+            )
+            return True
+
+    def create_initial_admin(
+        self, email: str, password: str, display_name: str = "Administrator"
+    ) -> User | None:
+        """Insert the first admin, or None if one already exists."""
+        email = email.strip().lower()
+        now = now_iso()
+        user = self._build_user(
+            email,
+            password,
+            display_name,
+            UserRole.ADMIN,
+            is_active=True,
+            auth_provider=AuthProvider.LOCAL,
+            oidc_sub="",
+            now=now,
+        )
+        with self._connect() as conn:
+            conn.execute("BEGIN IMMEDIATE")
+            if conn.execute("SELECT 1 FROM users LIMIT 1").fetchone():
+                return None
+            try:
+                conn.execute(
+                    "INSERT INTO instance_bootstrap (id, created_at) VALUES (1, ?)",
+                    (now,),
+                )
+            except sqlite3.IntegrityError:
+                conn.rollback()
+                return None
+            self._insert_user(conn, user)
+        return user
 
     def purge_expired_sessions(self) -> int:
         now = now_iso()
@@ -170,6 +244,11 @@ class AuthService(VerificationTokens):
                 return None
             user = self.get_user_by_email(email)
             if user is None:
+                if not email_domain_allowed(email):
+                    logger.warning(
+                        "OIDC login refused: domain not allowed for %s", email
+                    )
+                    return None
                 return self.create_user(
                     email=email,
                     password="",

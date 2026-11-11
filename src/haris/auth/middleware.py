@@ -1,5 +1,4 @@
 import logging
-import time
 from typing import NoReturn
 
 from fastapi import Depends, HTTPException, Request
@@ -14,7 +13,6 @@ logger = logging.getLogger(__name__)
 
 _LOGIN_MAX_ATTEMPTS = 5
 _LOGIN_WINDOW_SECONDS = 60
-_login_attempts: dict[str, tuple[int, float]] = {}
 
 
 def get_auth_service(request: Request) -> AuthService:
@@ -22,21 +20,22 @@ def get_auth_service(request: Request) -> AuthService:
     return service
 
 
-def check_rate_limit(ip: str) -> None:
-    """Allow at most LOGIN_MAX_ATTEMPTS per LOGIN_WINDOW_SECONDS per IP.
-
-    Raises HTTPException(429) on violation.
-    """
-    now = time.time()
-    count, start = _login_attempts.get(ip, (0, now))
-    if now - start > _LOGIN_WINDOW_SECONDS:
-        _login_attempts[ip] = (1, now)
-        return
-    if count >= _LOGIN_MAX_ATTEMPTS:
+def check_rate_limit(auth: AuthService, ip: str, email: str) -> None:
+    """Allow _LOGIN_MAX_ATTEMPTS per window for this IP and this normalised email."""
+    account = email.strip().lower()
+    allowed = auth.record_attempt(
+        f"ip:{ip}",
+        limit=_LOGIN_MAX_ATTEMPTS,
+        window_seconds=_LOGIN_WINDOW_SECONDS,
+    ) and auth.record_attempt(
+        f"acct:{account}",
+        limit=_LOGIN_MAX_ATTEMPTS,
+        window_seconds=_LOGIN_WINDOW_SECONDS,
+    )
+    if not allowed:
         raise HTTPException(  # noqa: TRY301
             status_code=429, detail="Too many login attempts. Please wait."
         )
-    _login_attempts[ip] = (count + 1, start)
 
 
 def _raise_auth_error(request: Request) -> NoReturn:

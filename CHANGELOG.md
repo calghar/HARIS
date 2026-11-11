@@ -51,6 +51,10 @@
 - Added a CycloneDX SBOM, a Trivy image scan that fails on fixed HIGH and CRITICAL findings, and an OpenSSF Scorecard workflow with SARIF upload
 - Added a security policy, the Contributor Covenant 2.1, a governance note, a roadmap, issue forms, a pull request template and `CODEOWNERS`
 - Added an MkDocs Material configuration for the pages in `docs/`
+- Added `HARIS_PUBLIC_URL`; when set, emailed verification and reset links use it as their only base
+- Added `HARIS_ALLOWED_HOSTS`; when set, the web app rejects any other Host header
+- Added `HARIS_COOKIE_SECURE` (`true`, `false` or `auto`) for the session and CSRF seed cookies
+- Added `HARIS_SETUP_TOKEN`; `/auth/setup` answers 404 while it is unset
 
 ### Changed (packaging)
 
@@ -131,6 +135,13 @@
 - Fixed the DVWA, Juice Shop and WebGoat ground truth: blind SQL injection is `sqli_error`, WebGoat gains a stack-trace entry, and four nikto notes are ignored
 - Fixed saved scans reloading with the default scope: excluded paths, rate limit, request cap, methods and redirect limits are now stored, and older rows without a scope still load
 - Fixed a failed result write leaving a queue slot taken, which stopped later scans from starting
+- Fixed an admin-disabled account coming back through the verification email; resend and consume refuse it, and only a `registration` token activates a user
+- Fixed login limits living in process memory and covering only login; the same 5 attempts per 60 seconds are stored per IP and per email for login, register and resend
+- Fixed OIDC first login creating a user outside `HARIS_ALLOWED_EMAIL_DOMAINS`
+- Fixed login answering an unknown or inactive account before any password check
+- Fixed a password change leaving other sessions signed in, and admin deactivation leaving sessions signed in
+- Fixed the new-scan form listing every user's template names
+- Fixed `/auth/setup` creating an administrator without a secret and allowing a second concurrent administrator
 
 ### Changed
 

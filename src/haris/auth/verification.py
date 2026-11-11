@@ -5,6 +5,8 @@ from .models import User
 from .tokens import hash_token
 from .users import UserStore
 
+REGISTRATION_PURPOSE = "registration"
+
 
 class VerificationTokens(UserStore):
     def create_remember_token(self, user_id: str, *, ttl_days: int = 30) -> str:
@@ -38,7 +40,7 @@ class VerificationTokens(UserStore):
         return self.get_user_by_id(row["user_id"])
 
     def create_email_verification_token(
-        self, user_id: str, purpose: str = "registration", *, ttl_hours: int = 24
+        self, user_id: str, purpose: str = REGISTRATION_PURPOSE, *, ttl_hours: int = 24
     ) -> str:
         token = secrets.token_urlsafe(32)
         now = now_iso()
@@ -61,10 +63,10 @@ class VerificationTokens(UserStore):
         return token
 
     def consume_email_verification_token(self, token: str) -> User | None:
-        """Marks the token as used, activates the user, returns the user
-        or None if invalid."""
+        """Registration activates a user an admin did not disable."""
         now = now_iso()
         token_hash = hash_token(token)
+        user_id = ""
         with self._connect() as conn:
             row = conn.execute(
                 "SELECT * FROM email_verifications WHERE token = ? AND expires_at"
@@ -77,8 +79,16 @@ class VerificationTokens(UserStore):
                 "UPDATE email_verifications SET used_at = ? WHERE token = ?",
                 (now, token_hash),
             )
+            user_row = conn.execute(
+                "SELECT disabled_by_admin FROM users WHERE user_id = ?",
+                (row["user_id"],),
+            ).fetchone()
+            disabled = user_row is None or bool(user_row["disabled_by_admin"])
+            if row["purpose"] != REGISTRATION_PURPOSE or disabled:
+                return None
             conn.execute(
                 "UPDATE users SET is_active = 1, updated_at = ? WHERE user_id = ?",
                 (now, row["user_id"]),
             )
-        return self.get_user_by_id(row["user_id"])
+            user_id = str(row["user_id"])
+        return self.get_user_by_id(user_id)

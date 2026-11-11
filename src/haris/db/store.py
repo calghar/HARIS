@@ -127,8 +127,17 @@ class ScanStore:
     def get_scan_config_template(self, template_id: str) -> ScanConfigTemplate | None:
         return self._templates.get(template_id)
 
-    def list_scan_config_templates(self) -> list[dict[str, Any]]:
-        return self._templates.list_all()
+    def list_scan_config_templates(
+        self, *, owner_user_id: str | None = None
+    ) -> list[dict[str, Any]]:
+        rows = self._templates.list_all()
+        if owner_user_id is None:
+            return rows
+        return [
+            row
+            for row in rows
+            if row["is_default"] or row["owner_user_id"] in ("", owner_user_id)
+        ]
 
     def delete_scan_config_template(self, template_id: str) -> bool:
         return self._templates.delete(template_id)

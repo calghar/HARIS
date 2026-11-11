@@ -2,6 +2,7 @@ import logging
 import smtplib
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
+from html import escape
 
 from pydantic import BaseModel
 
@@ -19,6 +20,11 @@ class SMTPConfig(BaseModel):
     from_name: str = "HARIS Security Platform"
 
 
+def _html_link(url: str) -> str:
+    safe = escape(url, quote=True)
+    return f'<a href="{safe}">{safe}</a>'
+
+
 class EmailSender:
     def __init__(self, config: SMTPConfig) -> None:
         self._config = config
@@ -26,10 +32,11 @@ class EmailSender:
     def send_verification_email(self, to_email: str, token: str, base_url: str) -> None:
         verify_url = f"{base_url.rstrip('/')}/auth/verify-email?token={token}"
         subject = "Verify your HARIS account"
+        link = _html_link(verify_url)
         html_body = f"""
 <p>Welcome to HARIS!</p>
 <p>Please verify your email address by clicking the link below:</p>
-<p><a href="{verify_url}">{verify_url}</a></p>
+<p>{link}</p>
 <p>This link expires in 24 hours.</p>
 <p>If you did not request this, please ignore this email.</p>
 """
@@ -48,10 +55,11 @@ class EmailSender:
     ) -> None:
         reset_url = f"{base_url.rstrip('/')}/auth/reset-password?token={token}"
         subject = "Reset your HARIS password"
+        link = _html_link(reset_url)
         html_body = f"""
 <p>A password reset was requested for your HARIS account.</p>
 <p>Click the link below to set a new password:</p>
-<p><a href="{reset_url}">{reset_url}</a></p>
+<p>{link}</p>
 <p>This link expires in 1 hour. If you did not request this, please
 ignore this email.</p>
 """

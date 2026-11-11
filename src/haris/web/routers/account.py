@@ -63,6 +63,11 @@ async def profile_update(
 
     if not error and updates:
         auth_service.update_user(user.user_id, **updates)
+        if "password_hash" in updates:
+            auth_service.delete_all_user_sessions(
+                user.user_id,
+                keep_token=request.cookies.get(SESSION_COOKIE, ""),
+            )
         user = auth_service.get_user_by_id(user.user_id) or user
         success = "Profile updated."
     return _profile_page(request, user, auth_service, error=error, success=success)

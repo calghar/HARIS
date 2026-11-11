@@ -101,9 +101,13 @@ async def update_user(
             raise HTTPException(status_code=422, detail="Unknown role")
         updates["role"] = role
     if is_active:
-        updates["is_active"] = is_active.lower() in TRUE_VALUES
+        active = is_active.lower() in TRUE_VALUES
+        updates["is_active"] = active
+        updates["disabled_by_admin"] = not active
     if updates:
         auth_service.update_user(user_id, **updates)
+        if updates.get("is_active") is False:
+            auth_service.delete_all_user_sessions(user_id)
         _audit(
             auth_service, request, admin, AuditAction.USER_UPDATED, user_id, **updates
         )

@@ -332,6 +332,10 @@ class TestEmailVerificationTokens:
 
 
 class TestLinkOrCreateOidcUser:
+    @pytest.fixture(autouse=True)
+    def _allow_example_domain(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("HARIS_ALLOWED_EMAIL_DOMAINS", "example.com")
+
     def test_creates_new_user_when_no_match(self, auth_service):
         user = auth_service.link_or_create_oidc_user(
             sub="sub-001", email="gale@example.com", email_verified=True
