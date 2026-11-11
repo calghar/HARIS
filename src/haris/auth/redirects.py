@@ -1,4 +1,4 @@
-from urllib.parse import quote, urlsplit
+from urllib.parse import quote, urlparse, urlsplit
 
 from fastapi import Request
 from fastapi.responses import RedirectResponse
@@ -22,11 +22,10 @@ def safe_next(target: str | None) -> str:
 
 def redirect_to_next(target: str | None) -> RedirectResponse:
     """303 to a same-origin path; the guard sits at the sink so CodeQL sees it."""
-    destination = safe_next(target)
-    parts = urlsplit(destination)
-    if parts.netloc or parts.scheme:
-        destination = DEFAULT_NEXT
-    return RedirectResponse(destination, status_code=303)
+    destination = safe_next(target).replace("\\", "")
+    if not urlparse(destination).netloc and not urlparse(destination).scheme:
+        return RedirectResponse(destination, status_code=303)
+    return RedirectResponse(DEFAULT_NEXT, status_code=303)
 
 
 def login_url(request: Request) -> str:

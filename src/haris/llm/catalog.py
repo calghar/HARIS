@@ -1,7 +1,5 @@
-import hmac
 import logging
 import os
-import secrets
 from collections.abc import Callable
 from typing import Any
 
@@ -13,8 +11,7 @@ API_KEY_ENV = {"anthropic": "ANTHROPIC_API_KEY", "openai": "OPENAI_API_KEY"}
 
 ModelLister = Callable[[], list[str]]
 
-_listed: dict[tuple[str, str, bytes], list[str]] = {}
-_CACHE_KEY = secrets.token_bytes(32)  # keeps the API key out of the cache key
+_listed: dict[tuple[str, str, str], list[str]] = {}
 
 
 def default_model(provider: str, settings: LLMSettings | None = None) -> str:
@@ -50,11 +47,7 @@ def _list_via_sdk(provider: str, api_key: str, base_url: str | None) -> list[str
 def list_provider_models(
     provider: str, api_key: str, base_url: str | None = None
 ) -> list[str]:
-    key = (
-        provider,
-        base_url or "",
-        hmac.digest(_CACHE_KEY, api_key.encode(), "sha256"),
-    )
+    key = (provider, base_url or "", api_key)
     if key not in _listed:
         _listed[key] = _list_via_sdk(provider, api_key, base_url)
     return _listed[key]
