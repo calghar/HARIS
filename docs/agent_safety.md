@@ -1,6 +1,6 @@
 # Agent safety
 
-This note describes `haris.agent` in the `ws/agent` worktree on 2026-11-08. Container fields were read from `docker inspect` in `tests/test_agent_docker.py` on that date. Proxy, guardrail and tier claims were checked by the tests named below.
+This note describes `haris.agent`. Container fields were read from `docker inspect` in `tests/test_agent_docker.py`. Proxy, guardrail and tier claims were checked by the tests named below.
 
 The validator stays off unless the operator opts in. A finding becomes `exploit_validated` only after code outside the model re-sends the proof and a reflection oracle matches.
 

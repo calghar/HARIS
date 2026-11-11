@@ -20,7 +20,7 @@ haris llm            FastAPI /api/v1/
  OpenAI  Claude  Ollama
 ```
 
-- **`src/haris/llm/base.py`** defines the abstract `BaseLLMBackend` interface.  Provider-specific code (API clients, authentication, response parsing) lives in concrete implementations.
+- **`src/haris/llm/backend.py`** defines `BaseLLMBackend`. `src/haris/llm/base.py` holds `BACKEND_REGISTRY` and re-exports it. Provider-specific code lives in the concrete classes.
 - **`src/haris/llm/prompts.py`** handles all prompt construction.  It takes structured scan data and returns formatted prompts.  No LLM calls happen here — this makes prompts auditable and testable.
 - **`src/haris/llm/qa.py`** is the high-level Q&A service.  It assembles context from a `ScanSession`, calls `PromptBuilder`, and routes through the backend.  Sessions can be loaded from JSON report files or from the SQLite database.
 
@@ -32,11 +32,13 @@ haris llm            FastAPI /api/v1/
 
 3. **Prompts are separate from data retrieval.**  `PromptBuilder` is a pure function from structured data to strings.  This makes it straightforward to audit prompts, update them, and test them without hitting an LLM.
 
-4. **Backends are pluggable.**  `BaseLLMBackend` has a single method (`complete()`).  Adding a new provider means writing one class with one method.
+4. **Backends are pluggable.**  `BaseLLMBackend` has one method, `complete()`. A new provider is one class that implements it.
 
 5. **Database-backed queries.**  The `ReportQA.from_db()` classmethod loads sessions from the SQLite database, enabling the LLM to answer questions from stored scan history.
 
 ## Supported backends
+
+Provider backends move to LiteLLM on Bedrock in a later release.
 
 | Backend | Package | Auth | Best for |
 | --------- | --------- | ------ | ---------- |
@@ -91,22 +93,9 @@ The backend auto-detection API (`GET /api/v1/llm/backends`) checks each backend 
 
 The first available backend is selected as the default.
 
-## Model Routing
+## Model routing
 
-Route different task types to different models for cost optimisation:
-
-```yaml
-# config/default_config.yaml
-llm:
-  model_routing:
-    enrichment: claude-haiku-4-5       # cheaper model for per-finding enrichment
-    attack_chains: claude-sonnet-4-6   # stronger model for chain detection
-    triage: claude-haiku-4-5
-    summary: claude-haiku-4-5
-    chat: claude-sonnet-4-6
-```
-
-When no routing is configured, all tasks use the default model.
+`llm.model_routing` maps a task name to a model id. The enrichment pipeline looks up `enrichment`, `attack_chains`, `triage` and `false_positives`. A missing key uses the backend default model. `src/haris/resources/config/default_config.yaml` leaves the block commented out.
 
 ## In-Pipeline Enrichment
 

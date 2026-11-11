@@ -18,7 +18,7 @@ HARIS_SECRET_KEY=$(python -c "import secrets; print(secrets.token_hex(32))")
 docker compose up    # or: make reload
 ```
 
-On first start, if the `users` table is empty, the admin account is created automatically from the env vars. Visit `http://localhost:8000` — you will be redirected to `/login`.
+On first start, if the `users` table is empty, the admin account is created automatically from the env vars. An anonymous request to `http://localhost:8000` is redirected to `/login`.
 
 If no env vars are set, visit `/auth/setup` to create the first admin interactively (only accessible when zero users exist).
 
@@ -105,7 +105,7 @@ The audit log at `/auth/audit-log` records all user and scan actions with actor,
 
 ## OIDC / KeyCloak Integration
 
-Enable SSO via any OIDC 2.0 provider (tested with KeyCloak):
+Enable SSO via an OIDC provider.
 
 **`.env`:**
 ```

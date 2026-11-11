@@ -62,9 +62,78 @@ The `callback` service (`bench/fixtures/callback`, published on `127.0.0.1:${BEN
 
 `.github/workflows/bench.yml` runs nightly and on manual dispatch, publishes the raw artifacts and does not fail on score changes.
 
+## Recorded run
+
+Copied from `bench/results/2026-11-11-202728/{juice_shop,dvwa,webgoat}/runs/score/score.md`. One run per target. Replay verification. No baseline. The truth files are seed sets. `verified_precision` rests on 1, 2 and 0 verified findings for Juice Shop, DVWA and WebGoat, so it is not a claim. The raw artifacts are gitignored and are not published.
+
+### Juice Shop
+
+# Benchmark score: juice_shop
+
+Runs: 1. Baseline runs: 0. Values are mean ± sample stddev.
+
+| Metric | Value |
+|---|---|
+| precision | 0.500 ± 0.000 (n=1) |
+| verified_precision | 1.000 ± 0.000 (n=1) |
+| recall | 0.400 ± 0.000 (n=1) |
+| f1 | 0.444 ± 0.000 (n=1) |
+| true_positive_rate | 0.400 ± 0.000 (n=1) |
+| fp_reduction_rate | n/a |
+| request_count | n/a |
+| cost_usd | n/a |
+| wall_time_s | 541.743 ± 0.000 (n=1) |
+
+| Run | Findings | Ignored | Refuted | Unverified | Verified | TP | FP | FN | Precision | Recall | F1 |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| run1.json | 5 | 8 | 1 | 3 | 1 | 2 | 2 | 3 | 0.500 | 0.400 | 0.444 |
+
+### DVWA
+
+# Benchmark score: dvwa
+
+Runs: 1. Baseline runs: 0. Values are mean ± sample stddev.
+
+| Metric | Value |
+|---|---|
+| precision | 1.000 ± 0.000 (n=1) |
+| verified_precision | 1.000 ± 0.000 (n=1) |
+| recall | 0.875 ± 0.000 (n=1) |
+| f1 | 0.933 ± 0.000 (n=1) |
+| true_positive_rate | 0.875 ± 0.000 (n=1) |
+| fp_reduction_rate | n/a |
+| request_count | n/a |
+| cost_usd | n/a |
+| wall_time_s | 332.389 ± 0.000 (n=1) |
+
+| Run | Findings | Ignored | Refuted | Unverified | Verified | TP | FP | FN | Precision | Recall | F1 |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| run1.json | 14 | 22 | 0 | 12 | 2 | 14 | 0 | 2 | 1.000 | 0.875 | 0.933 |
+
+### WebGoat
+
+# Benchmark score: webgoat
+
+Runs: 1. Baseline runs: 0. Values are mean ± sample stddev.
+
+| Metric | Value |
+|---|---|
+| precision | 0.800 ± 0.000 (n=1) |
+| verified_precision | n/a |
+| recall | 0.571 ± 0.000 (n=1) |
+| f1 | 0.667 ± 0.000 (n=1) |
+| true_positive_rate | 0.571 ± 0.000 (n=1) |
+| fp_reduction_rate | n/a |
+| request_count | n/a |
+| cost_usd | n/a |
+| wall_time_s | 176.002 ± 0.000 (n=1) |
+
+| Run | Findings | Ignored | Refuted | Unverified | Verified | TP | FP | FN | Precision | Recall | F1 |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| run1.json | 5 | 3 | 0 | 5 | 0 | 4 | 1 | 3 | 0.800 | 0.571 | 0.667 |
+
 ## Not claimed
 
-- No published scores yet; this page holds methodology only. Numbers appear after a recorded run, with the artifacts attached.
 - Recall on Juice Shop, DVWA and WebGoat is against a seed set, not their full vulnerability lists.
 - The runner logs in before every DVWA run (`admin`/`password`, security level `low`) and WebGoat run (registers `haris-bench`, then logs in) and hands the session to `haris` through a generated `--config` (`auth.method: header`, `Cookie`) and `HARIS_AUTH_HEADER`; the session is not written to argv, `stdout.log` or the results directory.
 - Third-party results (DASTestBed, XBOW) are not ours and are not compared here.
