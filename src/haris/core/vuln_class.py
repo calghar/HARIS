@@ -32,6 +32,10 @@ class VulnClassRegistry:
                 patterns = self._patterns.setdefault(source, [])
                 patterns.extend((re.compile(a, re.IGNORECASE), cls.id) for a in aliases)
 
+    def is_external(self, scanner: str) -> bool:
+        """Whether *scanner* is listed under ``external_scanners``."""
+        return scanner.lower() in self._external
+
     def classify(self, finding: Finding) -> str:
         """Return the class id for *finding*, or an ``unclassified:`` id."""
         if finding.vuln_class:
