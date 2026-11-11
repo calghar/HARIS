@@ -31,10 +31,20 @@ entries:
     method: POST
     url: /vulnerabilities/xss_s
     parameter: mtxMessage
-    vuln_class: xss_stored
+    vuln_class: xss_reflected
     cwe: CWE-79
     expected: true_positive
     source: https://github.com/digininja/DVWA
+    notes: Wapiti reports stored XSS as reflected.
+  - id: dvwa-xss-stored-name
+    method: POST
+    url: /vulnerabilities/xss_s
+    parameter: txtName
+    vuln_class: xss_reflected
+    cwe: CWE-79
+    expected: true_positive
+    source: https://github.com/digininja/DVWA
+    notes: Wapiti reports stored XSS as reflected.
   - id: dvwa-file-inclusion
     method: GET
     url: /vulnerabilities/fi
@@ -108,11 +118,11 @@ entries:
   - id: dvwa-phpinfo
     method: GET
     url: /phpinfo.php
-    vuln_class: unclassified:nuclei:phpinfo-page-detect
-    cwe: CWE-200
+    vuln_class: sensitive_file
+    cwe: CWE-538
     expected: true_positive
     source: https://github.com/digininja/DVWA
-    notes: phpinfo() page answers 200 for a logged-in session (checked live); the class gains an alias in a later change.
+    notes: phpinfo() page answers 200 for a logged-in session (checked live).
 ignore:
   - vuln_class: no_https
     url: /*
@@ -132,13 +142,7 @@ ignore:
   - vuln_class: sensitive_file
     url: /.well-known/security.txt
     reason: Info-level discovery record, not a weakness.
-  - vuln_class: unclassified:wapiti:cleartext-submission-of-password-password-field-password-conf-sent-in-clear-text-from-url-http-127-0-0-1-14280
-    url: /vulnerabilities/*
-    reason: Password forms are served over plain HTTP by the compose file.
-  - vuln_class: unclassified:wapiti:cleartext-submission-of-password-password-field-password-new-sent-in-clear-text-from-url-http-127-0-0-1-14280-v
-    url: /vulnerabilities/*
-    reason: Password forms are served over plain HTTP by the compose file.
-  - vuln_class: unclassified:wapiti:cleartext-submission-of-password-password-field-password-sent-in-clear-text-from-url-http-127-0-0-1-14280-vulne
+  - vuln_class: cleartext_password_submission
     url: /vulnerabilities/*
     reason: Password forms are served over plain HTTP by the compose file.
   - vuln_class: unclassified:wapiti:anomaly-internal-server-error-the-server-responded-with-a-500-http-error-code-while-attempting-to-inject-a-pay

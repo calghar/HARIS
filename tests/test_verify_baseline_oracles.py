@@ -6,8 +6,16 @@ from contextlib import contextmanager
 
 import pytest
 
+from haris.core.correlator import FindingCorrelator
 from haris.core.vuln_class import get_registry
-from haris.models import VerificationMethod, VerificationOracle, VerificationTier
+from haris.models import (
+    CorrelatedFinding,
+    Finding,
+    Severity,
+    VerificationMethod,
+    VerificationOracle,
+    VerificationTier,
+)
 from haris.verify import load_verify_settings
 from haris.verify.oracles import ORACLES
 from haris.verify.probe import Prober
@@ -168,3 +176,74 @@ def test_replay_request_timeout_bounds_a_slow_target_and_is_restored():
 
 def test_verify_yaml_sets_the_replay_request_timeout():
     assert load_verify_settings().request_timeout_s == 10.0
+
+
+PHPINFO_BODY = "phpinfo()\nPHP Version 8.3.0\n"
+METRICS_BODY = "# HELP up up\n# TYPE up gauge\nup 1\n"
+
+
+def nuclei_exposure(url: str, path: str, template_id: str) -> CorrelatedFinding:
+    title = (
+        "PHPinfo Page - Detect"
+        if template_id == "phpinfo-page-detect"
+        else "Prometheus Metrics - Detect"
+    )
+    finding = Finding(
+        title=title,
+        description=title,
+        severity=Severity.LOW,
+        url=f"{url}{path}",
+        method="GET",
+        scanner="nuclei",
+        tags=["security_misconfiguration"],
+        raw_data={"template-id": template_id},
+    )
+    return FindingCorrelator().correlate([finding], url)[0]
+
+
+def replay_nuclei(url: str, path: str, template_id: str) -> Finding:
+    hit = nuclei_exposure(url, path, template_id)
+    with make_client(url) as client:
+        replay([hit], client, fast_settings())
+    return hit.canonical
+
+
+@pytest.mark.parametrize(
+    ("template_id", "path", "body", "ctype"),
+    [
+        ("phpinfo-page-detect", "/phpinfo.php", PHPINFO_BODY, "text/html"),
+        ("prometheus-metrics-detect", "/metrics", METRICS_BODY, "text/plain"),
+    ],
+)
+def test_nuclei_sensitive_file_on_a_registered_path_is_replay_verified(
+    template_id: str, path: str, body: str, ctype: str
+) -> None:
+    """Validator keys on the path; a matching body is replay_verified."""
+    with host(catch_all=False, files={path: (body, ctype)}) as url:
+        canonical = replay_nuclei(url, path, template_id)
+    assert canonical.vuln_class == "sensitive_file"
+    assert canonical.verification.tier == T.REPLAY_VERIFIED
+    assert canonical.verification.oracle == VerificationOracle.CONTENT_VALIDATOR
+
+
+def test_failed_validator_refutes_a_nuclei_sensitive_file() -> None:
+    """A 200 body that fails the path validator is refuted, not left unverified."""
+    with host(
+        catch_all=False, files={"/phpinfo.php": (LOGIN_PAGE, "text/html")}
+    ) as url:
+        canonical = replay_nuclei(url, "/phpinfo.php", "phpinfo-page-detect")
+    assert canonical.vuln_class == "sensitive_file"
+    assert canonical.verification.tier == T.REFUTED
+    assert canonical.verification.oracle == VerificationOracle.CONTENT_VALIDATOR
+
+
+def test_nuclei_sensitive_file_off_the_validator_registry_stays_unverified() -> None:
+    """The template id does not select a validator; an unknown path stays unverified."""
+    body = PHPINFO_BODY
+    with host(
+        catch_all=False, files={"/custom/phpinfo.php": (body, "text/html")}
+    ) as url:
+        canonical = replay_nuclei(url, "/custom/phpinfo.php", "phpinfo-page-detect")
+    assert canonical.vuln_class == "sensitive_file"
+    assert canonical.verification.tier == T.UNVERIFIED
+    assert canonical.verification.oracle == VerificationOracle.CONTENT_VALIDATOR

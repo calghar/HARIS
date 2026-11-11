@@ -45,6 +45,7 @@
 - Added one `agent.refused` audit row for each refused web agent request, with the user id, target host and a reason code (`not_admin`, `no_verified_proof`, `agent_disabled`, `verify_off`)
 - Added an optional `zap` scanner that runs the ZAP Automation Framework (spider, passive wait, active scan, report) and reads the `traditional-json` report; it is disabled by default, is in no profile, and runs with `--scanners zap`. Not yet checked against a live ZAP
 - Mapped common ZAP plugin ids to vulnerability classes and set the `zap` confidence prior to 0.6
+- Added vulnerability class `cleartext_password_submission` (CWE-319) for Wapiti cleartext password forms, and mapped Nuclei `prometheus-metrics-detect` and `phpinfo-page-detect` to `sensitive_file`
 
 ### Changed (packaging)
 
