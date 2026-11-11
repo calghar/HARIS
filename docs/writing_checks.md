@@ -1,134 +1,72 @@
-# Writing Custom Checks
+# Writing custom checks
 
-Custom checks are Python-based security tests that don't require external tools. They use the same `BaseScanner` interface as tool adapters.
+A custom check is a `BaseScanner` with `@register_check`. HTTP goes through `ScopedClient`. The runner reads `haris.core.decorators.check_registry`, which the decorator fills when the module is imported.
 
-## When to Write a Custom Check
+Registration is that decorator and the import in `src/haris/checks/__init__.py`. The CLI has no `CUSTOM_CHECK_REGISTRY`.
 
-- The test only requires HTTP requests (use `requests`)
-- The test only requires TLS inspection (use Python's `ssl`)
-- No external CLI tool is needed
-- You want the check to run without any system-level dependencies
-
-## Step-by-Step Guide
-
-### 1. Create the check file
-
-Create a new file in `src/haris/checks/`, for example `src/haris/checks/cors_check.py`:
+## Example
 
 ```python
-from __future__ import annotations
-
-from typing import Any
-
-import requests
-
-from ..core.finding import Confidence, Finding, Severity
-from ..core.scanner import BaseScanner, ScannerResult
-from ..core.target import Target
+from haris.checks.requesting import scan_client, try_request
+from haris.core.decorators import register_check
+from haris.core.scanner import BaseScanner
+from haris.models import Finding, ScanContext, ScannerResult, Severity, Target
 
 
+@register_check
 class CORSCheckScanner(BaseScanner):
     name = "cors_check"
     version = "1.0.0"
-    description = "Detailed CORS policy analysis"
+    description = "CORS policy on the front page"
 
-    def __init__(self, options: dict[str, Any] | None = None) -> None:
-        super().__init__(options)
-        self.options.setdefault("timeout", 15)
-
-    def scan(self, target: Target) -> ScannerResult:
+    def scan(self, target: Target, context: ScanContext | None = None) -> ScannerResult:
         result = ScannerResult(scanner_name=self.name)
-
-        try:
-            resp = requests.get(
+        with scan_client(target, context) as client:
+            resp = try_request(
+                client,
+                "GET",
                 target.base_url,
                 headers={"Origin": "https://evil.example.com"},
-                timeout=self.options["timeout"],
             )
-        except requests.RequestException as exc:
-            result.errors.append(str(exc))
+        if resp is None:
+            result.errors.append("request failed")
             return result
-
-        acao = resp.headers.get("Access-Control-Allow-Origin", "")
-        if acao == "*":
+        if resp.headers.get("access-control-allow-origin") == "*":
             result.findings.append(
                 Finding(
                     title="Wildcard CORS policy",
-                    description="ACAO is set to *",
+                    description="ACAO is *",
                     severity=Severity.MEDIUM,
-                    confidence=Confidence.CONFIRMED,
                     url=target.base_url,
                     scanner=self.name,
+                    vuln_class="cors_misconfiguration",
                     tags=["cors_misconfiguration"],
                 )
             )
-
         return result
 
     def parse_results(self, raw_output: str) -> list[Finding]:
-        return []  # Findings created inline
+        return []
 ```
 
-### 2. Register the check
+`ScopedResponse.headers` is a `CaseInsensitiveDict`, so the header lookup ignores case.
 
-In `src/haris/checks/__init__.py`:
+## Register
 
-```python
-from .cors_check import CORSCheckScanner
-```
+Import the class from `src/haris/checks/__init__.py`. A profile runs only the names in `src/haris/core/profiles.py`. Add the name there to include the check in a profile. A run with no profile uses the scanner list in `default_config.yaml`.
 
-In `src/haris/cli.py`, add to `CUSTOM_CHECK_REGISTRY`:
+## OWASP tag
 
-```python
-CUSTOM_CHECK_REGISTRY["cors_check"] = CORSCheckScanner
-```
+A tag that matches a key in `OWASP_MAPPINGS` (`src/haris/core/owasp.py`) sets the category. `cors_misconfiguration` maps to A01:2025 Broken Access Control.
 
-### 3. Add OWASP mapping tags
+Set `vuln_class` to an id in `vuln_classes.yaml`. An unknown class stays `unclassified:`.
 
-Use tags from `src/haris/core/owasp.py` `OWASP_MAPPINGS` keys to enable auto-mapping:
+## Test
 
-```python
-tags = ["cors_misconfiguration"]  # Maps to A01: Broken Access Control
-```
+A test calls `scan` with a stand-in for `ScopedClient`. The lint rule bans `requests`, `httpx` and `urllib3` outside `src/haris/net/`.
 
-### 4. Write tests
+## Practices
 
-Create `tests/test_cors_check.py` with mocked HTTP responses:
-
-```python
-from unittest.mock import patch, MagicMock
-from haris.checks.cors_check import CORSCheckScanner
-from haris.core.target import Target
-
-
-def test_wildcard_cors():
-    mock_resp = MagicMock()
-    mock_resp.headers = {"Access-Control-Allow-Origin": "*"}
-
-    with patch("haris.checks.cors_check.requests.get", return_value=mock_resp):
-        scanner = CORSCheckScanner()
-        target = Target(base_url="https://example.com")
-        result = scanner.scan(target)
-        assert len(result.findings) == 1
-```
-
-### 5. Add to configuration
-
-In `config/default_config.yaml`:
-
-```yaml
-scanners:
-  - name: cors_check
-    enabled: true
-    options:
-      timeout: 15
-```
-
-## Best Practices
-
-- Always set `scanner=self.name` on findings
-- Use OWASP tag keywords for automatic category mapping
-- Include `remediation` text on every finding
-- Never store sensitive response data in findings
-- Respect `target.scope.is_url_in_scope()` for any URL you probe
-- Use timeouts on all network operations
+- Set `scanner` to `self.name`.
+- Set `remediation` on the finding.
+- `ScopedClient` applies scope, the SSRF guard, the rate limit and `max_requests`.

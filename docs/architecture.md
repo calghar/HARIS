@@ -20,9 +20,9 @@ The configuration layer loads settings from three sources (in priority order):
 
 This ensures sensitive values (credentials, tokens) never need to be committed to files.
 
-**Scan Configuration Templates** add a fourth source: reusable presets stored in the SQLite database (`scan_config_templates` table, schema v4).  A template bundles a scan profile with per-scanner option overrides (Nuclei tags/severity, Nikto tuning/plugins, Nmap ports/script categories, Wapiti modules/scope, etc.).  When a scan is started with a template, its `template_id` is recorded on the scan session.  Five built-in templates are seeded on first run.
+**Scan configuration templates** add a fourth source. They are rows in `scan_config_templates`. A template bundles a scan profile with per-scanner option overrides. A scan stores `template_id` on the session. Five built-in templates are seeded on first run: Quick Surface Scan, Pre-Launch Audit, Full OWASP Top 10, Regression Check and Compliance Audit.
 
-### 2. Target Model (`src/haris/core/target.py`)
+### 2. Target model (`src/haris/models/target.py`)
 
 The `Target` dataclass represents the system under test:
 
@@ -30,7 +30,7 @@ The `Target` dataclass represents the system under test:
 - `scope`: Authorised testing boundaries (domains, paths, rate limits)
 - `auth`: Optional authentication configuration
 
-The `Scope` object is the enforcement mechanism for lawful testing. Every scanner must check `scope.is_url_in_scope()` before making requests.
+`ScanEngine` calls `ScopedClient.preflight` on the target URL before any scanner runs. `ScopedClient` calls `scope.is_url_in_scope()` on each HTTP request it sends.
 
 ### 3. Scanner Interface (`src/haris/core/scanner.py`)
 
@@ -45,9 +45,9 @@ parse_results(raw_output) -> list[Finding]
 Two categories of scanners exist:
 
 - **External tool adapters** (`src/haris/scanners/`): Wrap CLI tools like Wapiti, SSLyze, Nmap. They shell out to the tool, capture output (JSON/XML), and parse it.
-- **Custom checks** (`src/haris/checks/`): Pure Python checks that use `requests` or `ssl` directly. No external dependencies.
+- **Custom checks** (`src/haris/checks/`): Python checks. HTTP goes through `ScopedClient`. TLS checks use the `ssl` module. They do not shell out.
 
-### 4. Finding Model (`src/haris/core/finding.py`)
+### 4. Finding model (`src/haris/models/finding.py`)
 
 All scanners produce `Finding` objects with a unified schema:
 
@@ -56,6 +56,7 @@ All scanners produce `Finding` objects with a unified schema:
 - Location: URL, parameter, HTTP method
 - Evidence: raw evidence, example request, response snippet
 - Remediation: suggested fix, references
+- Verification: tier `unverified`, `replay_verified`, `exploit_validated` or `refuted`. See [`verification.md`](verification.md)
 
 ### 5. OWASP Mapping (`src/haris/core/owasp.py`)
 
@@ -66,39 +67,28 @@ A lookup table maps vulnerability keywords and CWE IDs to OWASP Top 10 (2025) ca
 The `ScanContext` model accumulates cross-scanner intelligence during a scan:
 
 - `detected_technologies`: Technologies found by earlier scanners (e.g. `nginx`, `wordpress`, `php`)
-- `discovered_urls`: URLs found by crawling scanners (e.g. Wapiti)
+- `discovered_urls`: finding URLs from the recon stage that start with `http`
 - `open_ports`: Open ports from Nmap results
 - `server_headers`: Response headers captured by header checks
 
-The engine builds context incrementally after each scanner completes. Downstream scanners (notably Nuclei) read this context to make smarter template selections.
+The recon stage writes `ScanContext`. The scan stage reads it. Nuclei phase 2b uses `detected_technologies`.
 
 ### 7. Orchestration Engine (`src/haris/core/engine.py`)
 
-`ScanEngine` coordinates the scan:
+`ScanEngine` runs a scan in this order:
 
-1. Creates a `ScanContext` instance
-2. Iterates through registered scanners
-3. Configures each scanner with its options
-4. Runs each scanner sequentially, passing the accumulated `ScanContext`
-5. After each scanner completes, extracts intelligence (technologies, URLs, ports, headers) into `ScanContext`
-6. Collects findings into a `ScanSession`
-7. Deduplicates and sorts findings
-8. Auto-maps OWASP categories
+1. Recon: built-in checks and nmap, one at a time, in profile order. This stage writes `ScanContext`.
+2. Scan: the other scanners, in parallel. They read the context and do not write it.
+3. OWASP tags and stable finding identity.
+4. Correlation: one finding per fingerprint. The inputs are not mutated.
+5. Ignore file, then verification (`off`, `replay` or `llm`). The engine default is `off`. The CLI default is `replay`.
+6. Risk and remediation.
 
-Intelligence extraction sources:
+`extract_context` runs only in recon. `header_checks`, `misc_checks` and `info_disclosure` copy `Server`, `X-Powered-By` and `X-AspNet-Version`. nmap copies open ports and product or service names. `extract_context` also copies each finding URL that starts with `http`. Nikto's extractor stays idle because Nikto runs in the scan stage. Wapiti has no extractor.
 
-- **Nmap**: open ports, service banners, detected software
-- **Nikto**: server technology keywords from finding titles
-- **header_checks**: `Server`, `X-Powered-By`, and other response headers
-- **Wapiti**: crawled URLs (HTTP/HTTPS only)
+### 8. Reporting (`src/haris/reporting/`)
 
-### 7. Reporting (`src/haris/reporting/`)
-
-`BaseReporter` defines `generate(session) -> str`. Three implementations:
-
-- **MarkdownReporter**: Human-readable report with executive summary, methodology, findings by category, and detailed per-finding sections
-- **JSONReporter**: Machine-readable structured output
-- **HTMLReporter**: Self-contained HTML wrapping the Markdown report
+`BaseReporter.generate` returns the report text. Six formats are registered: `json`, `markdown`, `html`, `sarif`, `csv` and `junit`. JSON lists every finding, including refuted ones. Markdown and HTML put refuted and suppressed findings in an appendix.
 
 ### 9. Authentication Layer (`src/haris/auth/`)
 
@@ -135,49 +125,46 @@ Navigation order: Dashboard | Websites | Scans | Templates | New Scan (CTA butto
 ## Data Flow
 
 ```txt
-YAML Config + Env Vars + CLI Args + Scan Config Template (optional)
-        |
-        v
-    Config object (template overrides merged)
+YAML config + env vars + CLI args + scan template (optional)
         |
         v
     Target + Scope
         |
         v
-    ScanEngine.run(target)
-        |
-        +-- ScanContext (accumulates intelligence)
-        |
-        +-- Scanner 1 --> ScannerResult --> [Finding, ...]
-        |       └── extract context (techs, urls, ports, headers)
-        +-- Scanner 2 (receives ScanContext) --> ScannerResult --> [Finding, ...]
-        |       └── extract context
-        +-- Scanner N (receives ScanContext) --> ScannerResult --> [Finding, ...]
+    Recon: checks and nmap, sequential, writes ScanContext
         |
         v
-    Deduplication + OWASP enrichment
+    Scan: other scanners, parallel, read-only context
         |
         v
-    ScanSession (all findings, metadata, template_id)
+    OWASP tags, identity, correlation, ignore file
         |
         v
-    Reporter.generate(session) --> report files
+    Verification (off, replay, or llm) then risk and remediation
+        |
+        v
+    Reporter.generate(session)
 ```
 
 ### Database Schema
 
-The SQLite database (schema v6) stores:
+The baseline schema version in `schema_version` is 6. Yoyo migrations `0002` through `0008` then hash the token columns, rebuild finding identity, add scan owner and state, and add `api_tokens`, `authorized_targets` and `jobs`.
 
-- `scans` -- Scan sessions with `template_id` (linking to preset used) and `started_by` (user_id who initiated)
-- `findings` -- All findings per scan
-- `scanner_results` -- Per-scanner errors and metadata
-- `scan_config_templates` -- Reusable scan configuration presets
-- `llm_enrichments`, `attack_chains`, `triaged_findings`, `false_positive_assessments`, `executive_priorities` -- LLM enrichment data
-- `users` -- Local and OIDC accounts (`user_id`, `email`, `password_hash`, `role`, `auth_provider`, `is_active`)
-- `user_sessions` -- Server-side sessions with expiry, IP, and user-agent tracking
-- `remember_tokens` -- One-time remember-me tokens (30-day TTL)
-- `audit_log` -- Immutable audit trail: who performed which action on which resource, with IP and timestamp
-- `email_verifications` -- Time-limited tokens for account activation and password reset (24-hour TTL)
+Baseline tables:
+
+- `scans`, including `template_id` and `started_by`. `false_positive_assessments` and `executive_priorities` are columns on this table.
+- `findings`
+- `remediation_steps`
+- `llm_enrichments`, `attack_chains`, `triaged_findings`
+- `scan_config_templates`
+- `scanner_results`
+- `users`
+- `user_sessions` (session TTL 8 hours, token stored as a SHA-256 hash)
+- `remember_tokens` (30-day TTL)
+- `audit_log`
+- `email_verifications` (24-hour TTL)
+
+Migration `0008` adds `scans.stage_log` and `findings.agent_annotation`.
 
 ## Scan Configuration Templates
 
@@ -210,7 +197,7 @@ External scanner template files are stored in `./templates/{scanner}/{source_nam
 | ------- | ----------- | ---------------------- |
 | Nuclei | `git` — clones `nuclei-templates` repo | Template paths passed as `-t` flags |
 | Nikto | `local` — `git pull` on existing `/opt/nikto/` | Updates `db_*` files in-place; Nikto reads them automatically |
-| Nmap | None — drop `.nse` files in `templates/nmap/custom/` | Custom scripts passed as `--script` args |
+| Nmap | None — drop `.nse` files in `templates/nmap/custom/` | NSE files passed with `--script` |
 | Wapiti | No template support | — |
 
 **CLI**: `haris update-templates [--scanner nuclei] [--force] [--list]`

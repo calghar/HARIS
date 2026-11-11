@@ -47,6 +47,7 @@
 - Mapped common ZAP plugin ids to vulnerability classes and set the `zap` confidence prior to 0.6
 - Added vulnerability class `cleartext_password_submission` (CWE-319) for Wapiti cleartext password forms, and mapped Nuclei `prometheus-metrics-detect` and `phpinfo-page-detect` to `sensitive_file`
 - Added `--verify` to `bench/run.py`, passed through to `haris` for every target run
+- Added `docs/verification.md` covering finding tiers, replay oracles, the soft-404 control and the uncalibrated LLM abstain threshold
 
 ### Changed (packaging)
 
@@ -146,6 +147,7 @@
 - Changed `robots.txt`, `sitemap.xml` and `security.txt` findings to INFO and moved the API-document paths from `info_disclosure` to `openapi_checks`
 - Changed the agent proxy and PoC re-execution to forward `POST` only with `--agent-allow-unsafe-methods`, to the finding's own URL, for a finding observed on `POST`; `PUT`, `PATCH` and `DELETE` stay rejected
 - Changed `haris bench score` to compute precision over active findings, count refuted findings and per-tier findings, and add `verified_precision`
+- Updated README and docs to match the registered scanners, checks, profiles and CLI, and to quote the recorded benchmark scores with their limits
 
 ### Added
 
