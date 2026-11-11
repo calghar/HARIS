@@ -83,7 +83,7 @@ HARIS_ADMIN_PASSWORD=changeme123
 HARIS_SECRET_KEY=<random-32-char-string>   # python -c "import secrets; print(secrets.token_hex(32))"
 ```
 
-If those variables are unset, `/auth/setup` creates the first admin, and only while the user table is empty.
+Startup creates that admin when both `HARIS_ADMIN_EMAIL` and `HARIS_ADMIN_PASSWORD` are set and the user table is empty. `/auth/setup` answers 404 until `HARIS_SETUP_TOKEN` is set, and once a user exists.
 
 Self-registration uses `HARIS_ALLOWED_EMAIL_DOMAINS`. New accounts need email verification, or an admin activates them when SMTP is off.
 
@@ -173,6 +173,10 @@ Web server variables. Flags accept `1`, `true` or `yes`, except where noted.
 | `HARIS_SMTP_HOST`, `HARIS_SMTP_PORT` | `localhost`, `587` | SMTP server |
 | `HARIS_SMTP_USE_TLS` | `true` | Any value other than `false` keeps TLS on |
 | `HARIS_SMTP_FROM`, `HARIS_SMTP_FROM_NAME` | `noreply@techforpalestine.org`, `HARIS Security Platform` | Sender address and name |
+| `HARIS_PUBLIC_URL` | unset | When set, the only base for emailed verification links. When unset, the request base URL is used |
+| `HARIS_ALLOWED_HOSTS` | unset | Comma-separated hosts. When set, any other Host header is rejected and www redirect is off. When unset, there is no host check |
+| `HARIS_COOKIE_SECURE` | `auto` | `true` forces the Secure flag and `false` omits it. Any other value, including `1` and `yes`, follows the request scheme. Session cookie and CSRF seed cookie |
+| `HARIS_SETUP_TOKEN` | unset | `/auth/setup` answers 404 until this is set, and once a user exists. The form field `setup_token` is compared with this value |
 
 ## Documentation
 
