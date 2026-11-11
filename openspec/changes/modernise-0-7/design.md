@@ -137,6 +137,7 @@ Pipeline order (after all scanners): correlate → apply ignore file → replay 
 
 Replay verifier (`replay.py`):
 - Applies to correlated findings whose class maps to an oracle in `config/vuln_classes.yaml` (`oracle:` key) and whose method is in `Scope.allowed_methods`; others keep tier `unverified`, `method=none`.
+- Also applies to `unclassified:*` findings of an external scanner (`external_scanners` in `vuln_classes.yaml`) when the method is `GET` and the URL path is not `/`: only the `soft404` oracle runs, so the outcome is `refuted` or `unverified`, never `replay_verified`.
 - Sends a probe and a control (same request, payload replaced by a random token of equal length) through `ScopedClient`. Budget `verify.max_requests` default 500, counted inside `Scope.max_requests`.
 - Oracles:
   - `reflection`: probe uses its own marker `"'><haris<r8>>`; positive when the response is `text/html` and contains `<haris<r8>>` unencoded outside `<script>` string literals and `<!-- -->`, and the control does not.

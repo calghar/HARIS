@@ -45,7 +45,7 @@ Feature: verification
     And its tier remains `unverified`
 
   # Requirement: Deterministic replay verifier
-  # The replay verifier SHALL, for each non-suppressed `unverified` finding whose class maps to an oracle and whose method is in `Scope.allowed_methods`, send a probe and a control request through `ScopedClient` (scope, SSRF, rate limit and per-hop redirect rules of scoped-http apply) within `verify.max_requests` (default 500, counted inside `Scope.max_requests`). Findings with tier `replay_verified`, `exploit_validated` or `refuted` MUST NOT be replayed. Positive oracle results MUST set `replay_verified`; refuting results MUST set `refuted`; all other results MUST leave `unverified` with method `replay`. Evidence MUST hold the probe and control exchanges.
+  # The replay verifier SHALL, for each non-suppressed `unverified` finding whose class maps to an oracle and whose method is in `Scope.allowed_methods`, send a probe and a control request through `ScopedClient` (scope, SSRF, rate limit and per-hop redirect rules of scoped-http apply) within `verify.max_requests` (default 500, counted inside `Scope.max_requests`). Findings with tier `replay_verified`, `exploit_validated` or `refuted` MUST NOT be replayed. Positive oracle results MUST set `replay_verified`; refuting results MUST set `refuted`; all other results MUST leave `unverified` with method `replay`. Evidence MUST hold the probe and control exchanges. The verifier SHALL also replay a non-suppressed `unverified` finding whose class id starts with `unclassified:` and whose scanner is an external scanner (one listed under `external_scanners` in `vuln_classes.yaml`), using only the `soft404` oracle, when its method is `GET` and its URL path is not `/`. Such a finding MUST become `refuted` when the probe matches a host control and MUST otherwise stay `unverified` with method `replay`; it MUST NOT become `replay_verified`. An unclassified finding of a built-in check, with a method other than `GET`, or with URL path `/` MUST NOT be replayed.
 
   @requirement_deterministic_replay_verifier
   Scenario Outline: Oracle matrix
@@ -74,6 +74,28 @@ Feature: verification
     When the replay verifier runs
     Then no request is sent for it
     And its method stays `none`
+
+  @requirement_deterministic_replay_verifier
+  Scenario Outline: Unclassified external finding
+    Given an `unverified`, non-suppressed finding of class `unclassified:<scanner>:<slug>` with scanner `<scanner>`, method `<method>` and URL path `<path>`
+    When the replay verifier runs and the probe of the path `<response>`
+    Then its tier is `<tier>` and its method is `<replay_method>`
+
+    Examples:
+      | scanner       | method | path           | response                                   | tier       | replay_method |
+      | nikto         | GET    | /.psql_history | matches a host control                     | refuted    | replay        |
+      | nuclei        | GET    | /ftp/          | is 200 and differs from every host control | unverified | replay        |
+      | nikto         | GET    | /admin/        | matches a host control                     | refuted    | replay        |
+      | nikto         | GET    | /              | is not sent                                | unverified | none          |
+      | nikto         | POST   | /api/x         | is not sent                                | unverified | none          |
+      | header_checks | GET    | /.psql_history | is not sent                                | unverified | none          |
+
+  @requirement_deterministic_replay_verifier
+  Scenario: Refuted external finding stays visible
+    Given an unclassified `nikto` finding refuted by the `soft404` oracle
+    When the reports are written and the exit code is computed with `--fail-on` at its severity
+    Then the finding appears in every report with tier `refuted`
+    And it does not count toward risk or the exit code
 
   @requirement_deterministic_replay_verifier
   Scenario: Replay budget exhausted
