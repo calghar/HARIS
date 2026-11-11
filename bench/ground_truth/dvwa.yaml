@@ -123,6 +123,24 @@ entries:
     expected: true_positive
     source: https://github.com/digininja/DVWA
     notes: phpinfo() page answers 200 for a logged-in session (checked live).
+  - id: dvwa-csp-xss
+    method: POST
+    url: /vulnerabilities/csp
+    parameter: include
+    vuln_class: xss_reflected
+    cwe: CWE-79
+    expected: true_positive
+    source: https://github.com/digininja/DVWA
+    notes: include lands unescaped in a script src attribute; the Wapiti payload closes the tag and reflects a raw script element (checked live).
+  - id: dvwa-fi-php-eval
+    method: GET
+    url: /vulnerabilities/fi
+    parameter: page
+    vuln_class: command_injection
+    cwe: CWE-78
+    expected: true_positive
+    source: https://github.com/digininja/DVWA
+    notes: The data wrapper runs PHP and the body starts with the echoed marker (checked live); Wapiti reports it as command execution.
 ignore:
   - vuln_class: no_https
     url: /*
@@ -148,3 +166,6 @@ ignore:
   - vuln_class: unclassified:wapiti:anomaly-internal-server-error-the-server-responded-with-a-500-http-error-code-while-attempting-to-inject-a-pay
     url: /vulnerabilities/open_redirect/source/info.php
     reason: Wapiti anomaly record from payload injection, not a weakness.
+  - vuln_class: unclassified:nuclei:php2shell-cve-2026-109618-cve-2026-109619-active-crash-detection-cve-2026-109618
+    url: /
+    reason: Version match only (PHP 8.5.11 is below the NVD fixed version 8.5.12); no crash or code execution was shown.
