@@ -25,6 +25,7 @@ def _handle(client: socket.socket, upstream: str) -> None:
     except OSError:
         client.close()
         return
+    remote.settimeout(None)  # the connect timeout must not cut idle reads
     threading.Thread(target=_pipe, args=(client, remote), daemon=True).start()
     _pipe(remote, client)
 

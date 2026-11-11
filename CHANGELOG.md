@@ -149,6 +149,7 @@
 - Fixed Nuclei receiving discovered URLs that are out of scope or resolve to a blocked address
 - Fixed an empty scanner status reporting risk posture `excellent`; it is now `unknown`
 - Fixed promptfoo scheduling more tests than `max_prompts` when the cap is below the plugin count
+- Fixed the agent sandbox tunnel cutting upstream replies that take more than 5 seconds, which broke timing-oracle validation
 
 ### Changed
 
