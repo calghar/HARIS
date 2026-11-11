@@ -11,7 +11,9 @@ from ...auth.models import AuditAction, AuditEvent, User
 from ...auth.service import AuthService
 from ...config.loader import load_config
 from ...models import ScanConfigTemplate
+from ...models.target import check_excluded_paths
 from ...models.templates import TemplateMetadata, UpdateResult
+from ...scanners.option_policy import ScannerOptionsError, prepare_web_scanner_options
 from ...templates.manager import TemplateManager
 from ..access import require_template_access, visible_templates
 from ..routing import api_router
@@ -37,6 +39,29 @@ TEMPLATE_FIELDS = (
     "tags",
 )
 NOT_FOUND = "Template not found"
+
+
+def _clean_template_fields(body: dict[str, Any]) -> dict[str, Any]:
+    fields = {key: body[key] for key in TEMPLATE_FIELDS if key in body}
+    if "scanner_options" in fields:
+        fields["scanner_options"] = _scanner_options(fields["scanner_options"])
+    if "excluded_paths" in fields:
+        _excluded_paths(fields["excluded_paths"])
+    return fields
+
+
+def _scanner_options(options: object) -> dict[str, dict[str, Any]]:
+    try:
+        return prepare_web_scanner_options(options)
+    except ScannerOptionsError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+def _excluded_paths(patterns: object) -> None:
+    try:
+        check_excluded_paths(patterns)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
 
 
 class TemplateUpdateRequest(BaseModel):
@@ -136,7 +161,7 @@ async def create_scan_template(
         raise HTTPException(status_code=400, detail="name is required")
     now = datetime.now(UTC).isoformat()
     tpl = ScanConfigTemplate(
-        **{k: body[k] for k in TEMPLATE_FIELDS if k in body},
+        **_clean_template_fields(body),
         created_at=now,
         updated_at=now,
     )
@@ -161,7 +186,7 @@ async def update_scan_template(
     if existing is None:
         raise HTTPException(status_code=404, detail=NOT_FOUND)
     merged = existing.model_dump()
-    merged.update({k: body[k] for k in TEMPLATE_FIELDS if k in body})
+    merged.update(_clean_template_fields(body))
     merged["updated_at"] = datetime.now(UTC).isoformat()
     updated = ScanConfigTemplate(**merged)
     state.store.save_scan_config_template(updated)

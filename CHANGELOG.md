@@ -142,6 +142,13 @@
 - Fixed a password change leaving other sessions signed in, and admin deactivation leaving sessions signed in
 - Fixed the new-scan form listing every user's template names
 - Fixed `/auth/setup` creating an administrator without a secret and allowing a second concurrent administrator
+- Fixed web templates and scan starts accepting unvalidated `scanner_options`: unknown keys, unsafe endpoint URLs and web `extra_args` of `-fr` or `-followredirects` return HTTP 422, and `active` and `authorised` are dropped
+- Fixed external scanners starting after the target name resolved to a blocked address; each tool is checked again right before it starts (the tool still resolves the name itself afterwards)
+- Fixed `excluded_paths` accepting invalid, over-long or nested-quantifier regexes; they are compiled when supplied and rejected by the API (HTTP 422) and the CLI
+- Fixed agent sandbox `exec` keeping full output and leaving a timed-out process in the container; output is capped at 1 MiB and the timeout kills that process
+- Fixed Nuclei receiving discovered URLs that are out of scope or resolve to a blocked address
+- Fixed an empty scanner status reporting risk posture `excellent`; it is now `unknown`
+- Fixed promptfoo scheduling more tests than `max_prompts` when the cap is below the plugin count
 
 ### Changed
 
@@ -219,6 +226,7 @@
 ### Removed
 
 - `web/ownership.py` (`ResourceOwners`) and `web/scoped_views.py`, replaced by owner-aware queries
+- Removed the unused `haris.ai_security.jsonrpc` module
 
 ## 0.6.2 — 2026-04-04
 

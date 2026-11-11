@@ -5,8 +5,13 @@ from pathlib import Path
 import pytest
 import yaml
 
+from haris.ai_security.adapters import tool_config
 from haris.models import AuthConfig, Severity, VerificationTier
-from haris.scanners.promptfoo_scanner import MalformedOutputError, PromptfooScanner
+from haris.scanners.promptfoo_scanner import (
+    MalformedOutputError,
+    PromptfooScanner,
+    prompt_budget,
+)
 
 from .adapter_support import (
     BOTH,
@@ -117,6 +122,16 @@ class TestPromptfooRun:
         assert generate["mode"] == 0o600
         assert len(result.findings) == 1
         assert result.errors == []
+
+    @pytest.mark.parametrize("cap", [1, 3, 4, 50])
+    def test_code_h2_num_tests_stay_within_cap(self, cap: int) -> None:
+        plugins = tool_config("promptfoo").default_selection
+        chosen, num_tests = prompt_budget(cap, list(plugins))
+        assert num_tests * len(chosen) <= cap
+        if cap < len(plugins):
+            assert chosen == list(plugins[:cap]) and num_tests == 1
+        else:
+            assert chosen == list(plugins) and num_tests == cap // len(plugins)
 
     def test_provider_option_is_passed_to_generation_only(
         self, promptfoo: Tool

@@ -30,6 +30,7 @@ from .owasp import map_to_owasp
 from .remediation import RemediationPlanner
 from .risk import assess_risk_posture, risk_posture_summary
 from .scanner import BaseScanner
+from .tool_vet import external_target_block
 
 logger = logging.getLogger(__name__)
 
@@ -247,7 +248,14 @@ class ScanEngine:
                     scanner_config = {**template_opts, **scanner_config}
             if scanner_config:
                 scanner.configure(scanner_config)
-            result = scanner.scan(target, context=context)
+            blocked = external_target_block(
+                scanner, target, self._network_policy, self._resolver
+            )
+            result = (
+                ScannerResult(scanner_name=scanner.name, errors=[blocked])
+                if blocked
+                else scanner.scan(target, context=context)
+            )
         except Exception as exc:
             logger.exception("Scanner %s failed with an exception", scanner.name)
             result = ScannerResult(
@@ -336,7 +344,7 @@ class ScanEngine:
         status = session.scanner_status
         session.risk_posture = assess_risk_posture(
             session.correlated,
-            scanner_completed=not status or "completed" in status.values(),
+            scanner_completed=bool(status) and "completed" in status.values(),
         )
         session.risk_posture_text = risk_posture_summary(session.risk_posture)
 

@@ -16,6 +16,7 @@ from .nuclei_results import (
     NucleiResults,
 )
 from .nuclei_templates import TEMPLATES_CONFIG_FILE, config_dir_from, templates_dir_from
+from .nuclei_urls import filter_discovered_urls
 from .process import ToolTimeoutError
 
 logger = logging.getLogger(__name__)
@@ -339,20 +340,8 @@ class NucleiScanner(NucleiResults):
 
     @staticmethod
     def _build_url_list(target: Target, context: ScanContext) -> list[str]:
-        """Base URL plus crawler-discovered URLs; empty when only the base exists."""
-        if not context.discovered_urls:
-            return []
-
-        urls: list[str] = [target.base_url]
-        seen = {target.base_url}
-        for url in context.discovered_urls:
-            if url not in seen and url.startswith("http"):
-                urls.append(url)
-                seen.add(url)
-
-        if len(urls) <= 1:
-            return []
-        return urls[:MAX_URL_LIST]
+        """Base URL plus in-scope vetted URLs; empty when only the base remains."""
+        return filter_discovered_urls(target, context, MAX_URL_LIST)
 
     def _build_command(
         self,
