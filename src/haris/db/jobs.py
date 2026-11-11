@@ -89,6 +89,15 @@ class JobRepository:
                 (scan_id, owner_user_id, json.dumps(params), now),
             )
 
+    def keep_skip_note(self, scan_id: str, note: str) -> None:
+        # A later empty job error leaves this note in place.
+        payload = json.dumps([note])
+        with connect(self._db_path) as conn:
+            conn.execute(
+                "UPDATE scans SET errors = ?, stage_log = ? WHERE session_id = ?",
+                (payload, payload, scan_id),
+            )
+
     def get(self, scan_id: str) -> Job | None:
         with connect(self._db_path) as conn:
             row = conn.execute(
