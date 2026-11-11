@@ -47,6 +47,8 @@
 - Mapped common ZAP plugin ids to vulnerability classes and set the `zap` confidence prior to 0.6
 - Added vulnerability class `cleartext_password_submission` (CWE-319) for Wapiti cleartext password forms, and mapped Nuclei `prometheus-metrics-detect` and `phpinfo-page-detect` to `sensitive_file`
 - Added `--verify` to `bench/run.py`, passed through to `haris` for every target run
+- Added a security policy, the Contributor Covenant 2.1, a governance note, a roadmap, issue forms, a pull request template and `CODEOWNERS`
+- Added an MkDocs Material configuration for the pages in `docs/`
 
 ### Changed (packaging)
 

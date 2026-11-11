@@ -1,0 +1,24 @@
+name: Feature request
+description: A proposed change to HARIS.
+body:
+  - type: textarea
+    id: need
+    attributes:
+      label: Need
+      description: The missing behaviour, and who it affects.
+    validations:
+      required: true
+  - type: textarea
+    id: change
+    attributes:
+      label: Proposed change
+      description: What HARIS would do after the change.
+    validations:
+      required: true
+  - type: textarea
+    id: context
+    attributes:
+      label: Context
+      description: A scan profile, a command, or a file that shows where the change would land. Secrets and scan data stay out.
+    validations:
+      required: false
