@@ -21,6 +21,8 @@ logger = logging.getLogger(__name__)
 REPORT_STEM = "nikto_report"
 REPORT_NAME = f"{REPORT_STEM}.json"
 DEFAULT_SCHEME = "http"
+# Nikto overran its own -maxtime by 35 s; the margin lets it write its report.
+MAXTIME_MARGIN_S = 60
 
 type KeywordRule = tuple[re.Pattern[str], list[str], Severity]
 
@@ -94,8 +96,9 @@ def _classify_finding(msg: str, osvdb_id: str) -> tuple[list[str], Severity]:
 class NiktoScanner(ExternalToolScanner):
     """Adapter for the Nikto web server scanner (2.6 JSON report).
 
-    Options: ``timeout`` (seconds, default 300), ``tuning`` (nikto ``-Tuning``
-    string, default nikto's own), ``extra_args`` (allow-listed flags only).
+    Options: ``timeout`` (seconds, default 300; nikto gets ``-maxtime`` 60 s below it
+    unless ``extra_args`` sets one), ``tuning`` (nikto ``-Tuning`` string, default
+    nikto's own), ``extra_args`` (allow-listed flags only).
     """
 
     name = "nikto"
@@ -222,7 +225,11 @@ class NiktoScanner(ExternalToolScanner):
         for header_name, header_value in target.auth.as_headers().items():
             cmd.extend(["-Add-header", f"{header_name}: {header_value}"])
 
-        cmd.extend(self._extra_args())
+        extra_args = self._extra_args()
+        maxtime = int(self.options["timeout"]) - MAXTIME_MARGIN_S
+        if "-maxtime" not in extra_args and maxtime > 0:
+            cmd.extend(["-maxtime", f"{maxtime}s"])
+        cmd.extend(extra_args)
         return cmd
 
     @staticmethod

@@ -117,6 +117,7 @@
 - Fixed the excluded-path labels on the new-scan form and the template form, which claimed `regex supported`; they now say one entry per line, a plain path or a trailing `.*`
 - Fixed a web scan that requests the agent failing silently when Docker or the sandbox image is missing; the scan is accepted without that stage and records `[agent] skipped: docker unavailable` at submit and again at run time
 - Fixed unclassified external findings on a catch-all host, such as nikto `/.psql_history`, staying active; replay now refutes a non-root GET when it matches the soft-404 control
+- Fixed nikto being killed at the scanner timeout with 0 findings; it now runs with `-maxtime` 60 s below the timeout and writes its report (an `extra_args` `-maxtime` takes precedence)
 
 ### Changed
 

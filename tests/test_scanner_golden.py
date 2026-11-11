@@ -124,6 +124,22 @@ class TestNiktoCommand:
         assert cmd[cmd.index("-output") + 1] == "/tmp/stem"
         assert "-nocheck" in cmd
 
+    @pytest.mark.parametrize(
+        ("options", "maxtime"),
+        [
+            ({}, ["240s"]),
+            ({"timeout": 120}, ["60s"]),
+            ({"timeout": 60}, []),
+            ({"timeout": 300, "extra_args": ["-maxtime", "40s"]}, ["40s"]),
+        ],
+    )
+    def test_maxtime_stops_nikto_before_the_kill(
+        self, target: Target, options: dict[str, Any], maxtime: list[str]
+    ) -> None:
+        cmd = NiktoScanner(options)._build_command(target, "/tmp/stem")
+        values = [cmd[i + 1] for i, arg in enumerate(cmd) if arg == "-maxtime"]
+        assert values == maxtime
+
 
 class TestNiktoKeywords:
     @pytest.mark.parametrize(
