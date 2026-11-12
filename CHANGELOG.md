@@ -1,7 +1,7 @@
 # Changelog
 <!--markdownlint-disable MD024-->
 
-## 0.6.3 — Unreleased
+## 0.7.0 — 2026-11-12
 
 ### Added
 
