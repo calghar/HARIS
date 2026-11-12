@@ -50,5 +50,5 @@ The safe harbour in this policy is good-faith research on a local install of HAR
 
 ## Known limits
 
-Each external tool's target host is vetted again immediately before the tool starts, and the tool resolves the name itself afterwards, so a DNS rebind in that window remains possible.
+External tools connect only to the address the pre-flight vetted: nmap and sslyze take that address as their target, and nuclei, nikto and Wapiti go through a local proxy that vets every destination. A tool without that binding does not start. Three paths stay outside it: nmap NSE scripts, the nuclei template update (`update_templates`) and IPv6 targets, which are untested for nmap and sslyze.
 Verification email is not sent when `HARIS_PUBLIC_URL` is unset and SMTP is enabled, so the request Host header is not the link origin.

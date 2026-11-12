@@ -1,5 +1,6 @@
 import logging
 from collections.abc import Callable
+from typing import Any
 
 from ..data.scanner_config import get_nikto_tech_keywords
 from ..models import ScannerResult
@@ -10,6 +11,10 @@ logger = logging.getLogger(__name__)
 # Load Nikto tech keywords from config
 _NIKTO_TECH_KEYWORDS = get_nikto_tech_keywords()
 
+# nmap-services names of TLS web ports (443, 8443); "ssl/<name>" is matched in code.
+NMAP_TLS_SERVICES = frozenset({"https", "https-alt", "ssl"})
+NMAP_TLS_TUNNEL = "ssl"
+
 
 def _extract_nikto_tech(msg: str, context: ScanContext) -> None:
     """Extract technology hints from a Nikto finding message."""
@@ -17,6 +22,16 @@ def _extract_nikto_tech(msg: str, context: ScanContext) -> None:
     for keyword, tech_name in _NIKTO_TECH_KEYWORDS:
         if keyword in msg_lower:
             context.add_technologies([tech_name])
+
+
+def _is_tls_service(raw: dict[str, Any]) -> bool:
+    """True when Nmap saw TLS on the port (``tunnel="ssl"`` or a TLS service name)."""
+    service = str(raw.get("service", "")).lower()
+    return (
+        raw.get("tunnel") == NMAP_TLS_TUNNEL
+        or service in NMAP_TLS_SERVICES
+        or service.startswith("ssl/")
+    )
 
 
 def _extract_nmap(result: ScannerResult, context: ScanContext) -> None:
@@ -29,6 +44,8 @@ def _extract_nmap(result: ScannerResult, context: ScanContext) -> None:
         version = raw.get("version", "")
         if port:
             context.open_ports.append(str(port))
+            if _is_tls_service(raw):
+                context.tls_ports.append(str(port))
         techs = [t for t in [product, service] if t]
         if techs:
             context.add_technologies(techs)

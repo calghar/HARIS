@@ -1,8 +1,11 @@
+import ipaddress
 import logging
 from pathlib import Path
-from typing import Any, NamedTuple
+from typing import Any, ClassVar, NamedTuple
 
 from ..core.scanner import BaseScanner
+from ..models import ScannerResult
+from ..models.scan_context import ScanContext
 from ..models.target import Target
 from .argv_policy import validate_extra_args
 from .process import ToolTimeoutError, run_process
@@ -11,6 +14,20 @@ from .redaction import redact_argv, redact_obj, redact_text, secrets_from
 logger = logging.getLogger(__name__)
 
 TIMEOUT_RETURNCODE = -1
+UNBOUND_REASONS = {"egress_proxy": "no egress proxy", "target_ip": "no vetted address"}
+
+
+def is_ip_literal(host: str) -> bool:
+    try:
+        ipaddress.ip_address(host)
+    except ValueError:
+        return False
+    return True
+
+
+def compact_number(value: float) -> str:
+    """Six decimals at most, no trailing zeros, never an exponent."""
+    return f"{value:.6f}".rstrip("0").rstrip(".")
 
 
 class ToolRun(NamedTuple):
@@ -23,12 +40,36 @@ class ToolRun(NamedTuple):
 class ExternalToolScanner(BaseScanner):
     """Base for scanners that shell out: group-kill timeouts, argv policy, redaction."""
 
+    # ScanContext field the tool cannot start without ("" = none).
+    binds_to: ClassVar[str] = ""
+
     def __init__(self, options: dict[str, Any] | None = None) -> None:
         super().__init__(options)
         self._secrets: tuple[str, ...] = ()
+        self._proxy = ""
+        self._vetted_ip = ""
+        self._rate_rps = 0.0
 
-    def _begin(self, target: Target) -> None:
+    def _unbound(
+        self, target: Target, context: ScanContext | None
+    ) -> ScannerResult | None:
+        """Refusal result when the tool's binding is missing, else None."""
+        if not self.binds_to:
+            return None
+        if self.binds_to == "target_ip" and is_ip_literal(target.hostname):
+            return None
+        if getattr(context, self.binds_to, ""):
+            return None
+        reason = UNBOUND_REASONS[self.binds_to]
+        return ScannerResult(
+            scanner_name=self.name, errors=[f"{self.name} was not started: {reason}"]
+        )
+
+    def _begin(self, target: Target, context: ScanContext | None = None) -> None:
         self._secrets = secrets_from(target)
+        self._proxy = getattr(context, "egress_proxy", "")
+        self._vetted_ip = getattr(context, "target_ip", "")
+        self._rate_rps = getattr(context, "tool_rate_rps", 0.0)
 
     def _extra_args(self) -> list[str]:
         return validate_extra_args(self.name, self.options.get("extra_args", []))
@@ -44,7 +85,7 @@ class ExternalToolScanner(BaseScanner):
         self,
         cmd: list[str],
         *,
-        timeout: int = 600,
+        timeout: float = 600,
         capture: bool = True,  # noqa: ARG002
     ) -> tuple[int, str, str]:
         """Run *cmd*; a timeout raises ``ToolTimeoutError`` with partial output."""

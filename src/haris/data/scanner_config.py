@@ -39,6 +39,8 @@ class _NucleiConfig(BaseModel):
     remediation_map: dict[str, str] = Field(default_factory=dict)
     exclude_template_types: list[str] = Field(default_factory=list)
     exclude_template_ids: list[str] = Field(default_factory=list)
+    unproxied_template_types: list[str] = Field(default_factory=list)
+    phase2_timeout_s: float = 300
 
 
 def _load_scanner_config(scanner_name: str) -> dict[str, Any]:
@@ -247,11 +249,35 @@ def get_nuclei_exclude_template_types() -> list[str]:
     )
 
 
+def get_nuclei_unproxied_template_types() -> list[str]:
+    """Get Nuclei protocol types that ignore the egress proxy (``-ept``)."""
+    return cast(
+        list[str], _load_scanner_config("nuclei").get("unproxied_template_types", [])
+    )
+
+
 def get_nuclei_exclude_template_ids() -> list[str]:
     """Get Nuclei template ids excluded because built-in checks cover them."""
     return cast(
         list[str], _load_scanner_config("nuclei").get("exclude_template_ids", [])
     )
+
+
+def get_nuclei_phase2_timeout() -> float:
+    """Get the total seconds Nuclei Phase 2 (broad plus targeted) may run."""
+    return check_nuclei_phase2_timeout(
+        _load_scanner_config("nuclei").get("phase2_timeout_s", 300)
+    )
+
+
+def check_nuclei_phase2_timeout(value: Any) -> float:
+    """Return *value* as seconds; zero, negative and NaN raise ``ValueError``."""
+    seconds = float(value)
+    if not seconds > 0:
+        raise ValueError(
+            f"scanners.nuclei.phase2_timeout_s must be greater than 0, got {value!r}"
+        )
+    return seconds
 
 
 def get_nuclei_remediation_map() -> dict[str, str]:

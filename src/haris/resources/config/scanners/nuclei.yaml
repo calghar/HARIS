@@ -53,6 +53,9 @@ default_template_dirs:
 # Template directory for technology fingerprinting (Phase 1)
 tech_fingerprint_dir: http/technologies
 
+# Total seconds for Phase 2 (broad plus targeted); at the limit nuclei is killed, findings kept
+phase2_timeout_s: 300
+
 # Nuclei OWASP tag mapping
 # Maps Nuclei template tags/matcher-names to OWASP-aligned tags
 # Keys are lowercase substrings; evaluation order matters
@@ -329,6 +332,15 @@ exclude_template_types:
   - code
   - file
   - headless
+
+# Protocol types that ignore the egress proxy; excluded (-ept) so every nuclei connection is vetted.
+unproxied_template_types:
+  - dns
+  - tcp
+  - ssl
+  - websocket
+  - whois
+  - javascript
 
 # Templates dropped (-eid) because built-in header checks already cover them.
 # [UNVERIFIED] ids against the official nuclei-templates repo (not installed here).

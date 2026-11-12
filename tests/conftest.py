@@ -1,6 +1,9 @@
 import socket
+from typing import Any
 
 import pytest
+
+from haris.models.scan_context import ScanContext
 
 PUBLIC_ADDRESS = "93.184.216.34"
 
@@ -27,3 +30,13 @@ def fast_bcrypt(monkeypatch: pytest.MonkeyPatch) -> None:
 
     real = bcrypt.gensalt
     monkeypatch.setattr(bcrypt, "gensalt", lambda *_a, **_k: real(rounds=4))
+
+
+def bound_context(**overrides: Any) -> ScanContext:
+    """A context carrying the vetted address and egress proxy external tools need."""
+    fields: dict[str, Any] = {
+        "target_ip": PUBLIC_ADDRESS,
+        "egress_proxy": "http://127.0.0.1:3128",
+        **overrides,
+    }
+    return ScanContext(**fields)

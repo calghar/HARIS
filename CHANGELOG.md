@@ -8,6 +8,10 @@
 - Added `tests/bdd`, a `pytest-bdd` harness that runs every generated scenario against the existing tests mapped in `tests/bdd/maps`; scenarios of the unimplemented Phase 6 change are strict `xfail` until their task lands
 - Added replay oracles for `path_traversal`, `open_redirect` and `command_injection`; the last runs delay-only payloads from `verify.timing.cmd_payloads` under the oracle name `timing_cmd`, and `ssrf` and `xxe` stay `unverified`
 - Added the nikto class `unclassified:nikto:interesting_path` with severity `info` for "This might be interesting" findings, replayed with the `soft404` oracle
+- Added scanner statuses `partial` and `skipped`; neither makes the scan `incomplete`, and `skipped` is left out of the completion count
+- Added `scanner_notes` to the JSON report and a note line to the Markdown, HTML, SARIF and JUnit reports for each `partial` or `skipped` scanner
+- Added `scanners.nuclei.phase2_timeout_s` (default 300; 0 or less is rejected) as one limit on nuclei phase 2; at the limit the process group is killed, findings are kept and the scanner is `partial`
+- Added a local egress proxy for nuclei, nikto and Wapiti; it dials only vetted addresses, pins the target host to its pre-flight address and always blocks cloud metadata addresses
 - Added `verify.poc_max_requests` (default 20), the cap on requests sent when an agent PoC is re-executed
 
 ### Changed
@@ -21,6 +25,12 @@
 - Changed the `pip-audit` job to ignore 13 `filelock` 3.32.7 advisories that `litellm` 1.108.0 forces (it caps `filelock` below 4); the ignores go when `litellm` moves to 1.108.3 or later
 - Changed the DVWA benchmark database image to `ghcr.io/mariadb/mariadb:10.11` pinned by digest; Juice Shop and WebGoat stay on Docker Hub because upstream publishes nowhere else (`bench/README.md`)
 - Changed the agent PoC re-execution to send every PoC request in order, each with its control, up to `verify.poc_max_requests`; the scan rate limit spaces the sends
+- Changed nmap and sslyze to connect to the address vetted at pre-flight; findings keep the host name, and nmap runs with `-n`, so a PTR name no longer shows for an IP-literal target
+- Changed external tools to refuse to start without a binding (vetted address, egress proxy or blocking network); the scan records one error naming the tool and the reason
+- Changed nuclei to exclude the template types that bypass the proxy (`dns`, `tcp`, `ssl`, `websocket`, `whois`, `javascript`) through `-ept`
+- Changed sslyze to be `skipped` with the note `no TLS endpoint` when the target scheme is `http` and nmap found no TLS port
+- Changed OWASP mapping to use the finding's class before its tags and title; `cleartext_password_submission` now maps to A04 with CWE-319
+- Changed nmap, nuclei and nikto to receive the per-tool rate as `--max-rate`, `-rl` (rounded down, minimum 1) and `-Pause` (1/rate seconds), placed after `extra_args`
 
 ### Fixed
 
@@ -32,6 +42,7 @@
 - Fixed the runtime image shipping base-image `pip`, which vendors `msgpack` 1.1.2, `urllib3` 2.7.0 and `setuptools` 70.3.0: that `pip` tree is removed
 - Fixed the `CodeQL` job of the `Security` workflow failing on SARIF upload while GitHub default setup is on: the job is removed and default setup scans `main`
 - Fixed the image scan failing on 26 fixed CVEs in the `nuclei` 3.11.1 Go dependencies, the latest release: `.trivyignore.yaml` ignores them for `usr/local/bin/nuclei` only, until 2026-12-12
+- Fixed external tools re-resolving the target host after the pre-flight and connecting to a private address (DNS rebinding): nuclei, nikto and Wapiti now go through the vetting proxy, and nmap and sslyze connect to the vetted address
 
 ## 0.7.1 — 2026-11-12
 

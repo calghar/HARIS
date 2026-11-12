@@ -187,6 +187,10 @@ def _invocation(session: ScanSession) -> dict[str, Any]:
         "executionSuccessful": session.scan_state == ScanState.COMPLETED,
         "toolExecutionNotifications": [
             {"level": "error", "message": {"text": e}} for e in session.errors
+        ]
+        + [
+            {"level": "note", "message": {"text": f"[{name}] {note}"}}
+            for name, note in session.scanner_notes.items()
         ],
         "properties": {"scanState": session.scan_state.value},
     }

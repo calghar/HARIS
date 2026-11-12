@@ -74,6 +74,7 @@ class ReportDocument(BaseModel):
     scan_state: str = "pending"
     stage_log: list[str] = Field(default_factory=list)
     scanner_status: dict[str, str] = Field(default_factory=dict)
+    scanner_notes: dict[str, str] = Field(default_factory=dict)
     correlated: list[CorrelatedRecord] = Field(default_factory=list)
 
 

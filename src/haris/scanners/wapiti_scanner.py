@@ -82,6 +82,7 @@ class WapitiScanner(ExternalToolScanner):
     """
 
     name = "wapiti"
+    binds_to = "egress_proxy"
     version = "3.3"
     description = "Black-box web application vulnerability scanner"
 
@@ -95,13 +96,15 @@ class WapitiScanner(ExternalToolScanner):
         self.options.setdefault("extra_args", [])
 
     @handle_scanner_errors
-    def scan(self, target: Target, context: Any = None) -> ScannerResult:  # noqa: ARG002
+    def scan(self, target: Target, context: Any = None) -> ScannerResult:
+        if (refusal := self._unbound(target, context)) is not None:
+            return refusal
         if not self._check_tool_available("wapiti"):
             return ScannerResult(
                 scanner_name=self.name,
                 errors=["wapiti3 is not installed or not on PATH"],
             )
-        self._begin(target)
+        self._begin(target, context)
 
         with tempfile.TemporaryDirectory() as tmpdir:
             root = Path(tmpdir)
@@ -252,6 +255,9 @@ class WapitiScanner(ExternalToolScanner):
             "--module",
             self._module_spec(),
         ]
+
+        if self._proxy:
+            cmd.extend(["--proxy", self._proxy])
 
         for url in wapiti_exclude_urls(target.base_url, target.scope.excluded_paths):
             cmd.extend(["--exclude", url])

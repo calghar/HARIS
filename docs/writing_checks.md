@@ -57,7 +57,7 @@ Import the class from `src/haris/checks/__init__.py`. A profile runs only the na
 
 ## OWASP tag
 
-A tag that matches a key in `OWASP_MAPPINGS` (`src/haris/core/owasp.py`) sets the category. `cors_misconfiguration` maps to A01:2025 Broken Access Control.
+The finding's canonical class (`CLASS_OWASP` in `src/haris/core/owasp.py`) sets the category first. Without a class entry, a tag that matches a key in `OWASP_MAPPINGS` sets it, then the title. `cors_misconfiguration` maps to A01:2025 Broken Access Control.
 
 Set `vuln_class` to an id in `vuln_classes.yaml`. An unknown class stays `unclassified:`.
 

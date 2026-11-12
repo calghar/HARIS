@@ -100,6 +100,15 @@ class ScanState(enum.StrEnum):
     CANCELLED = "cancelled"
 
 
+class ScannerStatus(enum.StrEnum):
+    """Per-scanner outcome; the last two are set by a scanner in its metadata."""
+
+    COMPLETED = "completed"
+    FAILED = "failed"
+    PARTIAL = "partial"
+    SKIPPED = "skipped"
+
+
 class OwaspCategory(enum.StrEnum):
     """OWASP Top 10 2025 categories."""
 

@@ -10,6 +10,7 @@ from haris.models import Confidence, Finding, Target
 from haris.scanners.base import TIMEOUT_RETURNCODE, ToolRun
 from haris.scanners.wapiti_scanner import SCAN_KILL_GRACE_SECONDS, WapitiScanner
 from haris.scanners.wapiti_session import session_report
+from tests.conftest import bound_context
 
 FIXTURE = Path(__file__).parent / "fixtures" / "scanners" / "wapiti" / "dvwa_session.db"
 SECRET = "planted-session-secret-7c2e"
@@ -151,7 +152,7 @@ class TestScanRecovery:
         scanner = WapitiScanner({"max_scan_time": MAX_SCAN_TIME})
         monkeypatch.setattr(scanner, "_check_tool_available", _available)
         monkeypatch.setattr(scanner, "_run_to_file", run)
-        result = scanner.scan(Target(base_url="http://127.0.0.1:9"))
+        result = scanner.scan(Target(base_url="http://127.0.0.1:9"), bound_context())
         waited = MAX_SCAN_TIME + SCAN_KILL_GRACE_SECONDS
         assert len(result.findings) == 27
         assert result.errors == [
@@ -170,7 +171,7 @@ class TestScanRecovery:
         scanner = WapitiScanner()
         monkeypatch.setattr(scanner, "_check_tool_available", _available)
         monkeypatch.setattr(scanner, "_run_to_file", run)
-        result = scanner.scan(Target(base_url="http://127.0.0.1:9"))
+        result = scanner.scan(Target(base_url="http://127.0.0.1:9"), bound_context())
         assert len(result.findings) == 27
         assert result.errors == ["wapiti exited with code 3: scanner failed"]
 
@@ -204,7 +205,7 @@ class TestScanRecovery:
         monkeypatch.setattr(scanner, "_check_tool_available", _available)
         monkeypatch.setattr(scanner, "_run_to_file", run)
         monkeypatch.setattr("haris.scanners.wapiti_scanner.session_report", refuse)
-        result = scanner.scan(Target(base_url="http://127.0.0.1:9"))
+        result = scanner.scan(Target(base_url="http://127.0.0.1:9"), bound_context())
         assert result.errors == []
         assert len(result.findings) == 1
         assert result.findings[0].description == "normal-report-marker"

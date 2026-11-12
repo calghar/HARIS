@@ -15,6 +15,7 @@ from .option_values import (
     _NUMBER,
     _NUMBER_MAX,
     _NUMBER_MIN,
+    _POSITIVE_KEYS,
     _STRINGS,
     _TEXT,
     _TEXT_MAX_CHARS,
@@ -48,6 +49,7 @@ _OPTION_KEYS: dict[str, frozenset[str]] = {
             "automatic_scan",
             "update_templates",
             "timeout_per_request",
+            "phase2_timeout_s",
         }
     ),
     "nikto": frozenset({"timeout", "extra_args", "tuning", "plugins"}),
@@ -181,6 +183,7 @@ def _check_number(scanner: str, option: object, value: object) -> None:
         or not isinstance(value, int | float)
         or not math.isfinite(value)
         or not _NUMBER_MIN <= value <= _NUMBER_MAX
+        or (str(option) in _POSITIVE_KEYS and value <= 0)
     ):
         raise _bad_value(scanner, option)
 

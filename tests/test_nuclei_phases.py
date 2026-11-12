@@ -19,6 +19,7 @@ from haris.scanners.nuclei_scanner import (
 )
 from haris.scanners.nuclei_templates import config_dir_from, templates_dir_from
 from haris.scanners.process import ToolTimeoutError
+from tests.conftest import bound_context
 
 FIXTURES = Path(__file__).parent / "fixtures" / "scanners" / "nuclei"
 SECRETS = ("nuclei-secret-token", "nuclei-secret-key", "nuclei-secret-cookie")
@@ -79,7 +80,7 @@ def scan(
         patch.object(scanner, "_template_root", return_value=None),
         patch("haris.scanners.base.run_process", side_effect=fake),
     ):
-        return scanner.scan(target, context)
+        return scanner.scan(target, context or bound_context())
 
 
 def flag_value(cmd: list[str], flag: str) -> str:
@@ -88,7 +89,7 @@ def flag_value(cmd: list[str], flag: str) -> str:
 
 class TestPhaseOne:
     def test_technologies_reported_not_findings(self, target: Target) -> None:
-        ctx = ScanContext()
+        ctx = bound_context()
         result = scan(FakeNuclei(tech=fixture("phase1_tech.jsonl")), target, None, ctx)
         assert result.findings == []
         assert result.metadata["technologies"] == ["apache", "php"]
@@ -116,7 +117,9 @@ class TestCommandFlags:
         assert "-ot" in cmd
         assert "-duc" in cmd
         assert flag_value(cmd, "-es") == "info"
-        assert flag_value(cmd, "-ept") == "code,file,headless"
+        assert flag_value(cmd, "-ept") == (
+            "code,file,headless,dns,tcp,ssl,websocket,whois,javascript"
+        )
         assert flag_value(cmd, "-mhe") == "500"
         assert "-nmhe" not in cmd
 
@@ -206,7 +209,8 @@ class TestTimeout:
         )
         result = scan(fake, target)
         assert len(result.findings) == 2
-        assert "phase2-broad" in result.errors[0]
+        assert result.errors == []
+        assert result.status == "partial"
 
 
 class TestUrlListCleanup:

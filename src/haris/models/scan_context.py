@@ -26,6 +26,10 @@ class ScanContext(BaseModel):
         default_factory=list,
         description="Open ports from Nmap results (e.g. '80', '443', '8080').",
     )
+    tls_ports: list[str] = Field(
+        default_factory=list,
+        description="Open ports whose service runs over TLS, from Nmap results.",
+    )
     server_headers: dict[str, str] = Field(
         default_factory=dict,
         description="Server response headers captured by earlier scanners.",
@@ -44,6 +48,13 @@ class ScanContext(BaseModel):
     target_ip: str = Field(
         default="",
         description="Address vetted by the SSRF pre-flight, for tools that take one.",
+    )
+    egress_proxy: str = Field(
+        default="",
+        description=(
+            "URL of the local proxy that vets every destination;"
+            " external tools route through it."
+        ),
     )
 
     def add_technologies(self, techs: list[str]) -> None:

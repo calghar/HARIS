@@ -84,7 +84,7 @@ class MarkdownReporter(BaseReporter):
             if counts[sev]
         ]
         if session.scan_state in UNFINISHED:
-            failed = [n for n, s in session.scanner_status.items() if s != "completed"]
+            failed = [n for n, s in session.scanner_status.items() if s == "failed"]
             detail = f"; scanners not completed: {', '.join(failed)}" if failed else ""
             lines.append(
                 f"\n> **Scan {session.scan_state.value}**{md_text(detail)}. "
@@ -95,6 +95,9 @@ class MarkdownReporter(BaseReporter):
                 f"\n> **Note:** {len(session.errors)} scanner error(s) "
                 "occurred during the assessment."
             )
+        for name, note in session.scanner_notes.items():
+            status = session.scanner_status[name]
+            lines.append(f"\n> **Scanner {status}:** {md_text(f'{name}: {note}')}")
         return "\n".join(lines)
 
     def _methodology(self, session: ScanSession) -> str:

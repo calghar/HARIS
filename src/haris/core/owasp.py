@@ -190,6 +190,119 @@ OWASP_MAPPINGS: dict[str, OwaspMapping] = {
     ),
 }
 
+# Class id -> existing keyword whose first CWE equals the class primary CWE.
+_CLASS_KEYWORDS: dict[str, str] = {
+    "xss_stored": "xss",
+    "xss_reflected": "xss",
+    "sqli_time": "sql_injection",
+    "sqli_error": "sql_injection",
+    "path_traversal": "directory_traversal",
+    "open_redirect": "open_redirect",
+    "ssrf": "ssrf",
+    "xxe": "xxe",
+    "command_injection": "command_injection",
+    "csrf": "missing_csrf",
+    "cleartext_password_submission": "cleartext_transmission",
+    "no_https": "cleartext_transmission",
+    "no_https_redirect": "cleartext_transmission",
+    "weak_hsts": "cleartext_transmission",
+    "missing_header": "missing_security_headers",
+    "weak_csp": "missing_security_headers",
+    "dns_missing_caa": "missing_security_headers",
+    "tls_weak_protocol": "weak_tls",
+    "tls_weak_cipher": "weak_cipher",
+    "cors_misconfiguration": "cors_misconfiguration",
+    "directory_listing": "directory_listing",
+    "verbose_error": "verbose_errors",
+    "missing_sri": "missing_sri",
+    "cookie_scope": "security_misconfiguration",
+    "http_trace": "security_misconfiguration",
+}
+
+
+def _class_mapping(category: OwaspCategory, cwe: str, description: str) -> OwaspMapping:
+    return OwaspMapping(category=category, description=description, typical_cwes=(cwe,))
+
+
+_INFO_EXPOSURE = _class_mapping(
+    OwaspCategory.A02_SECURITY_MISCONFIGURATION,
+    "CWE-200",
+    "Information exposed to a client",
+)
+_INSECURE_COOKIE = _class_mapping(
+    OwaspCategory.A02_SECURITY_MISCONFIGURATION,
+    "CWE-614",
+    "Cookie without the Secure flag",
+)
+_DNS_SPOOFING = _class_mapping(
+    OwaspCategory.A02_SECURITY_MISCONFIGURATION,
+    "CWE-290",
+    "Missing mail spoofing protection",
+)
+_CRYPTO = OwaspCategory.A04_CRYPTOGRAPHIC_FAILURES
+
+# Class id -> mapping. ``ai_*`` classes carry their own LLM/agentic risk ids.
+CLASS_OWASP: dict[str, OwaspMapping] = {
+    **{cls: OWASP_MAPPINGS[keyword] for cls, keyword in _CLASS_KEYWORDS.items()},
+    "unrestricted_upload": _class_mapping(
+        OwaspCategory.A06_INSECURE_DESIGN, "CWE-434", "Unrestricted file upload"
+    ),
+    "version_disclosure": _INFO_EXPOSURE,
+    "banner_disclosure": _INFO_EXPOSURE,
+    "cookie_name_disclosure": _INFO_EXPOSURE,
+    "graphql_introspection": _INFO_EXPOSURE,
+    "api_docs_exposed": _INFO_EXPOSURE,
+    "sensitive_file": _class_mapping(
+        OwaspCategory.A02_SECURITY_MISCONFIGURATION, "CWE-538", "Sensitive file exposed"
+    ),
+    "insecure_cookie": _INSECURE_COOKIE,
+    "cookie_missing_secure": _INSECURE_COOKIE,
+    "cookie_missing_httponly": _class_mapping(
+        OwaspCategory.A02_SECURITY_MISCONFIGURATION,
+        "CWE-1004",
+        "Cookie without HttpOnly",
+    ),
+    "cookie_samesite": _class_mapping(
+        OwaspCategory.A02_SECURITY_MISCONFIGURATION,
+        "CWE-1275",
+        "Cookie without SameSite",
+    ),
+    "cookie_lifetime": _class_mapping(
+        OwaspCategory.A07_AUTH_FAILURES,
+        "CWE-613",
+        "Session cookie with excessive lifetime",
+    ),
+    "tls_cert_expired": _class_mapping(_CRYPTO, "CWE-298", "Expired TLS certificate"),
+    "tls_cert_hostname": _class_mapping(
+        _CRYPTO, "CWE-297", "TLS certificate host mismatch"
+    ),
+    "tls_cert_untrusted": _class_mapping(
+        _CRYPTO, "CWE-295", "Untrusted TLS certificate"
+    ),
+    "http_methods": _class_mapping(
+        OwaspCategory.A02_SECURITY_MISCONFIGURATION,
+        "CWE-749",
+        "Dangerous HTTP method enabled",
+    ),
+    "dns_missing_spf": _DNS_SPOOFING,
+    "dns_missing_dmarc": _DNS_SPOOFING,
+    "cache_sensitive": _class_mapping(
+        OwaspCategory.A02_SECURITY_MISCONFIGURATION,
+        "CWE-525",
+        "Sensitive response cacheable",
+    ),
+    "html_comment_leak": _class_mapping(
+        OwaspCategory.A02_SECURITY_MISCONFIGURATION,
+        "CWE-615",
+        "Sensitive data in HTML comments",
+    ),
+}
+
+
+def map_class_to_owasp(class_id: str) -> OwaspMapping | None:
+    """Look up the OWASP mapping for a canonical vulnerability class id."""
+    return CLASS_OWASP.get(class_id)
+
 
 def map_to_owasp(keyword: str) -> OwaspMapping | None:
     """Look up the OWASP mapping for a vulnerability keyword.

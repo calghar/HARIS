@@ -2,6 +2,11 @@
 # Scanners not listed here are built-in checks and use the builtin aliases.
 external_scanners: [wapiti, nuclei, nikto, nmap, sslyze, zap]
 
+# No OWASP entry in core/owasp.py or ai_mappings.yaml (informational AI findings).
+unmapped:
+  - ai_endpoint_discovered
+  - ai_ai_widget
+
 classes:
   - id: xss_stored
     primary_cwe: CWE-79

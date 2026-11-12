@@ -1,10 +1,17 @@
 import logging
+import math
 import tempfile
+import time
 from pathlib import Path
 from typing import Any
 
 from ..core.decorators import handle_scanner_errors, register_scanner
-from ..data.scanner_config import get_nuclei_exclude_template_types
+from ..data.scanner_config import (
+    check_nuclei_phase2_timeout,
+    get_nuclei_exclude_template_types,
+    get_nuclei_phase2_timeout,
+    get_nuclei_unproxied_template_types,
+)
 from ..models import Finding, ScannerResult, Target
 from ..models.scan_context import ScanContext
 from .nuclei_results import (
@@ -35,7 +42,8 @@ class NucleiScanner(NucleiResults):
     runs tech-derived tags and workflows over the templates 2a did not cover.
     Explicit ``template_dirs`` or ``tags`` replace the multi-phase strategy.
 
-    Options: ``timeout`` (seconds per phase), ``template_dirs``, ``templates``,
+    Options: ``timeout`` (seconds per phase), ``phase2_timeout_s`` (seconds for
+    all of Phase 2; overrides ``nuclei.yaml``), ``template_dirs``, ``templates``,
     ``tags``, ``severity``, ``exclude_tags``, ``rate_limit``, ``concurrency``,
     ``bulk_size``, ``max_host_errors`` (``-mhe``), ``timeout_per_request``,
     ``enable_interactsh``, ``skip_tech_detection``, ``automatic_scan`` (``-as``
@@ -43,6 +51,7 @@ class NucleiScanner(NucleiResults):
     """
 
     name = "nuclei"
+    binds_to = "egress_proxy"
     version = "3.x"
     description = "Template-based CVE, misconfiguration, and exposure scanner"
 
@@ -66,6 +75,7 @@ class NucleiScanner(NucleiResults):
         self.options.setdefault("timeout_per_request", 30)
         self._root_resolved = False
         self._root: Path | None = None
+        self.phase2_stopped = False
 
     def _template_root(self) -> Path | None:
         """Template root from nuclei's own config, cached per scanner."""
@@ -113,12 +123,14 @@ class NucleiScanner(NucleiResults):
 
     @handle_scanner_errors
     def scan(self, target: Target, context: ScanContext | None = None) -> ScannerResult:
+        if (refusal := self._unbound(target, context)) is not None:
+            return refusal
         if not self._check_tool_available("nuclei"):
             return ScannerResult(
                 scanner_name=self.name,
                 errors=["nuclei is not installed or not on PATH"],
             )
-        self._begin(target)
+        self._begin(target, context)
 
         all_findings: list[Finding] = []
         all_errors: list[str] = []
@@ -154,11 +166,15 @@ class NucleiScanner(NucleiResults):
         target_urls = self._build_url_list(target, context)
         dirs, tags, workflows = self._resolve_targeted_selection(context, has_explicit)
 
+        self.phase2_stopped = False
+        limit = self._phase2_limit()
+        deadline = time.monotonic() + limit
         broad, errors, raw = self._run_phase(
             target,
             template_dirs=dirs,
             url_list=target_urls,
             phase_label="phase2-broad",
+            deadline=deadline,
         )
         all_raw.append(raw)
         all_findings.extend(broad)
@@ -174,18 +190,32 @@ class NucleiScanner(NucleiResults):
                 automatic=automatic,
                 url_list=target_urls,
                 phase_label="phase2-targeted",
+                deadline=deadline,
             )
             all_raw.append(raw)
             all_findings.extend(targeted)
             all_errors.extend(errors)
 
+        metadata: dict[str, Any] = {"technologies": technologies}
+        if self.phase2_stopped:
+            metadata["status"] = "partial"
+            metadata["note"] = (
+                f"phase 2 stopped at the {limit:g} s limit "
+                "(scanners.nuclei.phase2_timeout_s); results so far kept"
+            )
         return ScannerResult(
             scanner_name=self.name,
             raw_output=self._redact("\n".join(all_raw)),
             findings=self._dedupe(all_findings),
             errors=all_errors,
-            metadata={"technologies": technologies},
+            metadata=metadata,
         )
+
+    def _phase2_limit(self) -> float:
+        override = self.options.get("phase2_timeout_s")
+        if override is None:
+            return get_nuclei_phase2_timeout()
+        return check_nuclei_phase2_timeout(override)
 
     @staticmethod
     def _dedupe(findings: list[Finding]) -> list[Finding]:
@@ -217,8 +247,22 @@ class NucleiScanner(NucleiResults):
         url_list: list[str] | None = None,
         phase_label: str = "",
         phase_one: bool = False,
+        deadline: float | None = None,
     ) -> tuple[list[Finding], list[str], str]:
-        """Run one nuclei invocation; returns (findings, errors, raw_stdout)."""
+        """Run one nuclei invocation; returns (findings, errors, raw_stdout).
+
+        With a monotonic ``deadline`` the run gets the time left; hitting that
+        limit sets ``phase2_stopped`` instead of adding an error.
+        """
+        timeout = float(self.options["timeout"])
+        bounded = False
+        if deadline is not None:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                self.phase2_stopped = True
+                return [], [], ""
+            bounded = remaining <= timeout
+            timeout = min(timeout, remaining)
         url_file = (
             self._write_url_list(url_list) if url_list and len(url_list) > 1 else None
         )
@@ -238,15 +282,16 @@ class NucleiScanner(NucleiResults):
                 "nuclei [%s] command: %s", phase_label, self._redact(" ".join(cmd))
             )
             try:
-                returncode, stdout, stderr = self._run_command(
-                    cmd, timeout=self.options["timeout"]
-                )
+                returncode, stdout, stderr = self._run_command(cmd, timeout=timeout)
             except ToolTimeoutError as exc:
                 returncode, stdout, stderr = 0, exc.stdout, exc.stderr
-                errors.append(
-                    f"nuclei [{phase_label}] timed out after "
-                    f"{self.options['timeout']}s; partial results kept"
-                )
+                if bounded:
+                    self.phase2_stopped = True
+                else:
+                    errors.append(
+                        f"nuclei [{phase_label}] timed out after "
+                        f"{self.options['timeout']}s; partial results kept"
+                    )
         finally:
             if url_file:
                 Path(url_file).unlink(missing_ok=True)
@@ -385,7 +430,17 @@ class NucleiScanner(NucleiResults):
             str(self.options.get("timeout_per_request", 30)),
         ]
 
-        excluded_types = get_nuclei_exclude_template_types()
+        if self._proxy:
+            cmd.extend(["-proxy", self._proxy])
+
+        excluded_types = list(
+            dict.fromkeys(
+                [
+                    *get_nuclei_exclude_template_types(),
+                    *get_nuclei_unproxied_template_types(),
+                ]
+            )
+        )
         if excluded_types:
             cmd.extend(["-ept", ",".join(excluded_types)])
         if EXCLUDED_TEMPLATE_IDS:
@@ -455,6 +510,10 @@ class NucleiScanner(NucleiResults):
             cmd.extend(["-H", f"{header_name}: {header_value}"])
 
         cmd.extend(self._extra_args())
+        if self._rate_rps > 0:
+            # After extra_args so a user -rl cannot raise it; rate_limit may lower it.
+            rate = max(1, math.floor(self._rate_rps))
+            cmd.extend(["-rl", str(min(rate, int(self.options["rate_limit"])))])
         return cmd
 
     @staticmethod

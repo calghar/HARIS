@@ -12,6 +12,7 @@ from ..ignore import IgnoreFile, apply_ignores
 from ..models import (
     Finding,
     ScannerResult,
+    ScannerStatus,
     ScanSession,
     ScanState,
     Target,
@@ -26,17 +27,19 @@ from .correlator import FindingCorrelator, pick_best
 from .decorators import check_registry
 from .identity import assign_identity
 from .llm_enrichment import run_llm_enrichment
-from .owasp import map_to_owasp
+from .owasp import map_class_to_owasp, map_to_owasp
 from .remediation import RemediationPlanner
 from .risk import assess_risk_posture, risk_posture_summary
 from .scanner import BaseScanner
-from .tool_vet import external_target_block
+from .tool_vet import egress_proxy_for, external_target_block
+from .vuln_class import get_registry
 
 logger = logging.getLogger(__name__)
 
 DEFAULT_PARALLEL = 3
 MIN_TOOL_RATE_RPS = 1.0
 RECON_SCANNERS = frozenset({"nmap"})
+DONE_STATUSES = frozenset({ScannerStatus.COMPLETED, ScannerStatus.PARTIAL})
 
 
 class ScanEngine:
@@ -186,14 +189,25 @@ class ScanEngine:
                 )
             return
 
-        context = ScanContext(http=client, target_ip=target_ip)
+        proxy = egress_proxy_for(
+            self.scanners, target, target_ip, self._network_policy, self._resolver
+        )
+        context = ScanContext(
+            http=client,
+            target_ip=target_ip,
+            egress_proxy=proxy.start() if proxy else "",
+        )
         recon = [s for s in self.scanners if self._is_recon(s)]
         rest = [s for s in self.scanners if not self._is_recon(s)]
         rps = target.scope.rate_limit_rps
-        for stage, workers in ((recon, 1), (rest, self.parallel)):
-            concurrent = max(1, min(workers, len(stage)))
-            context.tool_rate_rps = max(MIN_TOOL_RATE_RPS, rps / concurrent)
-            self._run_stage(stage, workers, session, target, config, context)
+        try:
+            for stage, workers in ((recon, 1), (rest, self.parallel)):
+                concurrent = max(1, min(workers, len(stage)))
+                context.tool_rate_rps = max(MIN_TOOL_RATE_RPS, rps / concurrent)
+                self._run_stage(stage, workers, session, target, config, context)
+        finally:
+            if proxy:
+                proxy.close()
 
     @staticmethod
     def _is_recon(scanner: BaseScanner) -> bool:
@@ -295,10 +309,13 @@ class ScanEngine:
         status = session.scanner_status
         if not status:
             return ScanState.FAILED if self.scanners else ScanState.COMPLETED
-        completed = sum(1 for s in status.values() if s == "completed")
-        if completed == 0:
+        counted = [s for s in status.values() if s != ScannerStatus.SKIPPED]
+        if not counted:
+            return ScanState.COMPLETED
+        done = sum(s in DONE_STATUSES for s in counted)
+        if done == 0:
             return ScanState.FAILED
-        return ScanState.COMPLETED if completed == len(status) else ScanState.INCOMPLETE
+        return ScanState.COMPLETED if done == len(counted) else ScanState.INCOMPLETE
 
     # Post-processing
 
@@ -306,9 +323,10 @@ class ScanEngine:
         """Tag OWASP, assign identity, keep the best finding per fingerprint."""
         base_url = session.target.base_url
         buckets: dict[str, list[Finding]] = defaultdict(list)
+        registry = get_registry()
         for finding in session.all_findings:
             if not finding.owasp_category:
-                self._auto_map_owasp(finding)
+                self._auto_map_owasp(finding, registry.classify(finding))
             assign_identity(finding, base_url)
             buckets[finding.fingerprint].append(finding)
 
@@ -344,7 +362,7 @@ class ScanEngine:
         status = session.scanner_status
         session.risk_posture = assess_risk_posture(
             session.correlated,
-            scanner_completed=bool(status) and "completed" in status.values(),
+            scanner_completed=any(s in DONE_STATUSES for s in status.values()),
         )
         session.risk_posture_text = risk_posture_summary(session.risk_posture)
 
@@ -357,18 +375,15 @@ class ScanEngine:
     _extract_context = staticmethod(extract_context)
 
     @staticmethod
-    def _auto_map_owasp(finding: Finding) -> None:
-        """Try to set owasp_category from tags or title using OWASP 2025 mappings."""
-        for tag in finding.tags:
-            mapping = map_to_owasp(tag)
-            if mapping:
-                finding.owasp_category = mapping.category.value
-                if not finding.cwe_id and mapping.typical_cwes:
-                    finding.cwe_id = mapping.typical_cwes[0]
-                return
-
+    def _auto_map_owasp(finding: Finding, class_id: str) -> None:
+        """Set owasp_category from the canonical class, then tags, then title."""
         title_lower = finding.title.lower().replace(" ", "_")
-        mapping = map_to_owasp(title_lower)
+        candidates = (
+            map_class_to_owasp(class_id),
+            *(map_to_owasp(tag) for tag in finding.tags),
+            map_to_owasp(title_lower),
+        )
+        mapping = next((m for m in candidates if m), None)
         if mapping:
             finding.owasp_category = mapping.category.value
             if not finding.cwe_id and mapping.typical_cwes:

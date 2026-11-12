@@ -28,6 +28,10 @@ class JUnitReporter(BaseReporter):
         )
         for f in findings:
             suite.append(_testcase(f))
+        if session.scanner_notes:
+            ET.SubElement(suite, "system-out").text = xml_text(
+                "\n".join(f"{n}: {t}" for n, t in session.scanner_notes.items())
+            )
         root = ET.Element("testsuites")
         root.append(suite)
         return ET.tostring(root, encoding="unicode", xml_declaration=True)

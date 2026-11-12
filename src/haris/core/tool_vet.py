@@ -1,6 +1,7 @@
 import logging
 
 from ..models import Target
+from ..net.egress_proxy import EgressProxy
 from ..net.errors import SSRFBlocked
 from ..net.policy import NetworkPolicy
 from ..net.ssrf import Resolver, system_resolver, vet_host
@@ -8,6 +9,24 @@ from ..scanners.base import ExternalToolScanner
 from .scanner import BaseScanner
 
 logger = logging.getLogger(__name__)
+
+
+def egress_proxy_for(
+    scanners: list[BaseScanner],
+    target: Target,
+    target_ip: str,
+    policy: NetworkPolicy,
+    resolver: Resolver | None,
+) -> EgressProxy | None:
+    """Unstarted proxy pinned to the vetted address; None without external tools."""
+    if not any(isinstance(s, ExternalToolScanner) for s in scanners):
+        return None
+    pinned = {(target.hostname, target.port): target_ip} if target.hostname else {}
+    return EgressProxy(
+        allow_private=policy.allow_private,
+        pinned=pinned,
+        resolver=resolver or system_resolver,
+    )
 
 
 def external_target_block(

@@ -3,7 +3,7 @@
 ## ADDED Requirements
 
 ### Requirement: External tools connect only to vetted addresses
-An external scanner (nuclei, nmap, nikto, sslyze, Wapiti) SHALL connect only to addresses that passed the SSRF check of `ScopedClient` at its pre-flight. WHEN a tool can neither be bound to those addresses nor run in a network that blocks private, loopback and link-local ranges, it MUST NOT start and the scan MUST record an error for it. This applies to every re-resolution of the target host during the tool's run, including DNS answers that change after the pre-flight.
+An external scanner (nuclei, nmap, nikto, sslyze, Wapiti) SHALL connect only to addresses that passed the SSRF check of `ScopedClient` at its pre-flight. A tool SHALL be bound by one of: the vetted address in place of the host name, an egress proxy that resolves and vets every destination before connecting (the scan's vetted address for the target host), or a network that blocks private, loopback and link-local ranges. WHEN none of these is available for a tool, it MUST NOT start and the scan MUST record an error for it. This applies to every re-resolution of the target host during the tool's run, including DNS answers that change after the pre-flight.
 
 #### Scenario: Rebinding after pre-flight
 - **GIVEN** the target host resolves to `93.184.216.34` at pre-flight and to `127.0.0.1` for every later lookup

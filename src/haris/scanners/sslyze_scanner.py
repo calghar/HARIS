@@ -9,12 +9,20 @@ from ..data.scanner_config import (
     get_sslyze_deprecated_protocols,
     get_sslyze_vulnerability_checks,
 )
-from ..models import Confidence, Finding, ScannerResult, Severity, Target
-from .base import ExternalToolScanner
+from ..models import (
+    Confidence,
+    Finding,
+    ScannerResult,
+    ScannerStatus,
+    Severity,
+    Target,
+)
+from .base import ExternalToolScanner, is_ip_literal
 
 logger = logging.getLogger(__name__)
 
 SCAN_COMPLETED = "COMPLETED"
+NO_TLS_NOTE = "no TLS endpoint"
 
 
 def _dict(value: Any) -> dict[str, Any]:
@@ -31,6 +39,7 @@ class SSLyzeScanner(ExternalToolScanner):
     """Adapter for SSLyze TLS/SSL configuration scanner."""
 
     name = "sslyze"
+    binds_to = "target_ip"
     version = "6.x"
     description = "TLS/SSL configuration and certificate analyser"
 
@@ -40,13 +49,20 @@ class SSLyzeScanner(ExternalToolScanner):
         self.options.setdefault("extra_args", [])
 
     @handle_scanner_errors
-    def scan(self, target: Target, context: Any = None) -> ScannerResult:  # noqa: ARG002
+    def scan(self, target: Target, context: Any = None) -> ScannerResult:
+        if target.scheme == "http" and not getattr(context, "tls_ports", None):
+            return ScannerResult(
+                scanner_name=self.name,
+                metadata={"status": ScannerStatus.SKIPPED, "note": NO_TLS_NOTE},
+            )
+        if (refusal := self._unbound(target, context)) is not None:
+            return refusal
         if not self._check_tool_available("sslyze"):
             return ScannerResult(
                 scanner_name=self.name,
                 errors=["sslyze is not installed or not on PATH"],
             )
-        self._begin(target)
+        self._begin(target, context)
 
         with tempfile.TemporaryDirectory() as tmpdir:
             output_file = Path(tmpdir) / "sslyze_results.json"
@@ -70,7 +86,10 @@ class SSLyzeScanner(ExternalToolScanner):
     def _build_command(self, target: Target, output_path: str) -> list[str]:
         cmd = ["sslyze", "--json_out", output_path, "--quiet"]
         cmd.extend(self._extra_args())
-        cmd.extend(["--", f"{target.hostname}:{target.port}"])
+        location = f"{target.hostname}:{target.port}"
+        if self._vetted_ip and not is_ip_literal(target.hostname):
+            location += f"{{{self._vetted_ip}}}"
+        cmd.extend(["--", location])
         return cmd
 
     @staticmethod

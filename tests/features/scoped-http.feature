@@ -154,7 +154,7 @@ Feature: scoped-http
       | web    | env HARIS_ALLOW_PRIVATE_TARGETS=true | sent        |
 
   # Requirement: External tool pre-flight and rate split
-  # Before an external scanner starts, the target host SHALL pass the scheme, scope and SSRF checks of `ScopedClient`; on failure the scanner MUST NOT start and the scan MUST record an error. Concurrently running external tools MUST each receive a rate of `Scope.rate_limit_rps / n_concurrent` (minimum 1) passed through the tool's rate flag (nuclei `-rl`, nmap `--max-rate`, nikto `-Pause`), with redirects governed by each tool's own setting.
+  # Before an external scanner starts, the target host SHALL pass the scheme, scope and SSRF checks of `ScopedClient`; on failure the scanner MUST NOT start and the scan MUST record an error. Concurrently running external tools MUST each receive a rate of `Scope.rate_limit_rps / n_concurrent` (minimum 1) passed through the tool's rate flag (nuclei `-rl` rounded down to a whole number, nmap `--max-rate`, nikto `-Pause` as the reciprocal in seconds), placed after any `extra_args` so they cannot raise it, with redirects governed by each tool's own setting.
 
   @requirement_external_tool_pre_flight_and_rate_split
   Scenario: Pre-flight blocks private target
@@ -166,12 +166,13 @@ Feature: scoped-http
   @requirement_external_tool_pre_flight_and_rate_split
   Scenario: Rate split
     Given `Scope.rate_limit_rps` is 10 and `--parallel 2`
-    When `nuclei` and `nmap` run concurrently
-    Then nuclei's argv contains `-rl 5`
-    And nmap's argv contains `--max-rate 5`
+    When a scan runs `nmap`, `nuclei` and `nikto`, with `nmap` alone in the first stage
+    Then nmap's argv contains `--max-rate 10`
+    And nuclei's argv contains `-rl 5`
+    And nikto's argv contains `-Pause 0.2`
 
   # Requirement: External tools connect only to vetted addresses
-  # An external scanner (nuclei, nmap, nikto, sslyze, Wapiti) SHALL connect only to addresses that passed the SSRF check of `ScopedClient` at its pre-flight. WHEN a tool can neither be bound to those addresses nor run in a network that blocks private, loopback and link-local ranges, it MUST NOT start and the scan MUST record an error for it. This applies to every re-resolution of the target host during the tool's run, including DNS answers that change after the pre-flight.
+  # An external scanner (nuclei, nmap, nikto, sslyze, Wapiti) SHALL connect only to addresses that passed the SSRF check of `ScopedClient` at its pre-flight. A tool SHALL be bound by one of: the vetted address in place of the host name, an egress proxy that resolves and vets every destination before connecting (the scan's vetted address for the target host), or a network that blocks private, loopback and link-local ranges. WHEN none of these is available for a tool, it MUST NOT start and the scan MUST record an error for it. This applies to every re-resolution of the target host during the tool's run, including DNS answers that change after the pre-flight.
 
   @requirement_external_tools_connect_only_to_vetted_addresses
   Scenario Outline: Rebinding after pre-flight

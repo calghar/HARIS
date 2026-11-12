@@ -62,4 +62,6 @@ Pre-flight blocks private target:
     - tests/test_engine_pipeline.py::test_preflight_blocks_private_target
 
 Rate split:
-  pending: "4.7"
+  tests:
+    - tests/test_engine_pipeline.py::test_rate_is_split_across_concurrent_tools
+    - tests/test_scanner_rate_flags.py::test_rate_split_scenario_reaches_the_argv_of_the_real_scanners

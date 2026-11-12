@@ -1,3 +1,4 @@
+from .egress_proxy import EgressProxy
 from .errors import (
     NetworkError,
     RequestBudgetExceeded,
@@ -12,6 +13,7 @@ from .scoped_client import ScopedClient
 from .transport import ScopedResponse
 
 __all__ = [
+    "EgressProxy",
     "LogEntry",
     "NetworkError",
     "NetworkPolicy",

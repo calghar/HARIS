@@ -32,7 +32,7 @@ The `Target` dataclass represents the system under test:
 
 `ScanEngine` calls `ScopedClient.preflight` on the target URL before any scanner runs. `ScopedClient` calls `scope.is_url_in_scope()` on each HTTP request it sends.
 
-`external_target_block` vets each external tool's target host again immediately before that tool starts. The tool still receives the hostname and resolves it itself, so a DNS change in that window can point the tool at a blocked address. Task 4.13 in `openspec/changes/modernise-0-7/tasks.md` is the open item that pins the vetted address.
+`external_target_block` vets each external tool's target host again immediately before that tool starts. After the pre-flight, `ScanEngine` also starts an `EgressProxy` (`src/haris/net/egress_proxy.py`) when an external tool is in the scan and puts its URL in `ScanContext.egress_proxy`. The proxy dials the pre-flight address for the target host and vets every other destination. nuclei (`-proxy`), nikto (`-useproxy`) and Wapiti (`--proxy`) connect through it; nmap and sslyze take the vetted address as their target. A tool without its binding does not start, and nuclei skips the template types that ignore a proxy (`unproxied_template_types`).
 
 ### 3. Scanner Interface (`src/haris/core/scanner.py`)
 
@@ -84,7 +84,7 @@ The recon stage writes `ScanContext`. The scan stage reads it. Nuclei phase 2b u
 3. OWASP tags and stable finding identity.
 4. Correlation: one finding per fingerprint. The inputs are not mutated.
 5. Ignore file, then verification (`off`, `replay` or `llm`). The engine default is `off`. The CLI default is `replay`.
-6. Risk and remediation. An empty scanner status, or a status with no completed scanner, gives posture `unknown`.
+6. Risk and remediation. An empty scanner status, or a status with no completed or partial scanner, gives posture `unknown`. A scanner may report `partial` or `skipped` with a note; the note appears in every report format except CSV.
 
 `extract_context` runs only in recon. `header_checks`, `misc_checks` and `info_disclosure` copy `Server`, `X-Powered-By` and `X-AspNet-Version`. nmap copies open ports and product or service names. `extract_context` also copies each finding URL that starts with `http`. Nikto's extractor stays idle because Nikto runs in the scan stage. Wapiti has no extractor.
 
@@ -182,7 +182,7 @@ Reusable presets that bundle a scan profile with per-scanner option overrides. F
 
 Per-scanner options per template:
 
-- **Nuclei**: `template_dirs`, `tags`, `severity`, `exclude_tags`, `rate_limit`, `timeout`
+- **Nuclei**: `template_dirs`, `tags`, `severity`, `exclude_tags`, `rate_limit`, `timeout`, `phase2_timeout_s` (seconds for phase 2 in total; default 300 from `nuclei.yaml`; at the limit nuclei is killed, findings are kept and the scanner is `partial`)
 - **Nikto**: `plugins`, `tuning`, `timeout`
 - **Wapiti**: `modules`, `scope`, `max_scan_time`, `max_links`, `timeout`
 - **Nmap**: `ports`, `script_categories`, `timeout`

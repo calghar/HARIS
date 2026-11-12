@@ -36,13 +36,13 @@
 - [ ] 4.4 Seeded the WebGoat crawl so Wapiti reaches the lesson endpoints (it ends in 3.6 s today; recall .571)
 - [ ] 4.5 Live-tested Wapiti 3.3.x `information_disclosure` on DVWA in the sandbox and dropped the exclusion only on a clean run
 - [ ] 4.6 Bounded or skipped nuclei phase 2 (531 s on Juice Shop) and sslyze on plain HTTP (`ERROR_NO_CONNECTIVITY` leaves every bench session `incomplete`)
-- [ ] 4.7 Aligned `OWASP_MAPPINGS` with the `cleartext_password_submission` class (reports get A04 only through the Wapiti tag today)
+- [x] 4.7 Aligned `OWASP_MAPPINGS` with the `cleartext_password_submission` class (reports get A04 only through the Wapiti tag today)
 - [x] 4.8 Refuted redirect-based catch-all hosts: `baseline.judge` returns early for non-2xx although design D3 describes a 3xx rule
 - [ ] 4.9 Classified nikto "This might be interesting" findings (Juice Shop `/ftp` stays a miss) and the remaining nikto and nuclei noise (`gocd-encryption-key` on the `security.txt` prefix route, WebGoat `trace.axd` header)
 - [x] 4.10 Gave replay its own soft-404 control timeout (it uses the 30 s `policy.timeout_s` today), replayed every PoC request (only the first today), and kept the skip note in `errors` on a failed scan (`finish()` can drop it)
 - [ ] 4.11 Live-verified the unverified surfaces: ZAP end to end, garak and promptfoo output shapes, `action.yml` and the GitLab template, the web UI in a browser, the web agent with real Docker, XXE out of band
 - [ ] 4.12 Ran the benchmark with a baseline profile and recorded the scores with raw artifacts
-- [ ] 4.13 Closed the DNS-rebinding window for external scanners: pin the vetted IP per tool (nuclei, nmap, nikto, sslyze, Wapiti) or run them in a network that blocks private ranges; the 0.7.0 fix only re-vets the host right before each tool starts (security review H-2)
+- [x] 4.13 Closed the DNS-rebinding window for external scanners: pin the vetted IP per tool (nuclei, nmap, nikto, sslyze, Wapiti) or run them in a network that blocks private ranges; the 0.7.0 fix only re-vets the host right before each tool starts (security review H-2)
 - [ ] 4.14 Replaced decorator-based registration with explicit built-in maps for checks, scanners and oracles, removed the second scanner registry and the trigger-only imports (structural review S-01)
 - [ ] 4.15 Split `cli.py` into parser, command handlers and scan orchestration modules, with `main` as dispatch only (S-02)
 - [ ] 4.16 Moved Nuclei template selection and argv construction out of `nuclei_scanner.py` into a data-only module (S-05)

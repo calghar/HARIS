@@ -1,0 +1,7 @@
+Class mapping without a tag:
+  tests:
+    - tests/test_owasp_class_coverage.py::TestEnrichmentOrder::test_class_mapping_wins_for_wapiti_cleartext_password
+
+Mapping coverage:
+  tests:
+    - tests/test_owasp_class_coverage.py::TestClassCoverage::test_every_class_is_mapped_or_listed_unmapped

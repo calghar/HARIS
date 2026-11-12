@@ -143,7 +143,7 @@ Each sent request SHALL produce a `RequestLog` entry with `request_id`, method, 
 | web | env HARIS_ALLOW_PRIVATE_TARGETS=true | sent |
 
 ### Requirement: External tool pre-flight and rate split
-Before an external scanner starts, the target host SHALL pass the scheme, scope and SSRF checks of `ScopedClient`; on failure the scanner MUST NOT start and the scan MUST record an error. Concurrently running external tools MUST each receive a rate of `Scope.rate_limit_rps / n_concurrent` (minimum 1) passed through the tool's rate flag (nuclei `-rl`, nmap `--max-rate`, nikto `-Pause`), with redirects governed by each tool's own setting.
+Before an external scanner starts, the target host SHALL pass the scheme, scope and SSRF checks of `ScopedClient`; on failure the scanner MUST NOT start and the scan MUST record an error. Concurrently running external tools MUST each receive a rate of `Scope.rate_limit_rps / n_concurrent` (minimum 1) passed through the tool's rate flag (nuclei `-rl` rounded down to a whole number, nmap `--max-rate`, nikto `-Pause` as the reciprocal in seconds), placed after any `extra_args` so they cannot raise it, with redirects governed by each tool's own setting.
 
 #### Scenario: Pre-flight blocks private target
 - **GIVEN** the target resolves to `192.168.1.10` and `allow_private` is false
@@ -153,6 +153,7 @@ Before an external scanner starts, the target host SHALL pass the scheme, scope 
 
 #### Scenario: Rate split
 - **GIVEN** `Scope.rate_limit_rps` is 10 and `--parallel 2`
-- **WHEN** `nuclei` and `nmap` run concurrently
-- **THEN** nuclei's argv contains `-rl 5`
-- **AND** nmap's argv contains `--max-rate 5`
+- **WHEN** a scan runs `nmap`, `nuclei` and `nikto`, with `nmap` alone in the first stage
+- **THEN** nmap's argv contains `--max-rate 10`
+- **AND** nuclei's argv contains `-rl 5`
+- **AND** nikto's argv contains `-Pause 0.2`

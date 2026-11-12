@@ -13,6 +13,7 @@ from haris.scanners.nuclei_scanner import (
     TECH_FINGERPRINT_DIR,
     NucleiScanner,
 )
+from tests.conftest import bound_context
 
 
 @pytest.fixture
@@ -816,7 +817,7 @@ class TestScanFullFlow:
             patch.object(scanner, "_check_templates_available", return_value=True),
             patch.object(scanner, "_run_phase", return_value=([], [], "")),
         ):
-            result = scanner.scan(target)
+            result = scanner.scan(target, bound_context())
             assert result.scanner_name == "nuclei"
             assert isinstance(result.findings, list)
 
@@ -825,7 +826,7 @@ class TestScanFullFlow:
 
         scanner = NucleiScanner()
         with patch.object(scanner, "_check_tool_available", return_value=False):
-            result = scanner.scan(target)
+            result = scanner.scan(target, bound_context())
             assert len(result.errors) == 1
             assert "not installed" in result.errors[0]
 
@@ -838,7 +839,7 @@ class TestScanFullFlow:
             patch.object(scanner, "_check_templates_available", return_value=True),
             patch.object(scanner, "_run_phase", return_value=([], [], "")) as mock_run,
         ):
-            scanner.scan(target)
+            scanner.scan(target, bound_context())
             # Should only call _run_phase once (Phase 2), not twice
             # (Phase 1 fingerprinting should be skipped)
             assert mock_run.call_count == 1

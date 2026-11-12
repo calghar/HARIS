@@ -24,12 +24,14 @@ _NUMBER_KEYS = (
     "max_scan_time",
     "max_tokens_per_prompt",
     "passive_minutes",
+    "phase2_timeout_s",
     "rate_limit",
     "spider_minutes",
     "threads",
     "timeout",
     "timeout_per_request",
 )
+_POSITIVE_KEYS = frozenset({"phase2_timeout_s"})
 _BOOL_KEYS = (
     "automatic_scan",
     "check_cors",

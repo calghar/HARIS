@@ -642,6 +642,13 @@
       "title": "Scan State",
       "type": "string"
     },
+    "scanner_notes": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "title": "Scanner Notes",
+      "type": "object"
+    },
     "scanner_status": {
       "additionalProperties": {
         "type": "string"

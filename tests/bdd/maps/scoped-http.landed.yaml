@@ -1,0 +1,30 @@
+sslyze on plain HTTP:
+  tests:
+    - tests/test_sslyze_applicability.py::test_plain_http_without_tls_port_skips_sslyze_and_scan_completes
+
+Every scanner skipped:
+  tests:
+    - tests/test_sslyze_applicability.py::test_every_scanner_skipped_completes_and_reports_the_note
+
+sslyze on HTTPS:
+  tests:
+    - tests/test_sslyze_applicability.py::test_https_target_runs_sslyze_against_its_own_port
+
+Phase 2 over the bound:
+  tests:
+    - tests/test_nuclei_phase2_bound.py::TestOverTheBound::test_group_killed_findings_kept_status_partial
+    - tests/test_nuclei_phase2_bound.py::TestOverTheBound::test_scan_stays_completed_and_reports_list_the_note
+
+Phase 2 within the bound:
+  tests:
+    - tests/test_nuclei_phase2_bound.py::TestWithinTheBound::test_status_completed_and_targeted_run_happens
+
+Rebinding after pre-flight:
+  tests:
+    - tests/test_egress_proxy.py::test_pinned_host_is_dialed_without_resolving
+    - tests/test_engine_egress.py::test_tool_reaches_only_the_preflight_address_after_dns_changes
+    - tests/test_scanner_binding.py::TestBoundArgv::test_argv_carries_the_binding
+
+Tool that cannot be bound:
+  tests:
+    - tests/test_scanner_binding.py::TestUnboundNeverStarts::test_stub_never_runs_and_one_error_names_tool_and_reason

@@ -13,7 +13,7 @@ from ..data.scanner_config import (
     get_nikto_severity_map,
 )
 from ..models import Confidence, Finding, ScannerResult, Severity, Target
-from .base import ExternalToolScanner
+from .base import ExternalToolScanner, compact_number
 
 logger = logging.getLogger(__name__)
 
@@ -105,6 +105,7 @@ class NiktoScanner(ExternalToolScanner):
     """
 
     name = "nikto"
+    binds_to = "egress_proxy"
     version = "2.x"
     description = "Web server misconfiguration and outdated software scanner"
 
@@ -115,13 +116,15 @@ class NiktoScanner(ExternalToolScanner):
         self.options.setdefault("tuning", "")
 
     @handle_scanner_errors
-    def scan(self, target: Target, context: Any = None) -> ScannerResult:  # noqa: ARG002
+    def scan(self, target: Target, context: Any = None) -> ScannerResult:
+        if (refusal := self._unbound(target, context)) is not None:
+            return refusal
         if not self._check_tool_available("nikto"):
             return ScannerResult(
                 scanner_name=self.name,
                 errors=["nikto is not installed or not on PATH"],
             )
-        self._begin(target)
+        self._begin(target, context)
 
         with tempfile.TemporaryDirectory() as tmpdir:
             cmd = self._build_command(target, str(Path(tmpdir) / REPORT_STEM))
@@ -232,6 +235,9 @@ class NiktoScanner(ExternalToolScanner):
         if tuning:
             cmd.extend(["-Tuning", tuning])
 
+        if self._proxy:
+            cmd.extend(["-useproxy", self._proxy])
+
         for header_name, header_value in target.auth.as_headers().items():
             cmd.extend(["-Add-header", f"{header_name}: {header_value}"])
 
@@ -240,6 +246,9 @@ class NiktoScanner(ExternalToolScanner):
         if "-maxtime" not in extra_args and maxtime > 0:
             cmd.extend(["-maxtime", f"{maxtime}s"])
         cmd.extend(extra_args)
+        if self._rate_rps > 0:
+            # After extra_args so a user -Pause cannot lower the pause.
+            cmd.extend(["-Pause", compact_number(1 / self._rate_rps)])
         return cmd
 
     @staticmethod

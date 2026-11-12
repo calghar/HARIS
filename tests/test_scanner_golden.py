@@ -28,6 +28,7 @@ from haris.scanners.wapiti_scanner import (
     WapitiScanner,
 )
 from haris.templates.adapters import NmapTemplateAdapter
+from tests.conftest import bound_context
 
 FIXTURES = Path(__file__).parent / "fixtures" / "scanners"
 HTTP_URL = "http://127.0.0.1:18080"
@@ -64,7 +65,7 @@ def run_scan(scanner: Any, target: Target, runner: Callable[..., Any]) -> Any:
         patch.object(scanner, "_check_tool_available", return_value=True),
         patch("haris.scanners.base.run_process", side_effect=runner),
     ):
-        return scanner.scan(target)
+        return scanner.scan(target, bound_context())
 
 
 class TestNiktoGolden:
@@ -277,9 +278,10 @@ class TestSslyzeGolden:
             "sslyze scan of 127.0.0.1:18999 ended with status ERROR_NO_CONNECTIVITY"
         ]
 
-    def test_scan_reports_no_connectivity(self, target: Target) -> None:
+    def test_scan_reports_no_connectivity(self) -> None:
         runner = tool_writing(fixture("sslyze/no_connectivity.json"))
-        result = run_scan(SSLyzeScanner(), target, runner)
+        https_target = Target(base_url="https://127.0.0.1:18999", scope=Scope())
+        result = run_scan(SSLyzeScanner(), https_target, runner)
         assert result.findings == []
         assert any("ERROR_NO_CONNECTIVITY" in e for e in result.errors)
 

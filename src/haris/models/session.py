@@ -5,11 +5,13 @@ from pydantic import BaseModel, Field
 
 from .correlator import CorrelatedFinding
 from .enrichment import AttackChain, EnrichedFinding, TriagedFinding
-from .enums import OwaspCategory, RiskPosture, ScanState, Severity
+from .enums import OwaspCategory, RiskPosture, ScannerStatus, ScanState, Severity
 from .finding import Finding
 from .remediation import RemediationStep
 from .scanner import ScannerResult
 from .target import Target
+
+NOTED_STATUSES = frozenset({ScannerStatus.PARTIAL, ScannerStatus.SKIPPED})
 
 
 class ScanSession(BaseModel):
@@ -58,10 +60,16 @@ class ScanSession(BaseModel):
 
     @property
     def scanner_status(self) -> dict[str, str]:
-        """Per scanner: ``completed`` when it returned without errors."""
+        """Per scanner: completed, failed, partial or skipped (errors win)."""
+        return {r.scanner_name: r.status for r in self.scanner_results}
+
+    @property
+    def scanner_notes(self) -> dict[str, str]:
+        """Note of each partial or skipped scanner that gave one."""
         return {
-            r.scanner_name: "completed" if r.success else "failed"
+            r.scanner_name: r.note
             for r in self.scanner_results
+            if r.note and r.status in NOTED_STATUSES
         }
 
     def report_extras(self) -> dict[str, Any]:
@@ -70,6 +78,7 @@ class ScanSession(BaseModel):
             "scan_state": self.scan_state.value,
             "stage_log": self.stage_log,
             "scanner_status": self.scanner_status,
+            "scanner_notes": self.scanner_notes,
             "correlated": [
                 {**c.canonical.to_dict(), "sources": [list(s) for s in c.sources]}
                 for c in self.correlated

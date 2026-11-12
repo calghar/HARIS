@@ -12,7 +12,7 @@ from ..data.scanner_config import (
 )
 from ..models import Confidence, Finding, ScannerResult, Severity, Target
 from .argv_policy import ExtraArgsError
-from .base import ExternalToolScanner
+from .base import ExternalToolScanner, compact_number, is_ip_literal
 
 logger = logging.getLogger(__name__)
 
@@ -29,6 +29,7 @@ class NmapScanner(ExternalToolScanner):
     """
 
     name = "nmap"
+    binds_to = "target_ip"
     version = "7.x"
     description = "Network reconnaissance and port/service scanner"
 
@@ -40,13 +41,15 @@ class NmapScanner(ExternalToolScanner):
         self.options.setdefault("nse_scripts", [])
 
     @handle_scanner_errors
-    def scan(self, target: Target, context: Any = None) -> ScannerResult:  # noqa: ARG002
+    def scan(self, target: Target, context: Any = None) -> ScannerResult:
+        if (refusal := self._unbound(target, context)) is not None:
+            return refusal
         if not self._check_tool_available("nmap"):
             return ScannerResult(
                 scanner_name=self.name,
                 errors=["nmap is not installed or not on PATH"],
             )
-        self._begin(target)
+        self._begin(target, context)
 
         with tempfile.TemporaryDirectory() as tmpdir:
             output_file = Path(tmpdir) / "nmap_results.xml"
@@ -62,11 +65,11 @@ class NmapScanner(ExternalToolScanner):
                 f"nmap exited with code {run.returncode}: {run.stderr[:500]}"
             )
         if run.raw:
-            result.findings = self.parse_results(run.raw)
+            result.findings = self.parse_results(run.raw, alias=self._alias(target))
         return result
 
-    def parse_results(self, raw_output: str) -> list[Finding]:
-        """Parse Nmap XML output into Finding objects."""
+    def parse_results(self, raw_output: str, alias: str = "") -> list[Finding]:
+        """Parse Nmap XML; *alias* names a host nmap scanned by address."""
         findings: list[Finding] = []
 
         try:
@@ -84,7 +87,7 @@ class NmapScanner(ExternalToolScanner):
             )
 
             hostname_el = host.find(".//hostname")
-            hostname = (
+            hostname = alias or (
                 hostname_el.get("name", ip_addr) if hostname_el is not None else ip_addr
             )
 
@@ -107,8 +110,10 @@ class NmapScanner(ExternalToolScanner):
                 service_name = ""
                 service_product = ""
                 service_version = ""
+                service_tunnel = ""
 
                 if service_el is not None:
+                    service_tunnel = service_el.get("tunnel", "")
                     service_name = service_el.get("name", "")
                     service_product = service_el.get("product", "")
                     service_version = service_el.get("version", "")
@@ -137,6 +142,7 @@ class NmapScanner(ExternalToolScanner):
                         "service": service_name,
                         "product": service_product,
                         "version": service_version,
+                        "tunnel": service_tunnel,
                     },
                 )
                 findings.append(finding)
@@ -236,9 +242,14 @@ class NmapScanner(ExternalToolScanner):
 
         return findings
 
+    def _alias(self, target: Target) -> str:
+        """Hostname to report when nmap scans the vetted address instead of it."""
+        return "" if is_ip_literal(target.hostname) else target.hostname
+
     def _build_command(self, target: Target, output_path: str) -> list[str]:
         cmd = [
             "nmap",
+            "-n",
             "-oX",
             output_path,
             "-p",
@@ -248,7 +259,10 @@ class NmapScanner(ExternalToolScanner):
         scripts = self._nse_scripts()
         if scripts:
             cmd.extend(["--script", ",".join(scripts)])
-        cmd.extend(["--", target.hostname])
+        if self._rate_rps > 0:
+            # After extra_args: nmap keeps the last --max-rate.
+            cmd.extend(["--max-rate", compact_number(self._rate_rps)])
+        cmd.extend(["--", (self._alias(target) and self._vetted_ip) or target.hostname])
         return cmd
 
     def _nse_scripts(self) -> list[str]:

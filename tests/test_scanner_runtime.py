@@ -18,6 +18,7 @@ from haris.scanners.process import ToolTimeoutError, run_process
 from haris.scanners.redaction import REDACTED, redact_obj, redact_text
 from haris.scanners.sslyze_scanner import SSLyzeScanner
 from haris.scanners.wapiti_scanner import WapitiScanner
+from tests.conftest import bound_context
 
 SCANNER_CLASSES: dict[str, Any] = {
     "nikto": NiktoScanner,
@@ -118,7 +119,7 @@ class TestExtraArgsAllowList:
             patch("haris.scanners.base.run_process") as run,
         ):
             run.return_value = (0, "", "")
-            result = instance.scan(target)
+            result = instance.scan(target, bound_context())
         assert any("not allowed" in e for e in result.errors)
         assert not any(
             "/tmp/x" in " ".join(call.args[0]) for call in run.call_args_list
@@ -221,7 +222,7 @@ class TestArgvLogRedaction:
             patch("haris.scanners.base.run_process", return_value=(0, "", "")),
             caplog.at_level("DEBUG"),
         ):
-            instance.scan(target)
+            instance.scan(target, bound_context())
         assert secret not in caplog.text
         assert REDACTED in caplog.text
 
@@ -237,7 +238,7 @@ class TestArgvLogRedaction:
             patch("haris.scanners.base.run_process", return_value=(0, "", "")),
             caplog.at_level("DEBUG"),
         ):
-            instance.scan(target)
+            instance.scan(target, bound_context())
         assert "cookie-secret-1" not in caplog.text
 
 
