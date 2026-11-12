@@ -62,4 +62,4 @@ Pre-flight blocks private target:
     - tests/test_engine_pipeline.py::test_preflight_blocks_private_target
 
 Rate split:
-  pending: "unscheduled: tool_rate_rps never reaches nuclei -rl or nmap --max-rate argv"
+  pending: "4.7"

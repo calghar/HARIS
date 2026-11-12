@@ -35,6 +35,7 @@ Ids in brackets map to `modernise-0-7/tasks.md` section 4; tick both files when 
 - [ ] 4.4 Per-tool address binding or blocking network for nuclei, nmap, nikto, sslyze and Wapiti after reading each `--help`; rebinding test per tool; a tool with neither does not start; updated the Known limits note in `docs/agent_safety.md` and `SECURITY.md` [4.13]
 - [ ] 4.5 Seeded the WebGoat crawl so Wapiti reaches the lesson endpoints; recorded recall before and after [4.4]
 - [ ] 4.6 Live-tested Wapiti `information_disclosure` on DVWA in the sandbox; dropped the exclusion only on a clean run [4.5]
+- [ ] 4.7 Passed `ScanContext.tool_rate_rps` to nuclei `-rl`, nmap `--max-rate` and nikto `-Pause` per the existing "External tool pre-flight and rate split" requirement of `modernise-0-7`; replaced the pending entry of `Rate split` in `tests/bdd/maps/scoped-http.preserved.yaml` with its tests; regression test: existing `test_engine_pipeline.py` rate tests pass with nmap expectations corrected to the scenario
 
 ## 5. Classification
 
