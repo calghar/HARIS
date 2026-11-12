@@ -1,6 +1,18 @@
 # Changelog
 <!--markdownlint-disable MD024-->
 
+## 0.7.1 — 2026-11-12
+
+### Changed
+
+- Changed locked dependencies to current releases, including `anthropic` 2.8.0, `openai` 3.49.0, `fastapi` 0.162.5 and `filelock` 4.2.10
+- Changed CI and release workflows to `actions/checkout` v7.0.1, `astral-sh/setup-uv` v10.3.3, `actions/download-artifact` v8.0.2 and `codecov/codecov-action` v7.1.1, each pinned by commit SHA
+
+### Fixed
+
+- Fixed the OpenSSF Scorecard `Vulnerabilities` alert caused by `requests>=2.31.0` in a stale `requirements.txt`; the file is removed and `pyproject.toml` stays the only dependency list
+- Fixed the sandbox sidecar image `docker/agent/Dockerfile` using an unpinned base; it now pins `python:3.13-slim` by digest
+
 ## 0.7.0 — 2026-11-12
 
 ### Added
