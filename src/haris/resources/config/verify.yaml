@@ -4,6 +4,9 @@ max_requests: 500
 # Seconds one replay request may take (caps the scan's NetworkPolicy.timeout_s).
 request_timeout_s: 10.0
 
+# Sends (controls included) one agent PoC re-execution may make.
+poc_max_requests: 20
+
 # Payload templates; {d} is the delay in seconds. Each is read-only SQL.
 timing:
   delay_s: 5.0
@@ -14,6 +17,18 @@ timing:
     - "'; SELECT pg_sleep({d})--"
     - "';WAITFOR DELAY '0:0:{d}'--"
     - "' AND 1=DBMS_PIPE.RECEIVE_MESSAGE('a',{d})--"
+  # Shell delay only; each payload runs `sleep` and no other command.
+  cmd_payloads:
+    - "; sleep {d}"
+    - "| sleep {d}"
+    - "$(sleep {d})"
+    - "`sleep {d}`"
+
+# Values that read a well-known file; the path_traversal oracle tries them in order.
+traversal_payloads:
+  - "../../../../../../../../etc/passwd"
+  - "/etc/passwd"
+  - "..\\..\\..\\..\\..\\..\\..\\..\\boot.ini"
 
 error_probe: "'\""
 error_signatures:

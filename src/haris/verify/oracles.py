@@ -2,6 +2,7 @@ import re
 import secrets
 from collections.abc import Callable
 from typing import Literal, NamedTuple
+from urllib.parse import urlsplit
 
 from pydantic import BaseModel
 
@@ -16,6 +17,7 @@ type OracleFn = Callable[[Finding, Prober, VerifySettings], OracleResult]
 MARKER_TAG = "haris"
 HTML_TYPES = frozenset({"text/html", "application/xhtml+xml"})
 INERT_HTML = re.compile(r"<!--.*?-->|<script\b.*?</script[^>]*>", re.DOTALL | re.I)
+TRAVERSAL_FILE = re.compile(r"root:[x*]:0:0:|\[boot loader\]")
 HEADER_TITLE = re.compile(
     r"missing\s+(\S+)\s+header"
     r"|header missing:\s*([\w-]+)"
@@ -101,6 +103,40 @@ def error_signature(
             break
     return pair_result(
         prober, "positive" if span else "inconclusive", probe, control, span
+    )
+
+
+@register("path_traversal", cost=lambda s: 2 * len(s.traversal_payloads))
+def path_traversal(
+    finding: Finding, prober: Prober, settings: VerifySettings
+) -> OracleResult:
+    for payload in settings.traversal_payloads:
+        probe = prober.send(finding, payload)
+        control = prober.send(finding, random_token(len(payload)))
+        match = TRAVERSAL_FILE.search(probe.text)
+        if match and not TRAVERSAL_FILE.search(control.text):
+            return pair_result(prober, "positive", probe, control, match.group(0))
+    return pair_result(prober, "inconclusive", probe, control)
+
+
+def redirect_host(response: ScopedResponse) -> str:
+    if not 300 <= response.status_code < 400:
+        return ""
+    return urlsplit(response.headers.get("location", "")).hostname or ""
+
+
+@register("open_redirect")
+def open_redirect(
+    finding: Finding, prober: Prober, settings: VerifySettings
+) -> OracleResult:
+    host = f"{MARKER_TAG}-{secrets.token_hex(8)}.invalid"
+    payload = f"http://{host}/"
+    # A followed hop to the unresolvable marker host would fail before it returns.
+    probe = prober.send(finding, payload, follow_redirects=False)
+    control = prober.send(finding, random_token(len(payload)), follow_redirects=False)
+    positive = redirect_host(probe) == host and redirect_host(control) != host
+    return pair_result(
+        prober, "positive" if positive else "inconclusive", probe, control, host
     )
 
 

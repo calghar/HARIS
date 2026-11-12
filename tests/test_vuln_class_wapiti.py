@@ -55,16 +55,16 @@ def test_wapiti_category_resolves_to_class(category: str, expected: str) -> None
 
 
 @pytest.mark.parametrize(
-    ("class_id", "cwe", "granularity"),
+    ("class_id", "cwe", "granularity", "oracle"),
     [
-        ("command_injection", "CWE-78", "parameter"),
-        ("csrf", "CWE-352", "path"),
-        ("unrestricted_upload", "CWE-434", "parameter"),
+        ("command_injection", "CWE-78", "parameter", "timing_cmd"),
+        ("csrf", "CWE-352", "path", "none"),
+        ("unrestricted_upload", "CWE-434", "parameter", "none"),
     ],
 )
-def test_new_classes_are_registered_without_oracle(
-    class_id: str, cwe: str, granularity: str
+def test_new_classes_are_registered_with_their_oracle(
+    class_id: str, cwe: str, granularity: str, oracle: str
 ) -> None:
     registered = get_registry().classes[class_id]
     assert (registered.primary_cwe, registered.granularity) == (cwe, granularity)
-    assert registered.oracle == "none"
+    assert registered.oracle == oracle

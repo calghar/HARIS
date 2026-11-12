@@ -6,6 +6,9 @@
 ### Added
 
 - Added `tests/bdd`, a `pytest-bdd` harness that runs every generated scenario against the existing tests mapped in `tests/bdd/maps`; scenarios of the unimplemented Phase 6 change are strict `xfail` until their task lands
+- Added replay oracles for `path_traversal`, `open_redirect` and `command_injection`; the last runs delay-only payloads from `verify.timing.cmd_payloads` under the oracle name `timing_cmd`, and `ssrf` and `xxe` stay `unverified`
+- Added the nikto class `unclassified:nikto:interesting_path` with severity `info` for "This might be interesting" findings, replayed with the `soft404` oracle
+- Added `verify.poc_max_requests` (default 20), the cap on requests sent when an agent PoC is re-executed
 
 ### Changed
 
@@ -17,9 +20,13 @@
 - Changed Dependabot to skip `litellm` and wait 14 days before proposing other Python updates
 - Changed the `pip-audit` job to ignore 13 `filelock` 3.32.7 advisories that `litellm` 1.108.0 forces (it caps `filelock` below 4); the ignores go when `litellm` moves to 1.108.3 or later
 - Changed the DVWA benchmark database image to `ghcr.io/mariadb/mariadb:10.11` pinned by digest; Juice Shop and WebGoat stay on Docker Hub because upstream publishes nowhere else (`bench/README.md`)
+- Changed the agent PoC re-execution to send every PoC request in order, each with its control, up to `verify.poc_max_requests`; the scan rate limit spaces the sends
 
 ### Fixed
 
+- Fixed redirect catch-all hosts producing path findings: a `3xx` whose `Location` equals that of a host control is no longer reported, and a replayed external finding of that path becomes `refuted`
+- Fixed replay soft-404 controls waiting for the 30 s scan timeout: they now use `verify.request_timeout_s`
+- Fixed a failed scan losing the notes of skipped verification stages: they now stay in the stored `errors`
 - Fixed the sandbox image build leaving the image in the buildx cache under a `docker-container` builder, as on a Podman machine: `docs/agent_safety.md` and the integration test now build with `--load`, and the test asserts the effective capability set because Podman lists dropped capabilities one by one
 - Fixed the runtime image keeping Debian `zlib1g` `1:1.3.dfsg+really1.3.1-1+b1`: it now installs `1:1.3.dfsg+really1.3.1-1+deb13u1`
 - Fixed the runtime image shipping base-image `pip`, which vendors `msgpack` 1.1.2, `urllib3` 2.7.0 and `setuptools` 70.3.0: that `pip` tree is removed

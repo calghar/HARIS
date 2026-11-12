@@ -41,10 +41,13 @@ def try_request(
     *,
     headers: dict[str, str] | None = None,
     body: bytes | str | None = None,
+    timeout_s: float | None = None,
 ) -> ScopedResponse | None:
     """Send one probe; ``None`` when scope, SSRF guard or transport refuses it."""
     try:
-        return client.request(method, url, headers=headers, body=body)
+        return client.request(
+            method, url, headers=headers, body=body, timeout_s=timeout_s
+        )
     except PROBE_ERRORS as exc:
         logger.debug("%s %s skipped: %s", method, url, exc)
         return None

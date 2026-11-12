@@ -122,9 +122,12 @@ class ScopedClient:
         headers: dict[str, str] | None = None,
         body: bytes | str | None = None,
         timeout_s: float | None = None,
+        follow_redirects: bool = True,
     ) -> ScopedResponse:
         """Send one request; *timeout_s* can only tighten ``policy.timeout_s``."""
-        return self._exchange(method.upper(), url, headers, body, timeout_s, None)
+        return self._exchange(
+            method.upper(), url, headers, body, timeout_s, None, follow_redirects
+        )
 
     def stream(
         self,
@@ -145,6 +148,7 @@ class ScopedClient:
         body: bytes | str | None,
         timeout_s: float | None,
         stream_bytes: int | None,
+        follow_redirects: bool = True,
     ) -> ScopedResponse:
         timeout = self.policy.timeout_s
         if timeout_s is not None:
@@ -152,7 +156,8 @@ class ScopedClient:
         response = self._fetch(method, url, headers, body, timeout, stream_bytes)
         chain: list[str] = []
         while (
-            self._scope.follow_redirects
+            follow_redirects
+            and self._scope.follow_redirects
             and response.status_code in REDIRECT_STATUSES
             and "location" in response.headers
         ):

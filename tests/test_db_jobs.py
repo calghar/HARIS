@@ -4,8 +4,10 @@ from pathlib import Path
 import pytest
 
 from haris.db.connection import connect
-from haris.db.jobs import JobRepository
+from haris.db.jobs import JobRepository, JobStatus
 from haris.db.migrate import migrate
+from haris.db.store import ScanStore
+from haris.models import ScanSession, ScanState, Target
 
 NOTE = "[agent] skipped: docker unavailable"
 PRIOR = "[agent] skipped: image missing"
@@ -66,3 +68,31 @@ def test_keep_skip_note_does_not_create_a_missing_scan(tmp_path: Path) -> None:
     repo, db = _repo(tmp_path)
     repo.keep_skip_note("missing-scan", NOTE)
     assert _columns(db, "missing-scan") is None
+
+
+@pytest.mark.parametrize(
+    "note",
+    [
+        "[verify] llm verdict skipped: no LLM backend",
+        "[verify] 2 finding(s) not replayed: verify.max_requests reached",
+    ],
+)
+def test_failed_scan_keeps_its_skip_notes(tmp_path: Path, note: str) -> None:
+    """Scenario: Failed scan keeps its notes."""
+    store = ScanStore(tmp_path / "failed.db")
+    _enqueue(store.jobs, "scan-1c7e")
+    store.jobs.claim_next("worker-1", _NOW)
+    store.save_session(
+        ScanSession(
+            session_id="scan-1c7e",
+            target=Target(base_url="https://example.com"),
+            errors=[note],
+            scan_state=ScanState.RUNNING,
+        ),
+        _OWNER,
+    )
+    store.jobs.finish("scan-1c7e", JobStatus.FAILED, _NOW, "The scan failed.")
+    loaded = store.load_session("scan-1c7e")
+    assert loaded is not None
+    assert loaded.scan_state is ScanState.FAILED
+    assert loaded.errors == ["The scan failed.", note]

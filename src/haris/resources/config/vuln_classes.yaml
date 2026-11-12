@@ -40,6 +40,7 @@ classes:
   - id: path_traversal
     primary_cwe: CWE-22
     granularity: parameter
+    oracle: path_traversal
     aliases:
       wapiti: ["Path Traversal"]
       nuclei: ["lfi", "path-traversal"]
@@ -48,6 +49,7 @@ classes:
   - id: open_redirect
     primary_cwe: CWE-601
     granularity: parameter
+    oracle: open_redirect
     aliases:
       wapiti: ["Open Redirect"]
       nuclei: ["redirect", "open-redirect"]
@@ -71,6 +73,7 @@ classes:
   - id: command_injection
     primary_cwe: CWE-78
     granularity: parameter
+    oracle: timing_cmd
     aliases:
       wapiti: ["Command execution"]
       zap: ["^90020$", "^90037$"]

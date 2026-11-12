@@ -95,6 +95,13 @@ def matches(response: ResponseFingerprint, control: ResponseFingerprint) -> bool
     )
 
 
+def _redirects_like(
+    probe: ResponseFingerprint, controls: list[ResponseFingerprint]
+) -> bool:
+    """A 3xx control sends the probe's path to the same Location, whatever the code."""
+    return any(300 <= c.status < 400 and c.location == probe.location for c in controls)
+
+
 def _same_page(a: ResponseFingerprint, b: ResponseFingerprint) -> bool:
     """Two probes returned one generic page (empty titles prove nothing)."""
     if a.body_hash == b.body_hash and a.content_type == b.content_type:
@@ -123,22 +130,30 @@ class Baseline:
         self._base: list[ResponseFingerprint] | None = None
         self._extra: dict[tuple[str, str], ResponseFingerprint | None] = {}
 
-    def _control(self, path: str) -> ResponseFingerprint | None:
-        resp = try_request(self._client, "GET", self._origin + path)
+    def _control(
+        self, path: str, timeout_s: float | None
+    ) -> ResponseFingerprint | None:
+        resp = try_request(
+            self._client, "GET", self._origin + path, timeout_s=timeout_s
+        )
         return fingerprint(resp, path) if resp is not None else None
 
-    def base_controls(self) -> list[ResponseFingerprint]:
+    def base_controls(
+        self, timeout_s: float | None = None
+    ) -> list[ResponseFingerprint]:
         with self._lock:
             if self._base is None:
                 token = self._token
                 fetched = (
-                    self._control(p)
+                    self._control(p, timeout_s)
                     for p in (f"/{token}", f"/{token}/", f"/{token}.html")
                 )
                 self._base = [f for f in fetched if f is not None]
             return self._base
 
-    def _extra_control(self, path: str) -> ResponseFingerprint | None:
+    def _extra_control(
+        self, path: str, timeout_s: float | None
+    ) -> ResponseFingerprint | None:
         key = _control_key(path)
         if key is None:
             return None
@@ -148,12 +163,12 @@ class Baseline:
                     return None
                 directory, extension = key
                 self._extra[key] = self._control(
-                    f"{directory.rstrip('/')}/{self._token}{extension}"
+                    f"{directory.rstrip('/')}/{self._token}{extension}", timeout_s
                 )
             return self._extra[key]
 
-    def host_class(self) -> HostClass:
-        controls = self.base_controls()
+    def host_class(self, timeout_s: float | None = None) -> HostClass:
+        controls = self.base_controls(timeout_s)
         successes = sum(200 <= c.status < 300 for c in controls)
         if successes >= CATCH_ALL_MIN_SUCCESSES:
             return HostClass.CATCH_ALL
@@ -161,24 +176,34 @@ class Baseline:
             return HostClass.UNSTABLE
         return HostClass.NORMAL
 
-    def judge(self, path: str, resp: ScopedResponse) -> PathVerdict:
-        """Decide whether *resp* to a probe of *path* is evidence of a real resource."""
-        if not 200 <= resp.status_code < 300:
+    def judge(
+        self, path: str, resp: ScopedResponse, timeout_s: float | None = None
+    ) -> PathVerdict:
+        """Is *resp* to *path* a real resource? *timeout_s* bounds the controls."""
+        if not 200 <= resp.status_code < 400:
             return PathVerdict(
                 report=False,
                 reason="not a 2xx response",
                 oracle=VerificationOracle.NONE,
             )
         probe = fingerprint(resp, path)
-        controls = [*self.base_controls()]
-        extra = self._extra_control(path)
+        controls = [*self.base_controls(timeout_s)]
+        extra = self._extra_control(path, timeout_s)
         if extra is not None:
             controls.append(extra)
-        if any(matches(probe, c) for c in controls):
+        if any(matches(probe, c) for c in controls) or (
+            resp.status_code >= 300 and _redirects_like(probe, controls)
+        ):
             return PathVerdict(
                 report=False,
                 reason="matches the soft-404 control response",
                 oracle=VerificationOracle.SOFT404,
+            )
+        if resp.status_code >= 300:
+            return PathVerdict(
+                report=False,
+                reason="not a 2xx response",
+                oracle=VerificationOracle.NONE,
             )
         validator = validator_for(path)
         if validator is not None:
@@ -190,7 +215,7 @@ class Baseline:
                 validated=outcome.passed,
                 span=outcome.span,
             )
-        host = self.host_class()
+        host = self.host_class(timeout_s)
         if host is not HostClass.NORMAL:
             return PathVerdict(
                 report=False,

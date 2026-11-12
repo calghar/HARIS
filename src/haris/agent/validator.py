@@ -6,17 +6,17 @@ from ..core.vuln_class import get_registry
 from ..models import (
     CorrelatedFinding,
     EvidenceExchange,
+    Finding,
     VerificationMethod,
     VerificationOracle,
     VerificationTier,
 )
 from ..net import NetworkError, ScopedClient, ScopedResponse
 from ..verify.oracles import INERT_HTML, MARKER_TAG, is_html
-from ..verify.probe import FORM_HEADERS, Prober, random_token
+from ..verify.probe import FORM_HEADERS, Prober, VerifyBudgetExhausted, random_token
+from ..verify.settings import load_verify_settings
 from .models import PoC, PoCRequest
 from .proxy import classify_request
-
-POC_REQUESTS = 8
 
 
 def fresh_marker() -> str:
@@ -60,9 +60,24 @@ def reexecute(
     if poc.oracle != "reflection":
         return False, []
     base = prober.client.target.base_url
-    request = poc.requests[0].model_copy(
-        update={"url": urljoin(f"{base}/", poc.requests[0].url)}
-    )
+    positive = False
+    exchanges: list[EvidenceExchange] = []
+    for item in poc.requests:
+        request = item.model_copy(update={"url": urljoin(f"{base}/", item.url)})
+        try:
+            live, sent = _run_request(request, finding, prober, allow_unsafe)
+        except VerifyBudgetExhausted:
+            break
+        positive = positive or live
+        exchanges += sent
+    return positive, exchanges
+
+
+def _run_request(
+    request: PoCRequest, finding: Finding, prober: Prober, allow_unsafe: bool
+) -> tuple[bool, list[EvidenceExchange]]:
+    """Send one PoC request and its control; True when the oracle is positive."""
+    base = prober.client.target.base_url
     outcome, _reason = classify_request(
         request.method,
         request.url,
@@ -86,9 +101,8 @@ def reexecute(
         prober.exchange(probe, "poc", marker),
         prober.exchange(control_response, "control"),
     ]
-    return _positive(
-        probe.text, control_response.text, marker, is_html(probe)
-    ), exchanges
+    live = _positive(probe.text, control_response.text, marker, is_html(probe))
+    return live, exchanges
 
 
 def apply_validation(
@@ -103,7 +117,10 @@ def apply_validation(
     if poc is None or not poc.requests:
         return ""
     positive, exchanges = reexecute(
-        poc, case, Prober(client, POC_REQUESTS), allow_unsafe=allow_unsafe
+        poc,
+        case,
+        Prober(client, load_verify_settings().poc_max_requests),
+        allow_unsafe=allow_unsafe,
     )
     if not positive:
         return "poc re-execution was not confirmed"

@@ -158,9 +158,18 @@ class JobRepository:
 
     @staticmethod
     def _sync_scan(conn: Any, scan_id: str, status: JobStatus, error: str = "") -> None:
+        errors = [error]
+        if status is JobStatus.FAILED:
+            row = conn.execute(
+                "SELECT errors FROM scans WHERE session_id = ?", (scan_id,)
+            ).fetchone()
+            # The status page shows errors[0], so the error stays first.
+            errors += (
+                [n for n in json.loads(row["errors"]) if n != error] if row else []
+            )
         conn.execute(
             "UPDATE scans SET scan_state = ?,"
             " errors = CASE WHEN ? = '' THEN errors ELSE ? END"
             " WHERE session_id = ?",
-            (status.scan_state.value, error, json.dumps([error]), scan_id),
+            (status.scan_state.value, error, json.dumps(errors), scan_id),
         )

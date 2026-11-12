@@ -14,7 +14,7 @@ from haris.checks.baseline import (
 from haris.checks.findings import prior
 from haris.checks.info_disclosure import InfoDisclosureScanner
 from haris.checks.misc_checks import SENSITIVE_PATHS, MiscCheckScanner
-from haris.models import Confidence, Severity
+from haris.models import Confidence, Severity, VerificationOracle
 from haris.net import ScopedResponse
 
 from .checks_support import (
@@ -250,3 +250,29 @@ def test_controls_are_fetched_once_per_scan_and_extra_controls_are_capped():
     assert (
         len(controls) == 3 + 10
     )  # three root controls, at most ten directory controls
+
+
+MATCHES_CONTROL = ("matches the soft-404 control response", VerificationOracle.SOFT404)
+NOT_2XX = ("not a 2xx response", VerificationOracle.NONE)
+
+
+@pytest.mark.parametrize(
+    ("path", "status", "location", "verdict", "controls_sent"),
+    [
+        ("/.git/config", 302, "/login", MATCHES_CONTROL, True),
+        ("/admin", 302, "/login", MATCHES_CONTROL, True),
+        ("/admin", 301, "/login", MATCHES_CONTROL, True),
+        ("/admin", 302, "/admin/index.html", NOT_2XX, True),
+        ("/.git/config", 404, "", NOT_2XX, False),
+    ],
+)
+def test_redirect_to_the_host_control_location_is_not_reported(
+    path, status, location, verdict, controls_sent
+):
+    """Scenario: Redirect controls."""
+    net = site(fallback=(302, {"Location": "/login"}, b""))
+    headers = {"Location": location} if location else {}
+    probe = response(b"", status, **headers)
+    result = get_baseline(net.client, net.client.target.base_url).judge(path, probe)
+    assert (result.report, (result.reason, result.oracle)) == (False, verdict)
+    assert bool(net.sent) is controls_sent

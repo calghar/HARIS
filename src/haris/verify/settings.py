@@ -25,6 +25,7 @@ class TimingSettings(BaseModel):
     pairs: int = Field(default=3, ge=1)
     min_gap_ratio: float = Field(default=0.8, gt=0, le=1)
     payloads: list[str] = Field(min_length=1)
+    cmd_payloads: list[str] = Field(min_length=1)
 
 
 class LLMVerdictSettings(BaseModel):
@@ -41,7 +42,9 @@ class LLMVerdictSettings(BaseModel):
 class VerifySettings(BaseModel):
     max_requests: int = Field(default=500, ge=1)
     request_timeout_s: float = Field(default=10.0, gt=0)
+    poc_max_requests: int = Field(default=20, ge=1)
     timing: TimingSettings
+    traversal_payloads: list[str] = Field(min_length=1)
     error_probe: str = Field(min_length=1)
     error_signatures: list[str] = Field(min_length=1)
     header_valid: dict[str, str] = Field(default_factory=dict)

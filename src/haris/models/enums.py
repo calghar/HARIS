@@ -84,6 +84,9 @@ class VerificationOracle(enum.StrEnum):
     CONTENT_VALIDATOR = "content_validator"
     SOFT404 = "soft404"
     CANARY = "canary"
+    PATH_TRAVERSAL = "path_traversal"
+    OPEN_REDIRECT = "open_redirect"
+    TIMING_CMD = "timing_cmd"
 
 
 class ScanState(enum.StrEnum):

@@ -23,6 +23,9 @@ REPORT_NAME = f"{REPORT_STEM}.json"
 DEFAULT_SCHEME = "http"
 # Nikto overran its own -maxtime by 35 s; the margin lets it write its report.
 MAXTIME_MARGIN_S = 60
+INTERESTING_PATH_CLASS = "unclassified:nikto:interesting_path"
+# Nikto 2.6 reports the bare message; older reports prefix it with the path.
+INTERESTING_PATH = re.compile(r"(?:/\S*: )?This might be interesting")
 
 type KeywordRule = tuple[re.Pattern[str], list[str], Severity]
 
@@ -180,7 +183,13 @@ class NiktoScanner(ExternalToolScanner):
         url_path: str = vuln.get("url", "/")
         # Nikto 2.6 reports "id"; older releases reported "osvdbid".
         test_id = str(vuln.get("osvdbid") or vuln.get("id") or "0")
-        tags, severity = _classify_finding(msg, test_id)
+        # Checked first: keyword rules would rate "/debug/: ..." as MEDIUM.
+        interesting = INTERESTING_PATH.match(msg) is not None
+        tags, severity = (
+            (["security_misconfiguration"], Severity.INFO)
+            if interesting
+            else _classify_finding(msg, test_id)
+        )
 
         references = [
             ref
@@ -198,6 +207,7 @@ class NiktoScanner(ExternalToolScanner):
             remediation=self._build_remediation(tags, msg),
             references=references,
             scanner=self.name,
+            vuln_class=INTERESTING_PATH_CLASS if interesting else "",
             tags=tags,
             raw_data=self._redact_data(vuln),
         )

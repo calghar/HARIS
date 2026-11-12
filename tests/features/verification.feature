@@ -274,30 +274,49 @@ Feature: verification
       | /admin       | 302 `/admin/index.html` | existing behavior                      |
       | /.git/config | 404                     | existing behavior                      |
 
-  # Requirement: Multi-request replay and control timeout
-  # The replay verifier SHALL replay every PoC request of a finding, in order, and every request counts toward `verify.max_requests`. A finding MUST become `replay_verified` when at least one request is oracle-positive and none is oracle-refuting, `refuted` when every replayed request is oracle-refuting, and MUST otherwise stay `unverified`. Soft-404 control requests of replay MUST use `verify.request_timeout_s`. WHEN a scan ends in state `failed`, the notes recorded for skipped stages MUST remain in the stored session `errors`.
+  # Requirement: Agent PoC re-execution covers every request
+  # The re-execution of an agent PoC SHALL send every PoC request in order, each with its control, through `ScopedClient`, so the scan rate limit of scoped-http applies to each send. It SHALL stop after `verify.poc_max_requests` sends (default 20, controls included), and every send counts toward `Scope.max_requests`. The finding MUST reach `exploit_validated` when at least one sent request is oracle-positive, and MUST otherwise keep its prior tier.
 
-  @requirement_multi_request_replay_and_control_timeout
+  @requirement_agent_poc_re_execution_covers_every_request
   Scenario Outline: Several PoC requests
-    Given a finding with three PoC requests whose oracle results are `<results>`
-    When the replay verifier runs with budget for all three
-    Then its tier is `<tier>`
+    Given an agent PoC with three requests whose oracle results are `<results>`
+    When the PoC is re-executed with budget for all three
+    Then the finding's tier is `<tier>`
 
     Examples:
-      | results                                  | tier            |
-      | positive, positive, positive             | replay_verified |
-      | positive, inconclusive, inconclusive     | replay_verified |
-      | positive, refuting, positive             | unverified      |
-      | refuting, refuting, refuting             | refuted         |
-      | inconclusive, inconclusive, inconclusive | unverified      |
+      | results                                  | tier              |
+      | positive, positive, positive             | exploit_validated |
+      | positive, inconclusive, inconclusive     | exploit_validated |
+      | inconclusive, positive, inconclusive     | exploit_validated |
+      | inconclusive, inconclusive, inconclusive | prior tier kept   |
 
-  @requirement_multi_request_replay_and_control_timeout
+  @requirement_agent_poc_re_execution_covers_every_request
+  Scenario: PoC request cap
+    Given `verify.poc_max_requests` is 20 and a PoC of 15 requests
+    When the PoC is re-executed
+    Then exactly 20 requests are sent, the first 10 PoC requests each followed by its control, in order
+
+  @requirement_agent_poc_re_execution_covers_every_request
+  Scenario Outline: PoC rate limit
+    Given the scope rate limit is `<rps>` requests per second and a PoC of 10 requests
+    When the PoC is re-executed
+    Then the 20 sends are spaced by the client rate limit of `<rps>` requests per second
+
+    Examples:
+      | rps |
+      | 5   |
+      | 20  |
+
+  # Requirement: Replay control timeout and failed-scan notes
+  # Soft-404 control requests of replay MUST use `verify.request_timeout_s`. WHEN a scan ends in state `failed`, the notes recorded for skipped stages MUST remain in the stored session `errors`.
+
+  @requirement_replay_control_timeout_and_failed_scan_notes
   Scenario: Control timeout
     Given `verify.request_timeout_s` is 10 and the scan `NetworkPolicy.timeout_s` is 30
     When the replay verifier sends a soft-404 control request that never answers
     Then the request is abandoned after 10 seconds
 
-  @requirement_multi_request_replay_and_control_timeout
+  @requirement_replay_control_timeout_and_failed_scan_notes
   Scenario: Failed scan keeps its notes
     Given the replay stage was skipped with the note `<note>` and the scan then ended `failed`
     When the session is stored and read back

@@ -28,15 +28,18 @@ An `unclassified:` finding from an external scanner is a special case. The exter
 | `header_presence` | Positive when two GETs both show the named header absent or invalid. Refuted when both show it valid. |
 | `soft404` | Refuted when the GET matches a host control. Otherwise inconclusive. |
 | `content_validator` | Positive when the body validator passes. Refuted when the validator fails or the response matches a host control. |
+| `timing_cmd` | The `timing` rule with `timing.cmd_payloads`: shell `sleep {d}` forms that run no other command. |
+| `path_traversal` | Positive when a `traversal_payloads` probe returns a body matching `root:[x*]:0:0:` or `[boot loader]` and its random-token control does not. |
+| `open_redirect` | Positive when the probe answers 3xx with a `Location` host equal to a fresh `haris-<16 hex>.invalid` marker host and the control does not. Neither request follows redirects. |
 | `canary` | Positive when the probe contains a fresh canary and the control does not. No class in `vuln_classes.yaml` names this oracle. Active AI probes set `replay_verified` with it themselves. |
 
-Classes that name an oracle: `xss_reflected` (`reflection`), `sqli_time` (`timing`), `sqli_error` (`error_signature`), `missing_header` (`header_presence`), `sensitive_file` (`soft404`, `content_validator`), `api_docs_exposed` (`content_validator`).
+Classes that name an oracle: `xss_reflected` (`reflection`), `sqli_time` (`timing`), `sqli_error` (`error_signature`), `command_injection` (`timing_cmd`), `path_traversal` (`path_traversal`), `open_redirect` (`open_redirect`), `missing_header` (`header_presence`), `sensitive_file` (`soft404`, `content_validator`), `api_docs_exposed` (`content_validator`). `ssrf` and `xxe` name none, so they stay `unverified` with method `none`.
 
 ## Soft-404 control
 
 `Baseline` keeps one control set per host for the scan. The base controls are three GETs: `/{token}`, `/{token}/` and `/{token}.html`. The token is `haris-` plus `token_hex(8)`. A path in another directory, or with an extension other than empty or `.html`, gets one extra control for that directory and extension, up to 10.
 
-A probe matches a control when the status is the same. A redirect also needs the same `Location`. Otherwise the content type must match, and either the body hash matches or the title matches and the lengths are close. Close means a difference of at most the larger of 64 bytes and 5 percent of the control length.
+A probe matches a control when the status is the same. A redirect probe matches any redirect control with the same `Location` (random segment removed), whatever the status code, so the baseline does not report the path and an external finding of it is refuted. A redirect to a different `Location` keeps the old behavior. Otherwise the content type must match, and either the body hash matches or the title matches and the lengths are close. Close means a difference of at most the larger of 64 bytes and 5 percent of the control length.
 
 The `soft404` oracle refutes only that control match. A catch-all or unstable host, worded as `host is ...`, stays inconclusive for that oracle.
 
@@ -48,4 +51,4 @@ The stage runs only in mode `llm`. It considers findings that are still `unverif
 
 ## Exploit validation
 
-The agent sets `exploit_validated` after code outside the model re-sends the proof and the reflection oracle matches. The agent stays off unless the operator opts in. See [agent safety](agent_safety.md).
+The agent sets `exploit_validated` after code outside the model re-sends the proof and the reflection oracle matches. The re-run sends every PoC request in order, each followed by its control, and confirms when at least one request is positive. It stops after `poc_max_requests` sends (20, controls included), so a 15-request PoC sends its first 10 requests. Every send goes through `ScopedClient`, so the scan rate limit and `Scope.max_requests` apply to each one. Replay soft-404 controls time out after `request_timeout_s`. The agent stays off unless the operator opts in. See [agent safety](agent_safety.md).

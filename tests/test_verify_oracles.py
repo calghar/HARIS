@@ -284,4 +284,7 @@ def test_verify_config_loads_with_spec_defaults_and_known_oracles():
         "canary",
         "soft404",
         "content_validator",
+        "path_traversal",
+        "open_redirect",
+        "timing_cmd",
     }

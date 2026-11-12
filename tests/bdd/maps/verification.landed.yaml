@@ -1,0 +1,38 @@
+Oracle matrix for new classes:
+  tests:
+    - tests/test_verify_wapiti_oracles.py::test_oracle_matrix_for_wapiti_classes
+    - tests/test_verify_wapiti_oracles.py::test_command_injection_timing_decision_with_five_second_delay
+    - tests/test_verify_wapiti_oracles.py::test_ssrf_and_xxe_stay_unverified_with_method_none
+    - tests/test_verify_wapiti_oracles.py::test_vuln_classes_yaml_names_oracles_for_new_classes_only
+
+Redirect controls:
+  tests:
+    - tests/test_checks_baseline.py::test_redirect_to_the_host_control_location_is_not_reported
+    - tests/test_verify_redirect_catch_all.py::test_replayed_external_finding_follows_the_redirect_controls
+
+Several PoC requests:
+  tests:
+    - tests/test_verify_replay_multi.py::test_several_poc_requests_decide_the_tier
+
+PoC request cap:
+  tests:
+    - tests/test_verify_replay_multi.py::test_poc_request_cap_sends_ten_requests_each_followed_by_its_control
+
+PoC rate limit:
+  tests:
+    - tests/test_verify_replay_multi.py::test_poc_sends_are_spaced_by_the_scope_rate_limit
+
+Control timeout:
+  tests:
+    - tests/test_verify_replay_multi.py::test_replay_controls_use_the_request_timeout_not_the_policy_timeout
+
+Failed scan keeps its notes:
+  tests:
+    - tests/test_db_jobs.py::test_failed_scan_keeps_its_skip_notes
+
+Nikto interesting path:
+  tests:
+    - tests/test_nikto_interesting_path.py::test_interesting_path_is_classified_and_info
+    - tests/test_nikto_interesting_path.py::test_class_and_severity_survive_correlation
+    - tests/test_nikto_interesting_path.py::test_interesting_path_reaches_every_report_format
+    - tests/test_nikto_interesting_path.py::test_interesting_path_is_replayed_by_the_soft404_oracle

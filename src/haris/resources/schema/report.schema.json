@@ -578,7 +578,10 @@
         "header_presence",
         "content_validator",
         "soft404",
-        "canary"
+        "canary",
+        "path_traversal",
+        "open_redirect",
+        "timing_cmd"
       ],
       "title": "VerificationOracle",
       "type": "string"

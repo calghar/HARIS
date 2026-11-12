@@ -21,9 +21,9 @@ Ids in brackets map to `modernise-0-7/tasks.md` section 4; tick both files when 
 
 ## 3. Verification
 
-- [ ] 3.1 Replay of every PoC request, aggregation table, control timeout from `verify.request_timeout_s`, and skip notes kept on a failed scan; regression test: existing replay tests and `test_db_scope.py` pass [4.10]
-- [ ] 3.2 Redirect catch-all rule in `baseline.judge` and replay of external findings; regression test: existing baseline tests pass [4.8]
-- [ ] 3.3 Oracles and `vuln_classes.yaml` keys for `path_traversal`, `open_redirect` and `command_injection` (delay-only payloads); `ssrf` and `xxe` stay without an oracle; regression test: the existing oracle matrix passes [4.3]
+- [x] 3.1 Agent PoC re-execution of every request with the `verify.poc_max_requests` cap (default 20) and the client rate limit, control timeout from `verify.request_timeout_s`, and skip notes kept on a failed scan; regression test: existing replay tests and `test_db_scope.py` pass [4.10]
+- [x] 3.2 Redirect catch-all rule in `baseline.judge` and replay of external findings; regression test: existing baseline tests pass [4.8]
+- [x] 3.3 Oracles and `vuln_classes.yaml` keys for `path_traversal`, `open_redirect` and `command_injection` (delay-only payloads); `ssrf` and `xxe` stay without an oracle; regression test: the existing oracle matrix passes [4.3]
 - [ ] 3.4 Ran DVWA with replay on; recorded `verified_precision` and the count of `replay_verified` findings (at least 0.95 over at least 10); iterated on oracles, not on the target list, until it holds [4.3]
 - [ ] 3.5 Nikto `interesting_path` class and `info` severity (checked against the nikto severity map), and the two named noise items; regression test: existing nikto parser tests pass [4.9]
 

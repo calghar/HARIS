@@ -18,7 +18,8 @@ def judge(finding: Finding, prober: Prober) -> tuple[ScopedResponse, PathVerdict
     base_url = prober.client.target.base_url
     path = urlsplit(urljoin(f"{base_url}/", finding.url)).path
     probe = prober.get(finding)
-    return probe, get_baseline(prober.client, base_url).judge(path, probe)
+    baseline = get_baseline(prober.client, base_url)
+    return probe, baseline.judge(path, probe, prober.timeout_s)
 
 
 def matched_control(verdict: PathVerdict) -> bool:

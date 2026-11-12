@@ -53,15 +53,23 @@ class Prober:
         self._start = client.requests_sent
 
     @property
+    def timeout_s(self) -> float | None:
+        return self._timeout_s
+
+    @property
     def used(self) -> int:
         return self.client.requests_sent - self._start
 
-    def send(self, finding: Finding, value: str) -> ScopedResponse:
+    def send(
+        self, finding: Finding, value: str, *, follow_redirects: bool = True
+    ) -> ScopedResponse:
         """The finding's request with its parameter set to *value*."""
         method, url, body, headers = build_request(
             finding, self.client.target.base_url, value
         )
-        return self.request(method, url, body=body, headers=headers)
+        return self.request(
+            method, url, body=body, headers=headers, follow_redirects=follow_redirects
+        )
 
     def get(self, finding: Finding) -> ScopedResponse:
         return self.request(
@@ -75,11 +83,17 @@ class Prober:
         *,
         body: bytes | None = None,
         headers: dict[str, str] | None = None,
+        follow_redirects: bool = True,
     ) -> ScopedResponse:
         if self.used >= self._limit:
             raise VerifyBudgetExhausted(f"verify.max_requests={self._limit} reached")
         return self.client.request(
-            method, url, headers=headers, body=body, timeout_s=self._timeout_s
+            method,
+            url,
+            headers=headers,
+            body=body,
+            timeout_s=self._timeout_s,
+            follow_redirects=follow_redirects,
         )
 
     def exchange(

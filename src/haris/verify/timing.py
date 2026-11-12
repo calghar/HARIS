@@ -4,7 +4,7 @@ from ..models import Finding
 from ..net import ScopedResponse
 from .oracles import OracleResult, Outcome, register
 from .probe import Prober, random_token
-from .settings import VerifySettings
+from .settings import TimingSettings, VerifySettings
 
 MS_PER_S = 1000.0
 
@@ -35,16 +35,15 @@ def _result(prober: Prober, outcome: Outcome, pairs: list[Pair]) -> OracleResult
     )
 
 
-def _cost(settings: VerifySettings) -> int:
-    cfg = settings.timing
-    return 2 * (len(cfg.payloads) - 1) + 2 * cfg.pairs
+def _cost(cfg: TimingSettings, payloads: list[str]) -> int:
+    return 2 * (len(payloads) - 1) + 2 * cfg.pairs
 
 
-@register("timing", cost=_cost)
-def timing(finding: Finding, prober: Prober, settings: VerifySettings) -> OracleResult:
-    cfg = settings.timing
+def _run(
+    finding: Finding, prober: Prober, cfg: TimingSettings, payloads: list[str]
+) -> OracleResult:
     first_series: list[Pair] = []
-    for template in cfg.payloads:
+    for template in payloads:
         payload = template.format(d=f"{cfg.delay_s:g}")
         pairs = [_pair(prober, finding, payload)]
         first_series = first_series or pairs
@@ -61,3 +60,15 @@ def timing(finding: Finding, prober: Prober, settings: VerifySettings) -> Oracle
         )
         return _result(prober, "positive" if positive else "inconclusive", pairs)
     return _result(prober, "inconclusive", first_series)
+
+
+@register("timing", cost=lambda s: _cost(s.timing, s.timing.payloads))
+def timing(finding: Finding, prober: Prober, settings: VerifySettings) -> OracleResult:
+    return _run(finding, prober, settings.timing, settings.timing.payloads)
+
+
+@register("timing_cmd", cost=lambda s: _cost(s.timing, s.timing.cmd_payloads))
+def timing_cmd(
+    finding: Finding, prober: Prober, settings: VerifySettings
+) -> OracleResult:
+    return _run(finding, prober, settings.timing, settings.timing.cmd_payloads)
