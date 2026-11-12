@@ -1,0 +1,65 @@
+Direct requests import is rejected:
+  tests:
+    - tests/test_scoped_client.py::test_direct_http_library_imports_fail_the_lint_gate
+
+Built-in checks share one client:
+  tests:
+    - tests/test_engine_pipeline.py::test_built_in_checks_share_one_client_and_log
+
+Redirect hop matrix:
+  tests:
+    - tests/test_scoped_client.py::test_redirect_hop_matrix
+
+Method outside scope:
+  tests:
+    - tests/test_scoped_client.py::test_method_outside_scope_raises_and_sends_nothing
+
+Address class matrix:
+  tests:
+    - tests/test_ssrf.py::test_address_class_matrix
+
+Mixed resolution is rejected:
+  tests:
+    - tests/test_ssrf.py::test_mixed_resolution_is_rejected
+
+DNS rebinding after first resolution:
+  tests:
+    - tests/test_ssrf.py::test_dns_rebinding_after_first_resolution_keeps_vetted_address
+
+Request cap:
+  tests:
+    - tests/test_scoped_client.py::test_request_cap_raises_for_the_request_that_would_exceed_it
+    - tests/test_engine_pipeline.py::test_request_cap_is_recorded_as_an_engine_error
+
+Rate limit:
+  tests:
+    - tests/test_scoped_client.py::test_rate_limit_applies_to_the_client
+    - tests/test_ratelimit.py::test_rate_limit_spaces_requests
+
+Retry outcomes:
+  tests:
+    - tests/test_scoped_client.py::test_retry_outcomes
+
+Rate halves after 429:
+  tests:
+    - tests/test_scoped_client.py::test_rate_halves_after_429
+    - tests/test_ratelimit.py::test_halve_rate_has_a_floor
+
+Header redaction:
+  tests:
+    - tests/test_scoped_client.py::test_header_redaction_in_log_and_application_logs
+    - tests/test_verify_oracles.py::test_evidence_is_redacted_capped_and_tied_to_the_request_log
+
+Override sources:
+  tests:
+    - tests/test_ssrf.py::test_override_sources
+    - tests/test_web_targets.py::test_allow_private_in_a_request_has_no_effect
+    - tests/test_web_targets.py::test_server_policy_can_allow_private_targets
+    - tests/test_web_execute.py::test_execute_scan_wires_the_runner_and_persists_the_session
+
+Pre-flight blocks private target:
+  tests:
+    - tests/test_engine_pipeline.py::test_preflight_blocks_private_target
+
+Rate split:
+  pending: "unscheduled: tool_rate_rps never reaches nuclei -rl or nmap --max-rate argv"

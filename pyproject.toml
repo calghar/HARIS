@@ -70,6 +70,7 @@ dev = [
     "pre-commit>=4.7.0",
     "jsonschema>=4.26.0",
     "types-jsonschema>=4.26.0.20261006",
+    "pytest-bdd>=9.0.1",
 ]
 docs = [
     "mkdocs-material>=9.8.1",
@@ -98,7 +99,10 @@ addopts = "-v --tb=short"
 markers = [
     "docker: requires a local Docker daemon and the haris-agent-sandbox image",
 ]
-filterwarnings = ["ignore:The default datetime adapter:DeprecationWarning"]
+filterwarnings = [
+    "ignore:The default datetime adapter:DeprecationWarning",
+    "ignore::pytest.PytestUnknownMarkWarning",
+]
 
 [tool.ruff]
 target-version = "py313"

@@ -1,0 +1,19 @@
+Static import audit: {pending: "2.2"}
+Call parameters: {pending: "2.2"}
+Legacy name rejected: {pending: "2.5"}
+Model validation: {pending: "2.2"}
+Gateway call: {pending: "2.2"}
+Direct Bedrock call: {pending: "2.2"}
+Secret in an error: {pending: "2.2"}
+No provider key names in code: {pending: "2.8"}
+Endpoint display: {pending: "2.6"}
+Availability: {pending: "2.6"}
+Deny-list check: {pending: "2.1"}
+Pin form: {pending: "2.1"}
+Retry sequence: {pending: "2.2"}
+Price order: {pending: "2.4"}
+Schema request: {pending: "2.2"}
+Unsupported format: {pending: "2.2"}
+Routing: {pending: "2.5"}
+Template rows: {pending: "2.7"}
+Idempotent: {pending: "2.7"}

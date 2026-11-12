@@ -1,0 +1,68 @@
+Route matrix without a session:
+  tests:
+    - tests/test_web_routes.py::test_anonymous_route_matrix
+    - tests/test_web_routes.py::test_only_allow_listed_routes_are_public
+    - tests/test_web_routes.py::test_route_table_covers_every_route
+
+Admin routes:
+  tests:
+    - tests/test_web_tokens.py::test_admin_routes
+
+Inactive user:
+  tests:
+    - tests/test_web_tokens.py::test_inactive_user_session_is_rejected_on_the_versioned_api
+    - tests/test_web_ownership.py::test_inactive_user_session_is_rejected
+
+Safe next parameter:
+  tests:
+    - tests/test_web_csrf.py::test_login_redirect_is_same_origin
+    - tests/test_web_csrf.py::test_safe_next
+
+Ownership matrix:
+  tests:
+    - tests/test_web_ownership.py::test_owner_and_admin_read_scan_and_stranger_gets_404
+    - tests/test_web_ownership.py::test_derived_scan_routes_hide_scan_from_stranger
+    - tests/test_web_ownership.py::test_shared_scans_are_readable_but_not_deletable
+    - tests/test_web_ownership.py::test_owner_deletes_own_scan
+
+Listing is filtered:
+  tests:
+    - tests/test_web_ownership.py::test_listing_is_filtered_to_own_scans
+
+CSRF matrix:
+  tests:
+    - tests/test_web_tokens.py::test_csrf_matrix
+    - tests/test_web_tokens.py::test_bearer_requests_skip_csrf_even_with_a_cookie_present
+
+Scan start matrix:
+  tests:
+    - tests/test_web_targets.py::test_scan_start_matrix
+
+File proof does not follow redirects:
+  tests:
+    - tests/test_web_proofs.py::test_file_proof_does_not_follow_redirects
+
+DNS proof:
+  tests:
+    - tests/test_web_proofs.py::test_dns_proof
+
+Token matrix:
+  tests:
+    - tests/test_web_tokens.py::test_token_matrix
+
+Expiry bounds:
+  tests:
+    - tests/test_web_tokens.py::test_expiry_bounds_reject_out_of_range
+
+Plaintext is not stored:
+  tests:
+    - tests/test_web_tokens.py::test_plaintext_is_not_stored
+
+Migrated session survives:
+  tests:
+    - tests/test_migrations.py::test_migrated_cookie_authenticates_and_new_sessions_store_only_hashes
+    - tests/test_migrations.py::test_upgrade_hashes_every_token_in_place
+
+Legacy path removed:
+  tests:
+    - tests/test_web_tokens.py::test_legacy_api_paths_are_gone

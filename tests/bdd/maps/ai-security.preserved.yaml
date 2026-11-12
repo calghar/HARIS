@@ -1,0 +1,56 @@
+Signature validator matrix:
+  tests:
+    - tests/test_ai_discovery.py::TestSignatureMatrix::test_validator_matrix
+
+Catch-all host yields no discovery:
+  tests:
+    - tests/test_ai_discovery.py::TestCatchAll
+
+Passive check mapping:
+  tests:
+    - tests/test_ai_owasp.py::TestMappingTable::test_passive_check_mapping
+    - tests/test_ai_passive.py
+
+Key pattern needs entropy:
+  tests:
+    - tests/test_ai_passive.py::TestBundles::test_low_entropy_placeholder_is_not_reported
+
+Static heuristic matrix:
+  tests:
+    - tests/test_ai_mcp.py::TestStaticMatrix
+    - tests/test_ai_owasp.py::TestMappingTable::test_static_heuristic_mapping
+
+No tool invocation:
+  tests:
+    - tests/test_ai_mcp.py::TestReadOnlyProbe::test_only_allow_listed_methods_are_sent
+
+Activation:
+  tests:
+    - tests/test_ai_active.py::TestActivation::test_prompts_need_both_flags
+
+Canary verdict:
+  tests:
+    - tests/test_ai_active.py::TestCanaryVerdict::test_obedient_model_gives_a_replay_verified_finding
+    - tests/test_ai_active.py::TestCanaryVerdict::test_a_canary_that_is_not_the_requested_one_is_ignored
+    - tests/test_ai_active.py::TestCanaryVerdict::test_refusal_gives_no_finding
+
+Probe file is the only source:
+  tests:
+    - tests/test_ai_active.py::TestBudgetsAndSources::test_every_prompt_is_a_payload_from_the_probe_file
+
+Fail rate to confidence:
+  tests:
+    - tests/test_ai_garak.py::TestGarakParser::test_fail_rate_to_confidence
+
+Binary missing:
+  tests:
+    - tests/test_ai_adapter_gate.py::TestMissingBinary::test_other_scanners_still_report_and_scan_is_incomplete
+
+Parse results:
+  tests:
+    - tests/test_ai_promptfoo.py::TestPromptfooParser::test_one_failure_in_four
+
+Malformed output:
+  tests:
+    - tests/test_ai_promptfoo.py::TestPromptfooRun::test_truncated_json_is_an_error_without_findings
+    - tests/test_ai_promptfoo.py::TestPromptfooParser::test_malformed_output_raises

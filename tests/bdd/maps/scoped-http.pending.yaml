@@ -1,0 +1,7 @@
+Rebinding after pre-flight: {pending: "4.4"}
+Tool that cannot be bound: {pending: "4.4"}
+Phase 2 over the bound: {pending: "4.2"}
+Phase 2 within the bound: {pending: "4.2"}
+sslyze on plain HTTP: {pending: "4.3"}
+Every scanner skipped: {pending: "4.3"}
+sslyze on HTTPS: {pending: "4.3"}

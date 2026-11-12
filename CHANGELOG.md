@@ -3,6 +3,10 @@
 
 ## [Unreleased]
 
+### Added
+
+- Added `tests/bdd`, a `pytest-bdd` harness that runs every generated scenario against the existing tests mapped in `tests/bdd/maps`; scenarios of the unimplemented Phase 6 change are strict `xfail` until their task lands
+
 ### Fixed
 
 - Fixed the runtime image keeping Debian `zlib1g` `1:1.3.dfsg+really1.3.1-1+b1`: it now installs `1:1.3.dfsg+really1.3.1-1+deb13u1`

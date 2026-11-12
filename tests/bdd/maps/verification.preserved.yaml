@@ -1,0 +1,75 @@
+Allowed and forbidden transitions:
+  tests:
+    - tests/test_finding.py::TestTierTransitions::test_only_documented_transitions
+    - tests/test_verify_oracles.py::test_reflection_oracle
+    - tests/test_verify_baseline_oracles.py::test_soft404_match_on_a_catch_all_host_is_refuted
+    - tests/test_agent_validator.py::test_reflected_marker_is_exploit_validated
+    - tests/test_agent_validator.py::test_encoded_marker_keeps_the_tier
+    - tests/test_agent_validator.py::test_prose_claim_does_not_change_the_tier
+    - tests/test_verify_llm.py::test_llm_verdict_never_changes_the_tier
+    - tests/test_verify_llm.py::test_only_unverified_unsuppressed_cases_with_evidence_are_judged
+    - tests/test_agent_policy.py::test_candidates_follow_tier_severity_and_class
+Default verification on old reports:
+  tests:
+    - tests/test_finding.py::TestBackwardCompatibility::test_report_from_0_6_2_loads_unchanged
+Stage order recorded:
+  tests:
+    - tests/test_agent_stage.py::test_stage_order_includes_the_agent
+Suppressed finding is not verified:
+  tests:
+    - tests/test_verify_pipeline.py::test_suppressed_finding_is_not_verified
+    - tests/test_verify_oracles.py::test_findings_that_are_settled_or_suppressed_are_not_replayed
+Oracle matrix:
+  tests:
+    - tests/test_verify_oracles.py::test_reflection_oracle
+    - tests/test_verify_oracles.py::test_error_signature_oracle
+    - tests/test_verify_oracles.py::test_timing_oracle_on_a_real_server
+    - tests/test_verify_oracles.py::test_timing_decision_with_five_second_delay
+    - tests/test_verify_oracles.py::test_header_presence_oracle
+    - tests/test_verify_baseline_oracles.py::test_content_validator_passes_without_soft404_match_is_replay_verified
+    - tests/test_verify_baseline_oracles.py::test_soft404_match_on_a_catch_all_host_is_refuted
+Method outside scope is not replayed:
+  tests:
+    - tests/test_verify_oracles.py::test_method_outside_scope_is_not_replayed
+Unclassified external finding:
+  tests:
+    - tests/test_verify_unclassified_external.py::test_unclassified_external_finding
+Refuted external finding stays visible:
+  tests:
+    - tests/test_verify_unclassified_external.py::test_refuted_external_finding_stays_visible
+Replay budget exhausted:
+  tests:
+    - tests/test_verify_oracles.py::test_replay_budget_exhausted_stops_with_a_recorded_reason
+Output validation:
+  tests:
+    - tests/test_verify_llm.py::test_output_validation
+Injection inside evidence stays fenced:
+  tests:
+    - tests/test_verify_llm.py::test_evidence_is_fenced_with_a_fresh_nonce_and_redacted_before_the_bundle
+Budget exhausted:
+  tests:
+    - tests/test_verify_llm.py::test_budget_exhausted_marks_the_remaining_case_skipped
+Activation matrix:
+  tests:
+    - tests/test_agent_policy.py::test_activation_matrix
+    - tests/test_agent_policy.py::test_agent_without_authorisation_exits_before_a_scan
+    - tests/test_agent_policy.py::test_bind_cli_skips_when_disabled
+Container flags:
+  tests:
+    - tests/test_agent_runtime.py::test_container_argv_matches_the_sandbox_contract
+Proxy egress matrix:
+  tests:
+    - tests/test_agent_proxy.py::test_proxy_egress_matrix
+    - tests/test_agent_validator.py::test_unsafe_method_replays_only_the_observed_post
+Guardrail rejects decode-and-execute:
+  tests:
+    - tests/test_agent_budget.py::test_decode_and_execute_is_logged_and_not_run
+Budget stop:
+  tests:
+    - tests/test_agent_budget.py::test_tool_call_cap_aborts_on_the_41st
+PoC outcomes:
+  tests:
+    - tests/test_agent_validator.py::test_reflected_marker_is_exploit_validated
+    - tests/test_agent_validator.py::test_encoded_marker_keeps_the_tier
+    - tests/test_agent_validator.py::test_prose_claim_does_not_change_the_tier
+    - tests/test_agent_validator.py::test_out_of_scope_poc_is_not_sent

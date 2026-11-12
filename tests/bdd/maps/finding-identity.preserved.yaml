@@ -1,0 +1,49 @@
+Volatile query values do not change identity:
+  tests:
+    - tests/test_identity.py::test_volatile_query_values_do_not_change_identity
+Fingerprint is unchanged by tier:
+  tests:
+    - tests/test_identity.py::test_fingerprint_is_unchanged_by_tier
+Host-granularity classes ignore path:
+  tests:
+    - tests/test_identity.py::test_host_granularity_classes_ignore_path
+Two scanners with different titles merge:
+  tests:
+    - tests/test_correlator.py::test_two_scanners_with_different_titles_merge
+Inputs are not mutated:
+  tests:
+    - tests/test_correlator.py::test_inputs_are_not_mutated
+Unmapped findings from different scanners stay separate:
+  tests:
+    - tests/test_correlator.py::test_unmapped_findings_from_different_scanners_stay_separate
+Consensus and tier floors:
+  tests:
+    - tests/test_correlator.py::test_consensus_and_tier_floors
+LLM verdict adjusts score but not tier:
+  tests:
+    - tests/test_correlator.py::test_llm_verdict_adjusts_score_but_not_tier
+Risk by tier:
+  tests:
+    - tests/test_risk.py::TestAssessRiskPosture::test_risk_by_tier
+All scanners failed:
+  tests:
+    - tests/test_engine_pipeline.py::test_all_scanners_failed_is_unknown_and_exit_2
+    - tests/test_risk.py::TestAssessRiskPosture::test_unknown_when_no_scanner_completed
+Visibility by tier:
+  tests:
+    - tests/test_report_escape.py::test_visibility_by_tier
+    - tests/test_ignore_diff.py::test_visibility_by_tier
+    - tests/test_report_schema.py::test_generated_report_validates_and_keeps_0_6_keys
+Ignore entry evaluation:
+  tests:
+    - tests/test_ignore_diff.py::test_ignore_entry_evaluation
+Entry without reason:
+  tests:
+    - tests/test_ignore_diff.py::test_entry_without_reason_exits_3_before_any_request
+Diff classes:
+  tests:
+    - tests/test_ignore_diff.py::test_diff_classes
+Exit code matrix:
+  tests:
+    - tests/test_cli_exit.py::test_exit_code_matrix
+    - tests/test_cli_exit.py::test_unknown_fail_on_value_exits_3
