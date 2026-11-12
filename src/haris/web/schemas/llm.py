@@ -7,6 +7,8 @@ class BackendStatus(BaseModel):
     name: str
     available: bool
     reason: str = ""
+    model: str = ""
+    endpoint: str = ""
 
 
 class BackendList(BaseModel):

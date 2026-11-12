@@ -11,19 +11,6 @@ from ..config.paths import resolve_config_file
 SETTINGS_FILE = "llm_models.yaml"
 
 
-class ProviderModels(BaseModel):
-    default: str
-    fallbacks: list[str] = Field(default_factory=list)
-
-
-class Capability(BaseModel):
-    match: str
-    token_param: str = "max_tokens"
-    temperature: bool = True
-    json_schema: bool = False
-    json_object: bool = False
-
-
 class Price(BaseModel):
     match: str
     input_per_mtok: float = Field(ge=0)
@@ -72,19 +59,11 @@ class Limits(BaseModel):
 
 
 class LLMSettings(BaseModel):
-    providers: dict[str, ProviderModels]
-    capabilities: dict[str, list[Capability]] = Field(default_factory=dict)
     pricing: list[Price] = Field(default_factory=list)
     runtime: RuntimeSettings = Field(default_factory=RuntimeSettings)
     budget: BudgetSettings = Field(default_factory=BudgetSettings)
     redaction: RedactionSettings = Field(default_factory=RedactionSettings)
     limits: Limits = Field(default_factory=Limits)
-
-    def capability(self, provider: str, model: str) -> Capability:
-        for entry in self.capabilities.get(provider, []):
-            if fnmatchcase(model, entry.match):
-                return entry
-        return Capability(match="*")
 
     def price(self, model: str) -> Price | None:
         return next((p for p in self.pricing if fnmatchcase(model, p.match)), None)

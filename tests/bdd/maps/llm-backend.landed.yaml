@@ -1,0 +1,88 @@
+Deny-list check:
+  tests:
+    - tests/test_check_litellm.py::test_denied_versions_fail
+    - tests/test_check_litellm.py::test_clean_lock_passes
+
+Pin form:
+  tests:
+    - tests/test_check_litellm.py::test_exact_pin_passes
+    - tests/test_check_litellm.py::test_range_pin_fails
+    - tests/test_check_litellm.py::test_main_dependency_fails
+
+Template rows:
+  tests:
+    - tests/test_migration_llm_backend_names.py::test_template_backend_rewritten
+
+Idempotent:
+  tests:
+    - tests/test_migration_llm_backend_names.py::test_applying_twice_changes_nothing_more
+
+Static import audit:
+  tests:
+    - tests/test_litellm_backend.py::TestStaticImportAudit::test_only_the_backend_module_imports_litellm
+
+Call parameters:
+  tests:
+    - tests/test_litellm_backend.py::TestCallParameters::test_every_request_carries_the_fixed_parameters
+    - tests/test_litellm_backend.py::TestCallParameters::test_timeout_follows_the_runtime_setting
+
+Legacy name rejected:
+  tests:
+    - tests/test_llm_backend_names.py::TestLegacyNameRejected::test_llm_backend_flag_exits_3
+    - tests/test_llm_backend_names.py::TestLegacyNameRejected::test_backend_in_config_exits_3
+    - tests/test_llm_backend_names.py::TestLegacyNameRejected::test_ask_backend_flag_exits_3
+    - tests/test_llm_backend_names.py::TestLegacyNameRejected::test_create_backend_names_litellm_and_llm_model
+    - tests/test_llm_backend_names.py::TestLegacyNameRejected::test_litellm_flag_creates_the_backend_from_config
+    - tests/test_web_llm_config.py::TestLegacyBackendName::test_legacy_name_is_a_400_naming_litellm_and_llm_model
+
+Model validation:
+  tests:
+    - tests/test_litellm_backend.py::TestModelValidation::test_bad_model_lists_the_three_examples
+    - tests/test_litellm_backend.py::TestModelValidation::test_valid_model_is_sent_unchanged
+
+Gateway call:
+  tests:
+    - tests/test_litellm_backend.py::TestEndpointAndKey::test_gateway_call_passes_base_and_key
+
+Direct Bedrock call:
+  tests:
+    - tests/test_litellm_backend.py::TestEndpointAndKey::test_direct_bedrock_call_passes_neither
+
+Retry sequence:
+  tests:
+    - tests/test_litellm_backend.py::TestRetrySequence::test_calls_made
+
+Price order:
+  tests:
+    - tests/test_llm_pricing.py::TestPriceOrder::test_recorded_cost
+    - tests/test_llm_pricing.py::TestPriceOrder::test_unpriced_model_is_limited_by_the_token_cap_alone
+
+Schema request:
+  tests:
+    - tests/test_litellm_backend.py::TestSchemaRequest::test_response_format_is_json_schema_named_haris_output
+
+Unsupported format:
+  tests:
+    - tests/test_litellm_backend.py::TestUnsupportedFormat::test_prose_reply_stores_invalid_and_keeps_the_tier
+
+Routing:
+  tests:
+    - tests/test_llm_backend_names.py::TestRouting::test_summary_model
+    - tests/test_llm_backend_names.py::TestRouting::test_invalid_routed_value_is_logged_and_the_default_is_used
+
+No provider key names in code:
+  tests:
+    - tests/test_no_provider_key_names.py::test_no_provider_key_names_in_src
+
+Secret in an error:
+  tests:
+    - tests/test_litellm_backend.py::TestSecretInAnError::test_retry_warning_does_not_log_the_key
+    - tests/test_web_llm_config.py::TestSecretInAnError::test_provider_error_with_the_key_reaches_neither_log_nor_response
+
+Endpoint display:
+  tests:
+    - tests/test_web_llm_config.py::TestEndpointDisplay::test_settings_shows_scheme_and_host_only
+
+Availability:
+  tests:
+    - tests/test_web_llm_config.py::TestAvailability::test_litellm_availability

@@ -50,10 +50,10 @@ def test_llm_failures_are_generic_and_logged(
 ) -> None:
     """Budget errors render as 429; no response ever carries `str(exc)`."""
 
-    def failing(_name: str, **_kwargs: Any) -> Any:
+    def failing(_llm: Any, _name: str | None = None, **_kwargs: Any) -> Any:
         raise error
 
-    monkeypatch.setattr("haris.web.llm_support.create_backend", failing)
+    monkeypatch.setattr("haris.web.llm_support.create_backend_from_config", failing)
     scan = env.add_scan(env.alice)
     alice = env.browser(env.alice)
     with caplog.at_level(logging.WARNING):
@@ -176,20 +176,22 @@ def test_llm_routes_need_the_write_scope_for_tokens(env: WebEnv) -> None:
 def test_backends_listing_uses_the_declared_model(
     env: WebEnv, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    def entries() -> list[dict[str, Any]]:
+    def entries(_model: str = "") -> list[dict[str, Any]]:
         return [
-            {"name": "openai", "available": True, "reason": ""},
-            {"name": "ollama", "available": False, "reason": "not installed"},
+            {"name": "litellm", "available": True, "reason": ""},
+            {"name": "other", "available": False, "reason": "not installed"},
         ]
 
     monkeypatch.setattr("haris.web.routers.llm_chat.get_available_backends", entries)
     monkeypatch.setattr(
-        "haris.web.routers.llm_chat.get_default_backend_name", lambda: "openai"
+        "haris.web.routers.llm_chat.get_default_backend_name", lambda: "litellm"
     )
     body = env.browser(env.alice).get("/api/v1/llm/backends").json()
-    assert body["default"] == "openai"
+    assert body["default"] == "litellm"
     assert body["backends"][1] == {
-        "name": "ollama",
+        "name": "other",
         "available": False,
         "reason": "not installed",
+        "model": "",
+        "endpoint": "",
     }

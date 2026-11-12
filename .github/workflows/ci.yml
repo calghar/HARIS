@@ -30,6 +30,9 @@ jobs:
       - name: Install dev dependencies
         run: uv sync
 
+      - name: Check litellm pin and lock
+        run: python3 scripts/check_litellm.py
+
       - name: Ruff lint
         run: uv run ruff check src/ tests/
 
@@ -48,7 +51,7 @@ jobs:
           python-version: "3.13"
 
       - name: Install dependencies
-        run: uv sync --extra web --extra reporting
+        run: uv sync --extra web --extra reporting --extra llm
 
       - name: Mypy
         run: uv run mypy src/ tests/
@@ -70,7 +73,7 @@ jobs:
 
       - name: Install dependencies
         # Excludes the scanners extra (sslyze/wapiti3) — scanners are mocked in tests
-        run: uv sync --extra web --extra reporting
+        run: uv sync --extra web --extra reporting --extra llm
 
       - name: Run tests
         env:

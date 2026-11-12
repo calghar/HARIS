@@ -56,7 +56,7 @@ globalThis.haris = {
           select.appendChild(opt);
         });
       })
-      .catch(function() { select.replaceChildren(new Option('anthropic', 'anthropic')); });
+      .catch(function() { select.replaceChildren(new Option('litellm', 'litellm')); });
   },
   async errorMessage(resp) {
     const body = await resp.json().catch(function() { return {}; });

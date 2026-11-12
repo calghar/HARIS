@@ -29,8 +29,6 @@ dependencies = [
     "requests>=2.34.2",
     "pyyaml>=6.0.3",
     "jinja2>=3.1.6",
-    "openai>=3.46.0",
-    "anthropic>=2.6.0",
     "bcrypt>=5.0.0",
     "starlette>=1.10.0",
     "yoyo-migrations>=9.0.0",
@@ -51,9 +49,13 @@ web = [
 reporting = [
     "markdown>=3.11.3",
 ]
+# LLM calls; exact pin and deny-list: scripts/check_litellm.py
+llm = [
+    "litellm==1.108.0",
+]
 # Everything installable alongside the web dashboard
 all = [
-    "haris[web,reporting]",
+    "haris[web,reporting,llm]",
 ]
 
 [dependency-groups]
@@ -120,8 +122,6 @@ ignore = ["B008"]
 
 [tool.ruff.lint.per-file-ignores]
 "src/haris/net/**" = ["TID251"]
-# LLM provider SDK calls; not target traffic
-"src/haris/llm/providers.py" = ["TID251"]
 # Fake transports and test servers
 "tests/**" = ["TID251"]
 # Benchmark harness talks to its own local fixtures

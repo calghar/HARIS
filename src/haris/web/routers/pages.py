@@ -8,7 +8,9 @@ from ...auth.middleware import require_admin, require_user
 from ...auth.models import User
 from ...config.loader import load_config
 from ...core.decorators import all_registered
+from ...llm.base import get_default_backend_name
 from ..access import visible_owner
+from ..llm_support import endpoint_display
 from ..routing import protected_router
 from ..scanner_info import SCANNER_INFO
 from ..state import AppState, get_state
@@ -103,6 +105,8 @@ def _llm_settings() -> tuple[dict[str, Any], str]:
         return {}, "./templates"
     llm = {
         "backend": cfg.llm.backend,
+        "model": cfg.llm.model,
+        "endpoint": endpoint_display(cfg.llm.api_base),
         "enrichment_enabled": cfg.llm.enrichment_enabled,
         "threshold": cfg.llm.enrich_severity_threshold,
     }
@@ -125,7 +129,9 @@ async def settings_page(
             user=user,
             nav_active="settings",
             scanners=sorted(all_registered().keys()),
-            llm_backend=llm_config.get("backend", "anthropic"),
+            llm_backend=llm_config.get("backend", get_default_backend_name()),
+            llm_model=llm_config.get("model", ""),
+            llm_endpoint=llm_config.get("endpoint", ""),
             llm_enrichment_enabled=llm_config.get("enrichment_enabled", False),
             enrich_threshold=llm_config.get("threshold", "high"),
             total_scans=summary.get("total_scans", 0),

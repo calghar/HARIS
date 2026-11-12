@@ -16,6 +16,7 @@ from ...models.templates import TemplateMetadata, UpdateResult
 from ...scanners.option_policy import ScannerOptionsError, prepare_web_scanner_options
 from ...templates.manager import TemplateManager
 from ..access import require_template_access, visible_templates
+from ..llm_support import reject_legacy_backend
 from ..routing import api_router
 from ..schemas.sites import TemplateDefault, TemplateDeleted, TemplateSummary
 from ..state import AppState, get_state
@@ -43,6 +44,7 @@ NOT_FOUND = "Template not found"
 
 def _clean_template_fields(body: dict[str, Any]) -> dict[str, Any]:
     fields = {key: body[key] for key in TEMPLATE_FIELDS if key in body}
+    reject_legacy_backend(str(fields.get("llm_backend") or ""))
     if "scanner_options" in fields:
         fields["scanner_options"] = _scanner_options(fields["scanner_options"])
     if "excluded_paths" in fields:

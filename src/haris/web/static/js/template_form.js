@@ -65,7 +65,7 @@
           });
         })
         .catch(() => {
-          document.getElementById("llm_backend").replaceChildren(new Option("anthropic", "anthropic"));
+          document.getElementById("llm_backend").replaceChildren(new Option("litellm", "litellm"));
         });
     }
   }

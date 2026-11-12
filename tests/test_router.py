@@ -6,7 +6,7 @@ from haris.llm.router import ModelRouter
 
 
 def _make_default_backend(
-    name: str = "anthropic",
+    name: str = "litellm",
     model: str = "default-model",
 ) -> MagicMock:
     """Build a minimal mock backend that ModelRouter will inspect."""
@@ -44,7 +44,7 @@ class TestModelRouterDefault:
 class TestModelRouterRouting:
     def test_routed_task_uses_specified_model(self):
         """create_backend is called with the model named in the routing dict."""
-        default = _make_default_backend(name="anthropic", model="default-model")
+        default = _make_default_backend(name="litellm", model="default-model")
         routed_backend = MagicMock()
 
         with patch(
@@ -57,7 +57,7 @@ class TestModelRouterRouting:
             )
             result = router.for_task("summary")
 
-        mock_create.assert_called_once_with("anthropic", model="fast-model")
+        mock_create.assert_called_once_with("litellm", model="fast-model")
         assert result is routed_backend
 
     def test_routed_backend_is_returned_not_default(self):

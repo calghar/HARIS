@@ -9,6 +9,13 @@
 
 ### Changed
 
+- Changed `--llm-backend`, `--backend` and `llm.backend` to accept only `litellm` (BREAKING); `anthropic`, `openai`, `ollama` and `bedrock` are rejected with CLI exit 3 and web status 400, and `docs/upgrading.md` lists the steps
+- Changed `llm.model` to have no default (BREAKING); it needs the form `<route>/<id>`, for example `ollama_chat/llama3.1`
+- Changed LLM settings: `llm.api_base` sets a gateway URL and `llm.api_key_env` (default `LITELLM_API_KEY`) names the one key variable HARIS reads
+- Changed saved scan config templates: migration `0009_llm_backend_names` rewrites the legacy backend names to `litellm`; copy the database file first
+- Changed the LLM dependencies: `anthropic` and `openai` leave the main dependencies and `litellm==1.108.0` joins the new `llm` extra, which the image and CI install; `scripts/check_litellm.py` fails CI and the release on a range pin, a deny-listed release (1.82.7, 1.82.8, 1.107.0) or a lock file without hashes
+- Changed Dependabot to skip `litellm` and wait 14 days before proposing other Python updates
+- Changed the `pip-audit` job to ignore 13 `filelock` 3.32.7 advisories that `litellm` 1.108.0 forces (it caps `filelock` below 4); the ignores go when `litellm` moves to 1.108.3 or later
 - Changed the DVWA benchmark database image to `ghcr.io/mariadb/mariadb:10.11` pinned by digest; Juice Shop and WebGoat stay on Docker Hub because upstream publishes nowhere else (`bench/README.md`)
 
 ### Fixed
@@ -18,7 +25,6 @@
 - Fixed the runtime image shipping base-image `pip`, which vendors `msgpack` 1.1.2, `urllib3` 2.7.0 and `setuptools` 70.3.0: that `pip` tree is removed
 - Fixed the `CodeQL` job of the `Security` workflow failing on SARIF upload while GitHub default setup is on: the job is removed and default setup scans `main`
 - Fixed the image scan failing on 26 fixed CVEs in the `nuclei` 3.11.1 Go dependencies, the latest release: `.trivyignore.yaml` ignores them for `usr/local/bin/nuclei` only, until 2026-12-12
-- Fixed Trivy reporting Anthropic SDK docstring placeholders as `gcp-service-account` secrets: `.trivyignore.yaml` ignores that rule under `site-packages/anthropic` only
 
 ## 0.7.1 — 2026-11-12
 

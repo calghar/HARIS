@@ -26,6 +26,9 @@ jobs:
               sys.exit("tag %s != project.version %s" % (tag, version))
           '
 
+      - name: Check litellm pin and lock
+        run: python3 scripts/check_litellm.py
+
   build:
     name: Build sdist and wheel
     needs: version

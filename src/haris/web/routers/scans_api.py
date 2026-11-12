@@ -21,6 +21,7 @@ from ..agent_gate import (
     remove_agent_run,
     require_agent_allowed,
 )
+from ..llm_support import check_scan_llm
 from ..routing import api_router
 from ..scan_runtime import (
     FINISHED,
@@ -159,6 +160,7 @@ async def start_scan(
     if params.template_id:
         params = _with_template(state, user, form, params)
     params = _checked_params(params)
+    check_scan_llm(params.llm_backend_name, params.llm_enrich)
     if params.verify is VerifyMode.LLM and not params.llm_enrich:
         raise HTTPException(
             status_code=422, detail="verify=llm requires LLM enrichment (llm_enrich)"

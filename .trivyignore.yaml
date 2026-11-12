@@ -129,8 +129,3 @@ vulnerabilities:
       - "usr/local/bin/nuclei"
     expired_at: 2026-12-12
     statement: nuclei 3.11.1 is the latest release; Go dependency fix unreleased
-secrets:
-  - id: gcp-service-account
-    paths:
-      - "**/site-packages/anthropic/**"
-    statement: Anthropic SDK docstrings use a short placeholder, not a credential

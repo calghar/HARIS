@@ -14,11 +14,16 @@ class ScannerConfig(BaseModel):
     options: dict[str, Any] = Field(default_factory=dict)
 
 
+DEFAULT_API_KEY_ENV = "LITELLM_API_KEY"
+
+
 class LLMConfig(BaseModel):
     """Configuration for LLM-powered analysis features."""
 
-    backend: str = "anthropic"
+    backend: str = "litellm"
     model: str = ""
+    api_base: str = ""
+    api_key_env: str = DEFAULT_API_KEY_ENV
     enrichment_enabled: bool = False
     enrich_severity_threshold: str = "high"
     max_tokens_per_finding: int = 1024
@@ -28,7 +33,7 @@ class LLMConfig(BaseModel):
 
     Keys: summary, explain, remediation, enrichment,
           attack_chains, triage, chat
-    Values: model name (e.g. 'claude-haiku-4-5')
+    Values: LiteLLM model string (e.g. 'ollama_chat/llama3.1')
     """
 
 

@@ -233,6 +233,4 @@ class TestLLMResponse:
 
 class TestBackendRegistry:
     def test_known_backends(self):
-        assert "openai" in BACKEND_REGISTRY
-        assert "anthropic" in BACKEND_REGISTRY
-        assert "ollama" in BACKEND_REGISTRY
+        assert list(BACKEND_REGISTRY) == ["litellm"]

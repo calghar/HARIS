@@ -7,7 +7,7 @@ from ...auth.models import User
 from ...llm.base import get_available_backends, get_default_backend_name
 from ...models.chat import Conversation
 from ..access import Access, scan_access
-from ..llm_support import answer, llm_errors, make_qa
+from ..llm_support import answer, endpoint_display, llm_config, llm_errors, make_qa
 from ..routing import api_router
 from ..scan_runtime import get_completed_session
 from ..schemas.llm import (
@@ -30,9 +30,14 @@ NOT_FOUND = "Conversation not found"
 
 @router.get("/backends")
 async def llm_backends() -> BackendList:
-    """Available LLM backends and the current default."""
+    """The litellm backend: availability, model, endpoint as scheme and host."""
+    cfg = llm_config()
+    shown = {"model": cfg.model, "endpoint": endpoint_display(cfg.api_base)}
     return BackendList.model_validate(
-        {"backends": get_available_backends(), "default": get_default_backend_name()}
+        {
+            "backends": [entry | shown for entry in get_available_backends(cfg.model)],
+            "default": get_default_backend_name(),
+        }
     )
 
 
@@ -81,7 +86,7 @@ async def chat_with_scan(
             raise HTTPException(status_code=404, detail=NOT_FOUND)
     question = body.question
     with llm_errors("chat"):
-        backend_name = body.backend or get_default_backend_name()
+        backend_name = body.backend or llm_config().backend
         qa = make_qa(backend_name)
         if conv is None:
             conv = Conversation(

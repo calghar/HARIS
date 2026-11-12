@@ -48,10 +48,20 @@ jobs:
           python-version: "3.13"
 
       - name: Install dependencies
-        run: uv sync --extra web --extra reporting
+        run: uv sync --extra web --extra reporting --extra llm
 
       - name: Run pip-audit
-        run: uv run pip-audit --skip-editable --format=json --output=pip-audit-report.json
+        # litellm 1.108.0 caps filelock below 4; these 13 local-attacker CVEs sit in lock
+        # classes HARIS does not use. Remove them when litellm moves to 1.108.3 or later.
+        run: |
+          ignores=()
+          for id in 112907 112908 112909 112910 112911 112912 112913 112915 112935 112936 112938 112939 112940; do
+            ignores+=(--ignore-vuln "CVE-2026-$id")
+          done
+          uv run pip-audit --skip-editable "${ignores[@]}" --format=json --output=pip-audit-report.json
+
+      - name: Check litellm pin and lock
+        run: python3 scripts/check_litellm.py
 
       - name: Upload pip-audit report
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -72,7 +82,7 @@ jobs:
           python-version: "3.13"
 
       - name: Export CycloneDX SBOM
-        run: uv export --preview-features sbom-export --frozen --format cyclonedx1.5 --no-dev --extra web --extra reporting --output-file sbom.cdx.json
+        run: uv export --preview-features sbom-export --frozen --format cyclonedx1.5 --no-dev --extra web --extra reporting --extra llm --output-file sbom.cdx.json
 
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:

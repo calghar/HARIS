@@ -6,6 +6,7 @@ from typing import Any
 import yaml
 
 from ..models import AuthConfig, Config, LLMConfig, ScannerConfig, Scope, Target
+from ..models.config import DEFAULT_API_KEY_ENV
 from ..models.templates import TemplateSource
 from .paths import resolve_config_file
 
@@ -137,8 +138,10 @@ def _build_config(raw: dict[str, Any]) -> Config:
     # Build LLM config
     llm_raw = raw.get("llm", {})
     llm_config = LLMConfig(
-        backend=llm_raw.get("backend", "anthropic"),
+        backend=llm_raw.get("backend", "litellm"),
         model=llm_raw.get("model", ""),
+        api_base=llm_raw.get("api_base", ""),
+        api_key_env=llm_raw.get("api_key_env", DEFAULT_API_KEY_ENV),
         enrichment_enabled=llm_raw.get("enrichment_enabled", False),
         enrich_severity_threshold=llm_raw.get(
             "enrich_severity_threshold",
@@ -146,6 +149,7 @@ def _build_config(raw: dict[str, Any]) -> Config:
         ),
         max_tokens_per_finding=llm_raw.get("max_tokens_per_finding", 1024),
         triage_context=llm_raw.get("triage_context", {}),
+        model_routing=llm_raw.get("model_routing", {}),
     )
 
     return Config(

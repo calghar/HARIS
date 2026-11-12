@@ -39,11 +39,24 @@ class LLMBudget:
 
     def _cost(self, model: str, prompt_tokens: int, output_tokens: int) -> float:
         price = self._settings.price(model)
-        if price is None:
-            return 0.0
-        return (
-            prompt_tokens * price.input_per_mtok + output_tokens * price.output_per_mtok
-        ) / MILLION
+        if price is not None:
+            return (
+                prompt_tokens * price.input_per_mtok
+                + output_tokens * price.output_per_mtok
+            ) / MILLION
+        # Lazy: litellm_backend imports backend, which imports this module.
+        from .litellm_backend import table_cost
+
+        return table_cost(model, prompt_tokens, output_tokens) or 0.0
+
+    def _output_rate(self, model: str) -> float | None:
+        """USD per million output tokens from config, else LiteLLM's table."""
+        price = self._settings.price(model)
+        if price is not None:
+            return price.output_per_mtok
+        from .litellm_backend import table_cost
+
+        return table_cost(model, 0, MILLION)
 
     def _grant(self, prompt_tokens: int, max_tokens: int, model: str) -> int:
         """Output tokens that fit the remaining caps; 0 when nothing useful fits."""
@@ -51,12 +64,12 @@ class LLMBudget:
         if self.max_tokens is not None:
             left = self.max_tokens - self.used_tokens - self._reserved_tokens
             granted = min(granted, left - prompt_tokens)
-        price = self._settings.price(model)
-        if self.max_cost_usd is not None and price is not None:
+        rate = self._output_rate(model) if self.max_cost_usd is not None else None
+        if self.max_cost_usd is not None and rate is not None:
             left_cost = self.max_cost_usd - self.used_cost - self._reserved_cost
             left_cost -= self._cost(model, prompt_tokens, 0)
-            if price.output_per_mtok > 0:
-                granted = min(granted, int(left_cost * MILLION / price.output_per_mtok))
+            if rate > 0:
+                granted = min(granted, int(left_cost * MILLION / rate))
             elif left_cost < 0:
                 granted = 0
         floor = self._settings.runtime.min_output_tokens

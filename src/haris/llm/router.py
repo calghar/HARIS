@@ -10,6 +10,7 @@ import logging
 
 from .base import BaseLLMBackend, create_backend
 from .budget import LLMBudget
+from .litellm_backend import LiteLLMBackend
 
 logger = logging.getLogger(__name__)
 
@@ -36,6 +37,15 @@ class ModelRouter:
         self._routing = routing or {}
         self._cache: dict[str, BaseLLMBackend] = {}
 
+    def _endpoint(self) -> dict[str, str]:
+        """Routed tasks share the default backend's endpoint and key variable."""
+        if isinstance(self._default, LiteLLMBackend):
+            return {
+                "api_base": self._default.api_base,
+                "api_key_env": self._default.api_key_env,
+            }
+        return {}
+
     def for_task(self, task_type: str) -> BaseLLMBackend:
         """Return a backend configured for the given task type."""
         model = self._routing.get(task_type)
@@ -52,7 +62,9 @@ class ModelRouter:
             return self._cache[task_type]
 
         try:
-            backend = create_backend(self._default.name, model=model)
+            backend = create_backend(
+                self._default.name, model=model, **self._endpoint()
+            )
             backend.budget = self.budget
             self._cache[task_type] = backend
             logger.debug(
@@ -61,10 +73,11 @@ class ModelRouter:
                 model,
             )
             return backend
-        except Exception:
+        except Exception as exc:
             logger.warning(
-                "Failed to create routed backend for %s (%s) — using default",
+                "Failed to create routed backend for %s (%s): %s — using default",
                 task_type,
                 model,
+                exc,
             )
             return self._default

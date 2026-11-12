@@ -1,7 +1,7 @@
 import importlib.util
-import os
 from typing import Any
 
+from ..models.config import LLMConfig
 from ..models.llm import LLMResponse
 from .backend import (
     BaseLLMBackend,
@@ -9,80 +9,67 @@ from .backend import (
     ProviderBackend,
     ResponseCache,
 )
-from .catalog import API_KEY_ENV, resolve_model
-from .providers import AnthropicBackend, OllamaBackend, OpenAIBackend
-from .settings import load_settings
+from .litellm_backend import LiteLLMBackend, LLMConfigError, validate_model
 
 __all__ = [
     "BACKEND_REGISTRY",
-    "AnthropicBackend",
     "BaseLLMBackend",
     "LLMRequest",
     "LLMResponse",
-    "OllamaBackend",
-    "OpenAIBackend",
+    "LiteLLMBackend",
     "ProviderBackend",
     "ResponseCache",
     "create_backend",
+    "create_backend_from_config",
     "get_available_backends",
     "get_default_backend_name",
 ]
 
-BACKEND_REGISTRY: dict[str, type[BaseLLMBackend]] = {
-    "openai": OpenAIBackend,
-    "anthropic": AnthropicBackend,
-    "ollama": OllamaBackend,
-}
+BACKEND_REGISTRY: dict[str, type[BaseLLMBackend]] = {"litellm": LiteLLMBackend}
 
-# Maps backend name -> (required package, env var for API key)
-_BACKEND_REQUIREMENTS: dict[str, tuple[str, str | None]] = {
-    "anthropic": ("anthropic", API_KEY_ENV["anthropic"]),
-    "openai": ("openai", API_KEY_ENV["openai"]),
-    "ollama": ("requests", None),  # no API key needed
-}
+DEFAULT_BACKEND = "litellm"
 
 
-def get_available_backends() -> list[dict[str, Any]]:
-    """Return a list of backends with their availability status.
-
-    Each entry has: name, available (bool), reason (str if unavailable).
-    """
-    results: list[dict[str, Any]] = []
-    for name, (package, env_var) in _BACKEND_REQUIREMENTS.items():
-        if importlib.util.find_spec(package) is None:
-            reason = f"Python package '{package}' is not installed"
-        elif env_var and not os.environ.get(env_var):
-            reason = f"Environment variable {env_var} is not set"
-        else:
-            results.append({"name": name, "available": True, "reason": ""})
-            continue
-        results.append({"name": name, "available": False, "reason": reason})
-    return results
+def get_available_backends(model: str = "") -> list[dict[str, Any]]:
+    """Each entry has: name, available (bool), reason (str if unavailable)."""
+    reason = ""
+    if importlib.util.find_spec("litellm") is None:
+        reason = "Python package 'litellm' is not installed"
+    else:
+        try:
+            validate_model(model)
+        except LLMConfigError as exc:
+            reason = str(exc)
+    return [{"name": DEFAULT_BACKEND, "available": not reason, "reason": reason}]
 
 
 def get_default_backend_name() -> str:
-    """Return the name of the first available backend, or 'anthropic' as fallback."""
-    for entry in get_available_backends():
-        if entry["available"]:
-            return str(entry["name"])
-    return "anthropic"
+    return DEFAULT_BACKEND
 
 
 def create_backend(
-    backend_name: str = "openai",
+    backend_name: str = DEFAULT_BACKEND,
     **kwargs: Any,
 ) -> BaseLLMBackend:
-    """Instantiate a backend; an unset model comes from config."""
+    """Instantiate a backend; raises LLMConfigError for a legacy name or bad model."""
     cls = BACKEND_REGISTRY.get(backend_name)
     if cls is None:
-        available = ", ".join(BACKEND_REGISTRY)
-        raise ValueError(
-            f"Unknown LLM backend {backend_name!r}. Available: {available}"
+        raise LLMConfigError(
+            f"LLM backend {backend_name!r} no longer exists. Set the backend to "
+            f"{DEFAULT_BACKEND!r} and put the provider route in llm.model "
+            "(for example bedrock/<inference profile id>)."
         )
-    if not kwargs.get("model") and backend_name in load_settings().providers:
-        kwargs["model"] = resolve_model(
-            backend_name,
-            api_key=kwargs.get("api_key"),
-            base_url=kwargs.get("base_url"),
-        )
+    validate_model(kwargs.get("model", ""))
     return cls(**kwargs)
+
+
+def create_backend_from_config(
+    llm: LLMConfig, backend_name: str | None = None, model: str = ""
+) -> BaseLLMBackend:
+    """Backend for `llm`; `backend_name` and `model` override the config values."""
+    return create_backend(
+        backend_name or llm.backend,
+        model=model or llm.model,
+        api_base=llm.api_base,
+        api_key_env=llm.api_key_env,
+    )

@@ -139,10 +139,12 @@ template_sources:
 
 # LLM-powered analysis (all features opt-in)
 # -------------------------------------------
-# Requires ANTHROPIC_API_KEY (or OPENAI_API_KEY) env var.
+# Needs the llm extra and llm.model. The key comes from the variable named by api_key_env.
 llm:
-  backend: anthropic
-  model: ""                        # blank = backend default
+  backend: litellm
+  model: ""                        # required for LLM features: <route>/<id>
+  api_base: ""                     # gateway URL; blank for direct provider calls
+  api_key_env: LITELLM_API_KEY     # name of the variable that holds the key
   enrichment_enabled: false        # set true to enrich during scans
   enrich_severity_threshold: high  # only enrich HIGH + CRITICAL
   max_tokens_per_finding: 1024
@@ -152,8 +154,8 @@ llm:
     compliance_frameworks: []      # e.g. [pci-dss, soc2]
   # Model routing — use different models per task type
   # model_routing:
-  #   summary: claude-haiku-4-5     # cheap model for summaries
-  #   enrichment: claude-sonnet-4-6 # stronger for enrichment
-  #   chat: claude-sonnet-4-6       # mid-tier for interactive Q&A
-  #   attack_chains: claude-sonnet-4-6
-  #   triage: claude-sonnet-4-6
+  #   summary: <route>/<id>     # cheap model for summaries
+  #   enrichment: <route>/<id> # stronger for enrichment
+  #   chat: <route>/<id>       # mid-tier for interactive Q&A
+  #   attack_chains: <route>/<id>
+  #   triage: <route>/<id>

@@ -71,7 +71,7 @@ uv sync --extra web --extra reporting
 uv run haris --help
 ```
 
-Nmap, Nikto, Nuclei, SSLyze, Wapiti and optional ZAP, garak and promptfoo are separate programs. For LLM features set `ANTHROPIC_API_KEY` or `OPENAI_API_KEY`. Ollama needs no key. Its client uses `http://localhost:11434` unless the backend is constructed with another base URL.
+Nmap, Nikto, Nuclei, SSLyze, Wapiti and optional ZAP, garak and promptfoo are separate programs. LLM features use LiteLLM, which is optional: `uv sync --extra llm`. The published image includes it. Set `llm.model` to `<route>/<id>` (for example `ollama_chat/llama3.1`) and, for a gateway, `llm.api_base` and `llm.api_key_env`. The backend names `anthropic`, `openai`, `ollama` and `bedrock` are rejected: CLI exit 3, web 400. Setup, the old-to-new table and the container note are in [`docs/llm_integration.md`](docs/llm_integration.md). Migration steps are in [`docs/upgrading.md`](docs/upgrading.md).
 
 ## Authentication
 
@@ -147,13 +147,10 @@ Copy `.env.example` to `.env`. The option file is `src/haris/resources/config/de
 | `HARIS_AUTH_COOKIE` | Auth cookie value for the target |
 | `HARIS_AUTH_USERNAME` | Auth username for the target |
 | `HARIS_AUTH_PASSWORD` | Auth password for the target |
-| `ANTHROPIC_API_KEY` | Anthropic LLM backend |
-| `OPENAI_API_KEY` | OpenAI LLM backend |
+| `LITELLM_API_KEY` | LLM gateway key; the variable name is `llm.api_key_env` |
 | `HARIS_OIDC_CLIENT_SECRET` | OIDC client secret |
 | `HARIS_SMTP_USERNAME` | SMTP username for email verification |
 | `HARIS_SMTP_PASSWORD` | SMTP password |
-
-`OLLAMA_BASE_URL` is not read. The Ollama client default is the constructor argument above.
 
 Web server variables. Flags accept `1`, `true` or `yes`, except where noted.
 

@@ -14,6 +14,7 @@ NEW_STEPS = [
     "0006_authorized_targets",
     "0007_job_queue",
     "0008_agent_fields",
+    "0009_llm_backend_names",
 ]
 
 

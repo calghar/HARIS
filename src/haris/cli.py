@@ -1,6 +1,7 @@
 import argparse
 import importlib
 import logging
+import os
 import sys
 from collections.abc import Callable
 from pathlib import Path
@@ -22,7 +23,8 @@ from haris.core.profiles import PROFILES, list_profiles
 from haris.core.runner import ScanRunner
 from haris.diff import ReportError, diff_reports, format_diff, load_report
 from haris.ignore import DEFAULT_IGNORE_FILE
-from haris.llm.base import create_backend
+from haris.llm.base import create_backend_from_config
+from haris.llm.litellm_backend import LLMConfigError, scrub
 from haris.models import ScanSession, Severity
 from haris.net import NetworkPolicy
 from haris.reporting import REPORTER_REGISTRY, write_reports
@@ -144,7 +146,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--llm-backend",
         default=None,
-        help="LLM backend for enrichment (anthropic, openai, ollama)",
+        help="LLM backend for enrichment (litellm; the model comes from llm.model)",
     )
     parser.add_argument(
         "--fail-on",
@@ -255,10 +257,12 @@ def build_parser() -> argparse.ArgumentParser:
     ask_parser.add_argument("--question", required=True, help="Question to ask")
     ask_parser.add_argument(
         "--backend",
-        default="openai",
-        help="LLM backend (openai, anthropic, ollama)",
+        default="litellm",
+        help="LLM backend (litellm; the model comes from --model or llm.model)",
     )
-    ask_parser.add_argument("--model", default=None, help="Model name override")
+    ask_parser.add_argument(
+        "--model", default=None, help="LiteLLM model string; overrides llm.model"
+    )
 
     summarize_parser = llm_sub.add_parser("summarize", help="Summarize a scan report")
     summarize_parser.add_argument(
@@ -271,8 +275,10 @@ def build_parser() -> argparse.ArgumentParser:
         default="executive",
         choices=["executive", "technical", "developer"],
     )
-    summarize_parser.add_argument("--backend", default="openai", help="LLM backend")
-    summarize_parser.add_argument("--model", default=None, help="Model name override")
+    summarize_parser.add_argument("--backend", default="litellm", help="LLM backend")
+    summarize_parser.add_argument(
+        "--model", default=None, help="LiteLLM model string; overrides llm.model"
+    )
 
     remediate_parser = llm_sub.add_parser(
         "remediate",
@@ -288,8 +294,10 @@ def build_parser() -> argparse.ArgumentParser:
         default="markdown",
         choices=["markdown", "jira", "email"],
     )
-    remediate_parser.add_argument("--backend", default="openai", help="LLM backend")
-    remediate_parser.add_argument("--model", default=None, help="Model name override")
+    remediate_parser.add_argument("--backend", default="litellm", help="LLM backend")
+    remediate_parser.add_argument(
+        "--model", default=None, help="LiteLLM model string; overrides llm.model"
+    )
 
     tests_parser = llm_sub.add_parser("test-cases", help="Generate security test cases")
     tests_parser.add_argument(
@@ -302,8 +310,10 @@ def build_parser() -> argparse.ArgumentParser:
         default="generic",
         help="Target test framework",
     )
-    tests_parser.add_argument("--backend", default="openai", help="LLM backend")
-    tests_parser.add_argument("--model", default=None, help="Model name override")
+    tests_parser.add_argument("--backend", default="litellm", help="LLM backend")
+    tests_parser.add_argument(
+        "--model", default=None, help="LiteLLM model string; overrides llm.model"
+    )
 
     return parser
 
@@ -353,13 +363,6 @@ def _resolve_report_path(scan_id: str) -> Path:
     print(f"Error: Could not find report for scan '{scan_id}'")
     print(f"Looked in: {reports_dir}")
     sys.exit(1)
-
-
-def _create_backend(args: argparse.Namespace):
-    kwargs = {}
-    if hasattr(args, "model") and args.model:
-        kwargs["model"] = args.model
-    return create_backend(args.backend, **kwargs)  # type: ignore[return-value]
 
 
 def handle_update_templates(args: argparse.Namespace) -> int:
@@ -425,7 +428,12 @@ def handle_llm_command(args: argparse.Namespace) -> int:
         print("Usage: HARIS llm {ask|summarize|remediate|test-cases}")
         return 1
 
-    backend = _create_backend(args)
+    llm = load_config().llm
+    try:
+        backend = create_backend_from_config(llm, args.backend, args.model or "")
+    except LLMConfigError as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        return EXIT_USAGE
 
     try:
         qa, session = ReportQA.from_db(args.scan_id, backend)
@@ -456,7 +464,7 @@ def handle_llm_command(args: argparse.Namespace) -> int:
         return 0
 
     except Exception as exc:
-        print(f"LLM error: {exc}")
+        print(f"LLM error: {scrub(str(exc), os.environ.get(llm.api_key_env))}")
         return 1
 
 
@@ -627,7 +635,7 @@ def main(argv: list[str] | None = None) -> int:
             ),
         )
         session = runner.run()
-    except RuntimeError as exc:
+    except (RuntimeError, LLMConfigError) as exc:
         print(f"Error: {exc}")
         return EXIT_USAGE
     except KeyboardInterrupt:

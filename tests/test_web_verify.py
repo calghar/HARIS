@@ -3,7 +3,7 @@ from typing import Any
 
 import pytest
 
-from haris.models import ScannerResult, Target
+from haris.models import LLMConfig, ScannerResult, Target
 from haris.models.scan_context import ScanContext
 from haris.verify import DEFAULT_VERIFY_MODE, VerifyMode
 from haris.web.scan_runtime import ScanJobParams
@@ -128,10 +128,15 @@ def test_stored_job_without_verify_loads_and_uses_the_server_default(
 )
 def test_api_accepts_verify_and_passes_it_to_the_runner(
     tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
     real_execute: type[RecordingRunner],  # noqa: F811
     extra: dict[str, str],
     expected: VerifyMode | None,
 ) -> None:
+    monkeypatch.setattr(
+        "haris.web.llm_support.llm_config",
+        lambda: LLMConfig(model="bedrock/us.anthropic.claude-sonnet-5"),
+    )
     env = WebEnv(tmp_path)
     scan_id = _start(env, **extra)
     job = env.state.store.jobs.get(scan_id)

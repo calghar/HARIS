@@ -8,12 +8,12 @@ updates:
     open-pull-requests-limit: 5
     labels:
       - dependencies
+    cooldown:
+      default-days: 14
+    ignore:
+      # Pinned by hand after a PyPI age and advisory check; see scripts/check_litellm.py
+      - dependency-name: "litellm"
     groups:
-      # Keep LLM SDK bumps together (they tend to co-release)
-      llm-sdks:
-        patterns:
-          - "anthropic*"
-          - "openai*"
       minor-and-patch:
         update-types:
           - minor

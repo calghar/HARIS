@@ -1,8 +1,8 @@
 from datetime import UTC, datetime, timedelta
 from email.utils import format_datetime
 
-import anthropic
-import httpx2
+import httpx
+import litellm
 import pytest
 
 from haris.llm.backend import LLMRequest
@@ -11,12 +11,17 @@ from haris.llm.settings import RuntimeSettings
 from tests.evals.fake_provider import FakeClock, FakeProvider
 
 
-def _status_error(status: int, **headers: str) -> anthropic.APIStatusError:
-    response = httpx2.Response(
-        status, headers=headers, request=httpx2.Request("POST", "http://provider.test")
+def _status_error(
+    status: int, **headers: str
+) -> litellm.RateLimitError | litellm.APIError:
+    response = httpx.Response(
+        status, headers=headers, request=httpx.Request("POST", "http://provider.test")
     )
-    cls = anthropic.RateLimitError if status == 429 else anthropic.APIStatusError
-    return cls("boom", response=response, body=None)
+    if status == 429:
+        return litellm.RateLimitError("boom", "p", "m", response=response)
+    error = litellm.APIError(status, "boom", "p", "m", request=response.request)
+    error.response = response  # type: ignore[attr-defined]  # set so Retry-After is readable
+    return error
 
 
 def _flaky(errors: list[Exception]):
@@ -50,7 +55,7 @@ class TestRetryAfter:
         provider = FakeProvider(
             _flaky([_status_error(429, **{"Retry-After": "3600"})]), clock=clock
         )
-        with pytest.raises(anthropic.RateLimitError):
+        with pytest.raises(litellm.RateLimitError):
             provider.complete("hi")
         assert clock.slept == [] and len(provider.requests) == 1
 
@@ -67,7 +72,7 @@ class TestBackoff:
             raise _status_error(503)
 
         retrier = Retrier(cfg, sleep=slept.append, uniform=lambda lo, hi: hi)
-        with pytest.raises(anthropic.APIStatusError):
+        with pytest.raises(litellm.APIError):
             retrier.call(always_503)
         assert calls == 4
         assert slept == [1.0, 2.0, 4.0]
@@ -81,7 +86,7 @@ class TestBackoff:
     def test_client_errors_are_not_retried(self, status):
         clock = FakeClock()
         provider = FakeProvider(_flaky([_status_error(status)] * 3), clock=clock)
-        with pytest.raises(anthropic.APIStatusError):
+        with pytest.raises(litellm.APIError):
             provider.complete("hi")
         assert clock.slept == [] and len(provider.requests) == 1
 

@@ -146,14 +146,13 @@ class ScanRunner:
     def _create_llm_enrichment(self) -> tuple[Any, dict[str, Any]]:
         if not (self._llm_enrich or self._config.llm.enrichment_enabled):
             return None, {}
-        try:
-            from ..llm.base import create_backend
+        from ..llm.base import create_backend_from_config
+        from ..llm.litellm_backend import LLMConfigError
 
-            backend_name = self._llm_backend_name or self._config.llm.backend
-            model_kwargs: dict[str, Any] = {}
-            if self._config.llm.model:
-                model_kwargs["model"] = self._config.llm.model
-            llm_backend = create_backend(backend_name, **model_kwargs)
+        try:
+            llm_backend = create_backend_from_config(
+                self._config.llm, self._llm_backend_name
+            )
             llm_config = {
                 "enrichment_enabled": True,
                 "enrich_severity_threshold": self._config.llm.enrich_severity_threshold,
@@ -162,6 +161,8 @@ class ScanRunner:
                 "model_routing": self._config.llm.model_routing,
             }
             return llm_backend, llm_config
+        except LLMConfigError:
+            raise
         except Exception as exc:
             logger.warning("Could not initialise LLM backend: %s", exc)
             return None, {}

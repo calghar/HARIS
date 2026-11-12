@@ -9,7 +9,9 @@
   <div class="card">
     <h3>LLM Configuration</h3>
     <table class="settings-table">
-      <tr><td class="text-muted">Backend</td><td>{{ llm_backend or 'anthropic' }}</td></tr>
+      <tr><td class="text-muted">Backend</td><td>{{ llm_backend }}</td></tr>
+      <tr><td class="text-muted">Model</td><td>{{ llm_model or 'not set' }}</td></tr>
+      <tr><td class="text-muted">Endpoint</td><td>{{ llm_endpoint or 'provider default' }}</td></tr>
       <tr><td class="text-muted">Enrichment</td><td>{{ 'Enabled' if llm_enrichment_enabled else 'Disabled' }}</td></tr>
       <tr><td class="text-muted">Severity Threshold</td><td>{{ enrich_threshold or 'high' }}</td></tr>
     </table>

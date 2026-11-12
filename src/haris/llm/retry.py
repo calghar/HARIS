@@ -52,10 +52,12 @@ class Retrier:
         settings: RuntimeSettings,
         sleep: Callable[[float], None] = time.sleep,
         uniform: Callable[[float, float], float] = random.uniform,
+        scrub: Callable[[str], str] = str,
     ) -> None:
         self._cfg = settings
         self._sleep = sleep
         self._uniform = uniform
+        self._scrub = scrub
 
     def delay(self, attempt: int, exc: BaseException) -> float | None:
         """Seconds to wait before the next attempt; None means give up."""
@@ -81,7 +83,7 @@ class Retrier:
                     "Transient LLM error (attempt %d), retrying in %.1fs: %s",
                     attempt + 1,
                     wait,
-                    exc,
+                    self._scrub(str(exc)),
                 )
                 self._sleep(wait)
         raise AssertionError("unreachable")
