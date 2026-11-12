@@ -29,6 +29,7 @@ DIRECT = (
     "except OSError as exc:\n"
     "    print(type(exc).__name__)\n"
 )
+CAPS = "print(next(x.split()[1] for x in open('/proc/self/status') if 'CapEff' in x))"
 
 
 class _Pong(http.server.BaseHTTPRequestHandler):
@@ -66,7 +67,7 @@ def _resolver() -> Resolver:
 
 def _build() -> str:
     subprocess.run(
-        ["docker", "build", "--pull=false", "-t", IMAGE, "docker/agent"],
+        ["docker", "build", "--load", "--pull=false", "-t", IMAGE, "docker/agent"],
         cwd=ROOT,
         check=True,
     )
@@ -142,7 +143,9 @@ def test_docker_sandbox_reaches_the_fixture_only_through_the_proxy():
             )
             assert info["Config"].get("User") == "65534:65534"
             assert host.get("ReadonlyRootfs") is True
-            assert "ALL" in (host.get("CapDrop") or [])
+            # Podman lists dropped caps one by one in inspect; read the effective set
+            caps = runtime.exec(["python3", "-B", "-"], CAPS)
+            assert caps.text.strip() == "0" * 16
             assert any(
                 "no-new-privileges" in item for item in (host.get("SecurityOpt") or [])
             )

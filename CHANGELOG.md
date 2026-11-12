@@ -9,6 +9,7 @@
 
 ### Fixed
 
+- Fixed the sandbox image build leaving the image in the buildx cache under a `docker-container` builder, as on a Podman machine: `docs/agent_safety.md` and the integration test now build with `--load`, and the test asserts the effective capability set because Podman lists dropped capabilities one by one
 - Fixed the runtime image keeping Debian `zlib1g` `1:1.3.dfsg+really1.3.1-1+b1`: it now installs `1:1.3.dfsg+really1.3.1-1+deb13u1`
 - Fixed the runtime image shipping base-image `pip`, which vendors `msgpack` 1.1.2, `urllib3` 2.7.0 and `setuptools` 70.3.0: that `pip` tree is removed
 - Fixed the `CodeQL` job of the `Security` workflow failing on SARIF upload while GitHub default setup is on: the job is removed and default setup scans `main`

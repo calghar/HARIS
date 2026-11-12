@@ -40,4 +40,4 @@ The dollar cap is `LLMBudget` on a `ProviderBackend` whose price table contains 
 
 Re-execution is implemented for the reflection oracle. A proof for another class is stored as an annotation and the tier stays put.
 
-The image name in `agent.yaml` is `haris-agent-sandbox`. The integration test builds `haris-agent-sandbox:local` with `docker build --pull=false -t haris-agent-sandbox:local docker/agent`. `DockerRuntime` then pins the id from `docker image inspect`. A CLI job fails when that configured tag is missing.
+The image name in `agent.yaml` is `haris-agent-sandbox`. The integration test builds `haris-agent-sandbox:local` with `docker build --load --pull=false -t haris-agent-sandbox:local docker/agent`; `--load` is needed when the default buildx builder uses the `docker-container` driver, as it does on a Podman machine. `DockerRuntime` then pins the id from `docker image inspect`. A CLI job fails when that configured tag is missing.
