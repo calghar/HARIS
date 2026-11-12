@@ -1,6 +1,16 @@
 # Changelog
 <!--markdownlint-disable MD024-->
 
+## [Unreleased]
+
+### Fixed
+
+- Fixed the runtime image keeping Debian `zlib1g` `1:1.3.dfsg+really1.3.1-1+b1`: it now installs `1:1.3.dfsg+really1.3.1-1+deb13u1`
+- Fixed the runtime image shipping base-image `pip`, which vendors `msgpack` 1.1.2, `urllib3` 2.7.0 and `setuptools` 70.3.0: that `pip` tree is removed
+- Fixed the `CodeQL` job of the `Security` workflow failing on SARIF upload while GitHub default setup is on: the job is removed and default setup scans `main`
+- Fixed the image scan failing on 26 fixed CVEs in the `nuclei` 3.11.1 Go dependencies, the latest release: `.trivyignore.yaml` ignores them for `usr/local/bin/nuclei` only, until 2026-12-12
+- Fixed Trivy reporting Anthropic SDK docstring placeholders as `gcp-service-account` secrets: `.trivyignore.yaml` ignores that rule under `site-packages/anthropic` only
+
 ## 0.7.1 — 2026-11-12
 
 ### Changed

@@ -48,11 +48,17 @@ RUN uv sync --frozen --no-dev --no-editable --extra web --extra reporting
 
 FROM python:3.13-slim@sha256:e48f59cdba69a3cbd9ed2cf0f348d90d45a8d350d98134cf1070bc106ee9ed90
 
+# Pinned base still ships zlib1g +b1; trixie-security has deb13u1.
+# Base-image pip vendors vulnerable msgpack, urllib3 and setuptools; the app uses the venv.
 RUN apt-get update && apt-get install -y --no-install-recommends \
         ca-certificates curl nmap perl \
         libnet-ssleay-perl libio-socket-ssl-perl libjson-perl \
         libxml-writer-perl libxml-libxml-perl \
+        zlib1g=1:1.3.dfsg+really1.3.1-1+deb13u1 \
     && rm -rf /var/lib/apt/lists/* \
+        /usr/local/lib/python3.13/site-packages/pip \
+        /usr/local/lib/python3.13/site-packages/pip-*.dist-info \
+        /usr/local/bin/pip /usr/local/bin/pip3 /usr/local/bin/pip3.13 \
     && useradd --uid 10001 --create-home --shell /usr/sbin/nologin haris
 
 COPY --from=build /usr/local/bin/nuclei /usr/local/bin/nuclei
