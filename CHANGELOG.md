@@ -7,6 +7,10 @@
 
 - Added `tests/bdd`, a `pytest-bdd` harness that runs every generated scenario against the existing tests mapped in `tests/bdd/maps`; scenarios of the unimplemented Phase 6 change are strict `xfail` until their task lands
 
+### Changed
+
+- Changed the DVWA benchmark database image to `ghcr.io/mariadb/mariadb:10.11` pinned by digest; Juice Shop and WebGoat stay on Docker Hub because upstream publishes nowhere else (`bench/README.md`)
+
 ### Fixed
 
 - Fixed the sandbox image build leaving the image in the buildx cache under a `docker-container` builder, as on a Podman machine: `docs/agent_safety.md` and the integration test now build with `--load`, and the test asserts the effective capability set because Podman lists dropped capabilities one by one

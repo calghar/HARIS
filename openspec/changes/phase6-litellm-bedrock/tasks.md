@@ -4,7 +4,7 @@ Ids in brackets map to `modernise-0-7/tasks.md` section 4; tick both files when 
 
 - [x] 1.1 Added `pytest-bdd` to the dev group, ran `uv lock`, wrote step definitions as stubs, ran `uv run pytest tests/features`, and recorded the result: the preserved scenarios of `modernise-0-7` pass, every new scenario of this change fails (feature files already generated from `modernise-0-7` and `phase6-litellm-bedrock`)
 - [x] 1.2 Verified the runtime on the new machine: `podman --version`, `podman compose` (or the `docker` shim) can start `bench/compose.yaml`, rootless exec, `--pids-limit`, tmpfs and the agent sandbox image build; recorded the result in `tmp/phase6-env.md`; wherever Podman differs, fixed `docker_runtime.py` or the docs rather than skipping a task
-- [ ] 1.3 Moved the benchmark images to `ghcr.io` where an official image exists (check each of Juice Shop, DVWA, WebGoat, MariaDB), pinned each by digest, kept Docker Hub only where no ghcr image exists, and noted the choice in `bench/README.md`
+- [x] 1.3 Moved the benchmark images to `ghcr.io` where an official image exists (check each of Juice Shop, DVWA, WebGoat, MariaDB), pinned each by digest, kept Docker Hub only where no ghcr image exists, and noted the choice in `bench/README.md`
 
 ## 2. LLM backend [4.1]
 

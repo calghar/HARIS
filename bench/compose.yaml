@@ -1,5 +1,5 @@
 # Every port binds to 127.0.0.1. Images are pinned by tag and digest
-# (resolved with `docker buildx imagetools inspect`, 2026-11-08).
+# (resolved with `docker buildx imagetools inspect`, 2026-11-08; MariaDB 2026-11-12).
 name: haris-bench
 
 services:
@@ -19,7 +19,7 @@ services:
       - "127.0.0.1:${BENCH_DVWA_PORT:-14280}:80"
 
   dvwa_db:
-    image: mariadb:10.11@sha256:d769e37960821dfdcf096954f6e7ac89f747e116c1bba98e48edd265dfc7deae
+    image: ghcr.io/mariadb/mariadb:10.11@sha256:c22d749c07c6d2b3b5827074d7a54c97ebada20a69c491efef819b8c1ecaa96f
     environment:
       MYSQL_ROOT_PASSWORD: dvwa
       MYSQL_DATABASE: dvwa

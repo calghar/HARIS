@@ -14,7 +14,7 @@ The harness in `bench/` measures how many of HARIS's findings are real (precisio
 
 `spa_catchall` answers 200 with one HTML shell for every path and method, so `.env`, `.git/config` and similar checks must not report. `vuln_ai_app` is a deterministic fake model (no LLM calls) with a canary in its system prompt. The documented injection prompt is `INJECTION_PROMPT` in `bench/fixtures/vuln_ai_app/server.py`; a benign prompt never returns the canary.
 
-`bench/compose.yaml` binds every port to `127.0.0.1` and pins each external image by tag and digest. DVWA publishes commit-sha tags only, so it is pinned by the digest of `latest`.
+`bench/compose.yaml` binds every port to `127.0.0.1` and pins each external image by tag and digest. DVWA publishes commit-sha tags only, so it is pinned by the digest of `latest`. Registry choice per image: `bench/README.md`.
 
 ## Ground truth
 
