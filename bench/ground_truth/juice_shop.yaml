@@ -28,6 +28,14 @@ entries:
     expected: true_positive
     source: https://pwning.owasp-juice.shop/companion-guide/latest/part2/sensitive-data-exposure.html
     notes: Confidential Document challenge. HARIS misses it; listing_checks has no /ftp probe and does not match Juice Shop's listing page.
+  - id: juice-ftp-robots-nikto
+    method: GET
+    url: /ftp
+    vuln_class: unclassified:nikto:robots-txt-entry-*
+    cwe: CWE-548
+    expected: true_positive
+    source: https://pwning.owasp-juice.shop/companion-guide/latest/part2/sensitive-data-exposure.html
+    notes: Nikto's claim that the robots.txt path /ftp/ returns 200, not the directory listing claim (juice-ftp-listing).
   - id: juice-metrics
     method: GET
     url: /metrics

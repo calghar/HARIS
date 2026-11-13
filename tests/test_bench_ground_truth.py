@@ -4,7 +4,7 @@ import pytest
 import yaml
 from pydantic import ValidationError
 
-from haris.bench.truth import GroundTruth, load_ground_truth
+from haris.bench.truth import GroundTruth, IgnoreEntry, TruthEntry, load_ground_truth
 from haris.core.vuln_class import get_registry
 
 BENCH = Path(__file__).resolve().parent.parent / "bench"
@@ -144,3 +144,55 @@ def test_compose_binds_every_port_to_loopback() -> None:
     assert all(str(port).startswith("127.0.0.1:") for port in ports)
     images = [s["image"] for s in compose["services"].values() if "image" in s]
     assert all("@sha256:" in image for image in images)
+
+
+NIKTO_SLUG = (
+    "unclassified:nikto:robots-txt-entry-ftp-is-returned-"
+    "a-non-forbidden-or-redirect-http-code-200"
+)
+GLOB_ENTRY = TruthEntry.model_validate(
+    ENTRY | {"vuln_class": "unclassified:nikto:robots-txt-entry-*", "cwe": "CWE-548"}
+)
+
+
+@pytest.mark.parametrize(
+    ("token", "matches"),
+    [
+        (NIKTO_SLUG, True),
+        ("unclassified:nikto:robots-txt-entry-x", True),
+        ("CWE-548", True),
+        ("unclassified:nikto:interesting_path", False),
+        ("directory_listing", False),
+    ],
+)
+def test_class_glob_matches_slugs_and_cwe(token: str, matches: bool) -> None:
+    assert GLOB_ENTRY.matches(token, "/x", "") is matches
+
+
+def test_exact_class_still_matches_and_other_class_does_not() -> None:
+    entry = TruthEntry.model_validate(ENTRY)
+    assert entry.matches("sqli_error", "/x", "")
+    assert not entry.matches("xss_reflected", "/x", "")
+
+
+def test_ignore_entry_class_takes_a_glob() -> None:
+    ignore = IgnoreEntry(vuln_class="unclassified:nikto:*", url="/*", reason="r")
+    assert ignore.matches(NIKTO_SLUG, "/a", "p")
+    assert not ignore.matches("sqli_error", "/a", "p")
+
+
+def test_juice_shop_nikto_robots_entry_matches_the_ftp_finding() -> None:
+    truth = load_ground_truth(BENCH / "ground_truth" / "juice_shop.yaml")
+    hits = [e.id for e in truth.entries if e.matches(NIKTO_SLUG, "/ftp", "")]
+    assert hits == ["juice-ftp-robots-nikto"]
+    assert not any(i.matches(NIKTO_SLUG, "/ftp", "") for i in truth.ignore)
+
+
+@pytest.mark.parametrize("path", TRUTH_FILES, ids=lambda p: p.stem)
+def test_truth_classes_hold_no_glob_characters_except_declared(path: Path) -> None:
+    truth = load_ground_truth(path)
+    globbed = {e.id for e in truth.entries if set("*?[") & set(e.vuln_class)}
+    globbed |= {i.vuln_class for i in truth.ignore if set("*?[") & set(i.vuln_class)}
+    assert globbed == (
+        {"juice-ftp-robots-nikto"} if path.stem == "juice_shop" else set()
+    )

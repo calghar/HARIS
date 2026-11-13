@@ -1,5 +1,6 @@
 import itertools
 import json
+import logging
 import re
 from collections.abc import Callable
 from typing import Any
@@ -21,7 +22,7 @@ from haris.models import (
 )
 from haris.verify.llm_verdict import run_llm_verdicts
 from haris.verify.settings import load_verify_settings
-from haris.verify.verdict_prompt import exchange_text
+from haris.verify.verdict_prompt import MAX_RATIONALE_CHARS, SYSTEM, exchange_text
 from tests.evals.fake_provider import FakeProvider, fenced_blocks
 
 SQL_ERROR = "ORA-01756: quoted string not properly terminated"
@@ -72,6 +73,7 @@ def answer(
     verdict: str = "confirmed",
     confidence: float = 0.9,
     spans: list[dict[str, Any]] | None = None,
+    rationale: str = "r",
 ) -> str:
     spans = [{"exchange_index": 0, "text": "ORA-01756"}] if spans is None else spans
     return json.dumps(
@@ -80,7 +82,7 @@ def answer(
             "verdict": verdict,
             "confidence": confidence,
             "cited_spans": spans,
-            "rationale": "r",
+            "rationale": rationale,
         }
     )
 
@@ -322,3 +324,102 @@ def test_an_obeyed_injection_is_capped_below_the_replay_floor():
     assert case.canonical.verification.llm.status == "ok"  # type: ignore[union-attr]  # the span is in the bundle
     assert case.canonical.verification.tier == T.UNVERIFIED
     assert case.canonical.confidence_score <= 0.89
+
+
+@pytest.mark.parametrize(
+    ("length", "status"),
+    [(MAX_RATIONALE_CHARS, "ok"), (MAX_RATIONALE_CHARS + 1, "invalid")],
+    ids=["at-limit", "over-limit"],
+)
+def test_rationale_limit_is_the_shared_constant(length, status):
+    """Scenario: Output validation (rationale rows)."""
+    case = make_case()
+    judge(case, provider(lambda cid: answer(cid, rationale="x" * length)))
+    assessment = case.canonical.verification.llm
+    assert assessment.status == status  # type: ignore[union-attr]  # set above
+    if status == "invalid":
+        assert assessment.rationale.startswith("rationale:")  # type: ignore[union-attr]  # set above
+
+
+def test_invalid_span_reason_names_the_field_and_quotes_the_span():
+    """Scenario: Invalid span names the quote."""
+    case = make_case()
+    quote = "ORA-99999" + "z" * 200
+    judge(
+        case,
+        provider(lambda cid: answer(cid, spans=[{"exchange_index": 0, "text": quote}])),
+    )
+    reason = case.canonical.verification.llm.rationale  # type: ignore[union-attr]  # set above
+    assert "cited_spans.0.text" in reason
+    assert repr(quote[:120]) in reason
+    assert quote[:121] not in reason
+
+
+def test_span_on_a_missing_exchange_names_the_index_field():
+    case = make_case()
+    judge(
+        case,
+        provider(
+            lambda cid: answer(cid, spans=[{"exchange_index": 9, "text": "ORA-01756"}])
+        ),
+    )
+    reason = case.canonical.verification.llm.rationale  # type: ignore[union-attr]  # set above
+    assert "cited_spans.0.exchange_index" in reason
+    assert "'ORA-01756'" in reason
+
+
+@pytest.mark.parametrize(
+    ("reply", "status"),
+    [
+        (lambda cid: answer(cid, rationale="seen-valid"), "ok"),
+        (lambda cid: answer(cid, "maybe", rationale="seen-invalid"), "invalid"),
+    ],
+    ids=["valid", "invalid"],
+)
+def test_debug_log_holds_the_raw_reply_and_the_evidence_lengths(caplog, reply, status):
+    case = make_case()
+    with caplog.at_level(logging.DEBUG, logger="haris.verify.llm_verdict"):
+        judge(case, provider(reply))
+    messages = [r.getMessage() for r in caplog.records if r.levelno == logging.DEBUG]
+    assert case.canonical.verification.llm.status == status  # type: ignore[union-attr]  # set above
+    assert any(
+        "raw reply" in m and f"seen-{'valid' if status == 'ok' else 'invalid'}" in m
+        for m in messages
+    )
+    lengths = [
+        len(exchange_text(e, load_verify_settings().llm))
+        for e in case.canonical.verification.evidence
+    ]
+    assert any(f"text lengths {lengths}" in m for m in messages)
+    assert any("validation error" in m and "verdict" in m for m in messages) == (
+        status == "invalid"
+    )
+
+
+def test_prompt_states_the_limit_from_the_constant():
+    assert f"at most {MAX_RATIONALE_CHARS} characters" in SYSTEM
+    assert "600" not in SYSTEM
+    assert "never join parts with '...'" in SYSTEM
+
+
+def test_crlf_in_a_body_is_sent_as_lf_so_a_quote_with_lf_is_valid():
+    case = make_case(body="HTTP 500 line one\r\nline two")
+    sent = exchange_text(
+        case.canonical.verification.evidence[0], load_verify_settings().llm
+    )
+    assert "\r" not in sent
+    backend = provider(
+        lambda cid: answer(
+            cid, spans=[{"exchange_index": 0, "text": "line one\nline two"}]
+        )
+    )
+    judge(case, backend)
+    assert case.canonical.verification.llm.status == "ok"  # type: ignore[union-attr]  # set above
+
+
+def test_verify_yaml_response_headers_and_output_tokens():
+    cfg = load_verify_settings().llm
+    assert {"content-disposition", "access-control-allow-origin"} <= set(
+        cfg.response_headers
+    )
+    assert cfg.max_output_tokens == 2000

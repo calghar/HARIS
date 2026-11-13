@@ -13,6 +13,8 @@
 - Added `scanners.nuclei.phase2_timeout_s` (default 300; 0 or less is rejected) as one limit on nuclei phase 2; at the limit the process group is killed, findings are kept and the scanner is `partial`
 - Added a local egress proxy for nuclei, nikto and Wapiti; it dials only vetted addresses, pins the target host to its pre-flight address and always blocks cloud metadata addresses
 - Added `verify.poc_max_requests` (default 20), the cap on requests sent when an agent PoC is re-executed
+- Added glob matching for `vuln_class` in bench ground-truth entries, and the Juice Shop entry `juice-ftp-robots-nikto`
+- Added DEBUG logs of the LLM verdict stage: exchange text lengths, the raw model reply and the validation error; the bench passes `--log-level DEBUG`
 
 ### Changed
 
@@ -31,6 +33,9 @@
 - Changed sslyze to be `skipped` with the note `no TLS endpoint` when the target scheme is `http` and nmap found no TLS port
 - Changed OWASP mapping to use the finding's class before its tags and title; `cleartext_password_submission` now maps to A04 with CWE-319
 - Changed nmap, nuclei and nikto to receive the per-tool rate as `--max-rate`, `-rl` (rounded down, minimum 1) and `-Pause` (1/rate seconds), placed after `extra_args`
+- Changed the LLM verdict rationale limit from 600 to 2000 characters and `verify.llm.max_output_tokens` from 800 to 2000
+- Changed the reason of an invalid LLM verdict span to name the field and quote the first 120 characters of the span
+- Changed the LLM verdict exchange text to use `\n` for `\r\n`, and the prompt to require each cited span to be one unbroken run of that text
 
 ### Fixed
 
@@ -43,6 +48,7 @@
 - Fixed the `CodeQL` job of the `Security` workflow failing on SARIF upload while GitHub default setup is on: the job is removed and default setup scans `main`
 - Fixed the image scan failing on 26 fixed CVEs in the `nuclei` 3.11.1 Go dependencies, the latest release: `.trivyignore.yaml` ignores them for `usr/local/bin/nuclei` only, until 2026-12-12
 - Fixed external tools re-resolving the target host after the pre-flight and connecting to a private address (DNS rebinding): nuclei, nikto and Wapiti now go through the vetting proxy, and nmap and sslyze connect to the vetted address
+- Fixed bench ground truth missing the nikto `robots.txt` entry on `/ftp/`: `vuln_class` now accepts globs
 
 ## 0.7.1 — 2026-11-12
 

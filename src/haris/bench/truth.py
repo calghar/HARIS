@@ -29,7 +29,7 @@ class TruthEntry(BaseModel):
     method: str
     url: str = Field(description="Path glob matched against the normalised finding URL")
     parameter: str = ""
-    vuln_class: str
+    vuln_class: str = Field(description="Class token glob; a CWE token matches `cwe`")
     cwe: str = Field(pattern=CWE_PATTERN)
     expected: Literal["true_positive"]
     source: AnyHttpUrl | None = None
@@ -37,7 +37,7 @@ class TruthEntry(BaseModel):
 
     def matches(self, class_token: str, path: str, parameter: str) -> bool:
         return (
-            class_token in (self.vuln_class, self.cwe)
+            (fnmatchcase(class_token, self.vuln_class) or class_token == self.cwe)
             and fnmatchcase(path, normalise_path(self.url))
             and parameter == self.parameter
         )
@@ -48,7 +48,7 @@ class IgnoreEntry(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    vuln_class: str
+    vuln_class: str = Field(description="Class token glob")
     url: str = Field(description="Path glob matched against the normalised finding URL")
     parameter: str | None = Field(
         default=None, description="Matches any parameter when omitted"
@@ -57,7 +57,7 @@ class IgnoreEntry(BaseModel):
 
     def matches(self, class_token: str, path: str, parameter: str) -> bool:
         return (
-            class_token == self.vuln_class
+            fnmatchcase(class_token, self.vuln_class)
             and fnmatchcase(path, normalise_path(self.url))
             and (self.parameter is None or parameter == self.parameter)
         )

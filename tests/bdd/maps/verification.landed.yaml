@@ -36,3 +36,8 @@ Nikto interesting path:
     - tests/test_nikto_interesting_path.py::test_class_and_severity_survive_correlation
     - tests/test_nikto_interesting_path.py::test_interesting_path_reaches_every_report_format
     - tests/test_nikto_interesting_path.py::test_interesting_path_is_replayed_by_the_soft404_oracle
+
+Invalid span names the quote:
+  tests:
+    - tests/test_verify_llm.py::test_invalid_span_reason_names_the_field_and_quotes_the_span
+    - tests/test_verify_llm.py::test_span_on_a_missing_exchange_names_the_index_field

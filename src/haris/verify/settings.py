@@ -34,7 +34,7 @@ class LLMVerdictSettings(BaseModel):
     max_tokens: int | None = Field(default=200_000, ge=1)
     max_cost_usd: float | None = Field(default=2.0, gt=0)
     temperature: float = Field(default=0.0, ge=0)
-    max_output_tokens: int = Field(default=800, ge=1)
+    max_output_tokens: int = Field(default=2000, ge=1)
     request_chars: int = Field(default=4096, ge=1)
     response_headers: list[str] = Field(default_factory=list)
 

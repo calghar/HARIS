@@ -57,7 +57,7 @@ llm:
   max_tokens: 200000
   max_cost_usd: 2.0
   temperature: 0.0
-  max_output_tokens: 800
+  max_output_tokens: 2000
   request_chars: 4096
   response_headers:
     - content-type
@@ -69,3 +69,5 @@ llm:
     - x-content-type-options
     - strict-transport-security
     - content-security-policy
+    - content-disposition
+    - access-control-allow-origin

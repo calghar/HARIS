@@ -16,8 +16,10 @@ Ids in brackets map to `modernise-0-7/tasks.md` section 4; tick both files when 
 - [x] 2.6 Updated `web/llm_support.py` (400 on `LLMConfigError`, scrubbed log), `web/routers/llm_chat.py`, `pages.py`, `settings.html`, the template form and `scan_new` scripts; regression test: `test_web_llm.py` passes with names changed; added the endpoint-display and availability examples
 - [x] 2.7 Added migration `0009_llm_backend_names.py` with a one-way rollback; tests for every example and the idempotent run; added the backup warning to `docs/upgrading.md` (create it if missing)
 - [x] 2.8 Removed provider key names from `README.md`, `docs/llm_integration.md`, `default_config.yaml` comments, CI and compose files; added the old-to-new table, the gateway example, the Bedrock example, the Ollama example and the container note; CHANGELOG entry marked BREAKING; regression test: the source grep for `ANTHROPIC_API_KEY`, `OPENAI_API_KEY` and `AWS_`
-- [ ] 2.9 Ran a live call through the gateway and a direct Bedrock call, and recorded the model strings and outputs under `bench/results/`
+- [x] 2.9 Ran a live call through the gateway and a direct Bedrock call, and recorded the model strings and outputs under `bench/results/`
 - [ ] 2.10 Calibrated `verify.llm.abstain_below` with `bench/calibrate_abstain.py` on the labelled set through the live backend, committed the raw artifacts, set the default per the spec, and cited them in `docs/verification.md` [4.2]
+- [x] 2.11 Raised the verdict rationale limit to 2000 characters through one constant, quoted the span in the reason of an invalid span, logged the raw reply at DEBUG, added `content-disposition` and `access-control-allow-origin` to the verdict header allow-list and raised `verify.llm.max_output_tokens` to 2000; regression test: existing verdict tests pass
+- [x] 2.12 Glob class match in the bench ground truth and the Juice Shop entry for the nikto robots.txt `/ftp/` claim; regression test: existing bench score tests pass
 
 ## 3. Verification
 

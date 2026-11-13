@@ -2,14 +2,19 @@ from ..llm.redaction import DATA_CLAUSE, fence, new_nonce, redact
 from ..models import EvidenceExchange, Finding
 from .settings import LLMVerdictSettings
 
+MAX_SPAN_CHARS = 300
+MAX_RATIONALE_CHARS = 2000
+
 TASK = (
     "You judge whether one security scanner finding is real, using only the "
     "request/response exchanges provided. Reply with one JSON object: "
     "case_id (echo the given id), verdict (confirmed | likely_fp | inconclusive), "
     "confidence (0 to 1), cited_spans (1 to 5 objects {exchange_index, text}, each "
-    "text an exact quote of at most 300 characters copied from that exchange), "
-    "rationale (at most 600 characters). Answer inconclusive when the exchanges "
-    "do not decide."
+    f"text one unbroken run of at most {MAX_SPAN_CHARS} characters copied exactly "
+    "from that exchange; never join parts with '...' and never skip lines, use one "
+    'span per part, for example {"exchange_index": 0, "text": "HTTP 200 (4 ms)"}), '
+    f"rationale (at most {MAX_RATIONALE_CHARS} characters). "
+    "Answer inconclusive when the exchanges do not decide."
 )
 SYSTEM = f"{DATA_CLAUSE}\n{TASK}"
 
@@ -37,7 +42,7 @@ def exchange_text(exchange: EvidenceExchange, cfg: LLMVerdictSettings) -> str:
             exchange.response_body_excerpt,
         ]
     )
-    return redact(f"{request}\n\n{response}")
+    return redact(f"{request}\n\n{response}".replace("\r\n", "\n"))
 
 
 def finding_text(finding: Finding) -> str:

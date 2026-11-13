@@ -6,7 +6,7 @@ The harness in `bench/` measures how many of HARIS's findings are real (precisio
 
 | Target | Kind | Ground truth |
 |---|---|---|
-| OWASP Juice Shop `v20.4.0` | external | seed set of 5 entries from the [companion guide](https://pwning.owasp-juice.shop/); 0 known gaps |
+| OWASP Juice Shop `v20.4.0` | external | seed set of 6 entries from the [companion guide](https://pwning.owasp-juice.shop/); 0 known gaps |
 | DVWA (digest of `latest`) | external | seed set of 16 entries from the [module list](https://github.com/digininja/DVWA), security level low; 0 known gaps |
 | WebGoat `v2026.5` | external | seed set of 7 entries from the [WebGoat repository](https://github.com/WebGoat/WebGoat) |
 | `spa_catchall` | fixture | the fixture's real properties: plain HTTP, `Server` banner, five missing security headers; any path or debug finding is a false positive |
@@ -18,7 +18,7 @@ The harness in `bench/` measures how many of HARIS's findings are real (precisio
 
 ## Ground truth
 
-`bench/ground_truth/<target>.yaml`, validated by `haris.bench.truth.GroundTruth`. Each entry is one request instance: `method`, `url` (path glob), `parameter`, `vuln_class`, `cwe`, `expected: true_positive`. Entries for external targets carry a `source` URL. An optional `ignore` list holds findings that are neither true nor false positives: `vuln_class`, `url` (path glob), optional `parameter` (any when omitted) and a required `reason`. The seed sets are small and are not a claim of completeness: a real finding outside them counts as a false positive.
+`bench/ground_truth/<target>.yaml`, validated by `haris.bench.truth.GroundTruth`. Each entry is one request instance: `method`, `url` (path glob), `parameter`, `vuln_class` (glob, so `unclassified:nikto:robots-txt-entry-*` covers every slug), `cwe`, `expected: true_positive`. Entries for external targets carry a `source` URL. An optional `ignore` list holds findings that are neither true nor false positives: `vuln_class` (glob), `url` (path glob), optional `parameter` (any when omitted) and a required `reason`. The seed sets are small and are not a claim of completeness: a real finding outside them counts as a false positive.
 
 - `vuln_class` is an `id` in `src/haris/resources/config/vuln_classes.yaml` (or an `unclassified:` token HARIS emits); `tests/test_bench_ground_truth.py` enforces it.
 - A weakness HARIS cannot yet detect stays an entry, so recall shows the miss (`juice-ftp-listing`); no ground-truth file lists known gaps in its header.

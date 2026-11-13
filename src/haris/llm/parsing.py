@@ -12,6 +12,7 @@ _FENCE = re.compile(r"```[a-zA-Z0-9_-]*\s*\n(.*?)```", re.DOTALL)
 class ParseResult[T: BaseModel](BaseModel):
     items: list[T]
     errors: list[str]
+    raw: str = ""
 
     @property
     def ok(self) -> bool:
@@ -65,11 +66,11 @@ def parse_object[T: BaseModel](text: str, model: type[T]) -> ParseResult[T]:
     try:
         data = extract_json(text)
     except ValueError as exc:
-        return ParseResult(items=[], errors=[str(exc)])
+        return ParseResult(items=[], errors=[str(exc)], raw=text)
     try:
-        return ParseResult(items=[model.model_validate(data)], errors=[])
+        return ParseResult(items=[model.model_validate(data)], errors=[], raw=text)
     except ValidationError as exc:
-        return ParseResult(items=[], errors=[_describe(exc)])
+        return ParseResult(items=[], errors=[_describe(exc)], raw=text)
 
 
 def array_schema(model: type[BaseModel]) -> dict[str, Any]:

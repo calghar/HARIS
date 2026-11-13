@@ -13,12 +13,17 @@ from ..llm.settings import BudgetSettings
 from ..llm.structured import call_structured, run_bounded
 from ..models import CorrelatedFinding, LLMAssessment, VerificationTier
 from .settings import LLMVerdictSettings, VerifySettings
-from .verdict_prompt import SYSTEM, build_prompt, exchange_text
+from .verdict_prompt import (
+    MAX_RATIONALE_CHARS,
+    MAX_SPAN_CHARS,
+    SYSTEM,
+    build_prompt,
+    exchange_text,
+)
 
 logger = logging.getLogger(__name__)
 
-MAX_SPAN_CHARS = 300
-MAX_RATIONALE_CHARS = 600
+SPAN_QUOTE_CHARS = 120
 
 
 class SpanOut(BaseModel):
@@ -63,10 +68,16 @@ def assess(
     out = result.items[0]
     if out.case_id != case_id:
         return invalid(model, "case_id does not match the case")
-    for span in out.cited_spans:
+    for position, span in enumerate(out.cited_spans):
         index = span.exchange_index
-        if index >= len(texts) or span.text not in texts[index]:
-            return invalid(model, "cited span is not in the evidence")
+        field = f"cited_spans.{position}"
+        quote = repr(span.text[:SPAN_QUOTE_CHARS])
+        if index >= len(texts):
+            return invalid(
+                model, f"{field}.exchange_index {index} has no exchange: {quote}"
+            )
+        if span.text not in texts[index]:
+            return invalid(model, f"{field}.text is not in exchange {index}: {quote}")
     return LLMAssessment(
         verdict=out.verdict,
         confidence=out.confidence,
@@ -84,6 +95,11 @@ def judge(
     finding = case.canonical
     texts = [exchange_text(e, cfg) for e in finding.verification.evidence]
     prompt = build_prompt(finding.finding_id, finding, texts)
+    logger.debug(
+        "LLM verdict %s: exchange text lengths %s",
+        finding.finding_id,
+        [len(t) for t in texts],
+    )
     try:
         result = call_structured(
             backend,
@@ -100,7 +116,15 @@ def judge(
     except Exception as exc:
         logger.warning("LLM verdict for %s failed", finding.finding_id, exc_info=True)
         return None, f"{finding.finding_id}: {type(exc).__name__}: {exc}"
-    return assess(finding.finding_id, texts, result, cfg, backend.model), ""
+    logger.debug("LLM verdict %s: raw reply %s", finding.finding_id, result.raw)
+    assessment = assess(finding.finding_id, texts, result, cfg, backend.model)
+    if assessment.status == "invalid":
+        logger.debug(
+            "LLM verdict %s: validation error %s",
+            finding.finding_id,
+            assessment.rationale,
+        )
+    return assessment, ""
 
 
 @contextlib.contextmanager

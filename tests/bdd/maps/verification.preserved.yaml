@@ -43,6 +43,7 @@ Replay budget exhausted:
 Output validation:
   tests:
     - tests/test_verify_llm.py::test_output_validation
+    - tests/test_verify_llm.py::test_rationale_limit_is_the_shared_constant
 Injection inside evidence stays fenced:
   tests:
     - tests/test_verify_llm.py::test_evidence_is_fenced_with_a_fresh_nonce_and_redacted_before_the_bundle

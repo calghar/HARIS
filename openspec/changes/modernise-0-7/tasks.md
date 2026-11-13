@@ -30,7 +30,7 @@
 
 ## 4. Phase 6: follow-ups and LiteLLM on Bedrock (implemented on the GitHub-only machine; specs written first)
 
-- [ ] 4.1 Replaced the `anthropic` and `openai` SDKs with LiteLLM routed to Bedrock models; model ids and capabilities stay in config; credentials come from the AWS credential chain; no provider key variables remain in code, docs or CI; regression test: every backend call in `llm/` goes through one LiteLLM wrapper
+- [x] 4.1 Replaced the `anthropic` and `openai` SDKs with LiteLLM routed to Bedrock models; model ids and capabilities stay in config; credentials come from the AWS credential chain; no provider key variables remain in code, docs or CI; regression test: every backend call in `llm/` goes through one LiteLLM wrapper
 - [ ] 4.2 Calibrated `verify.llm.abstain_below` on the labelled bench set through the Bedrock backend (default 0.7 is uncalibrated)
 - [ ] 4.3 Raised replay coverage for Wapiti findings (SQL injection `error_signature`, XSS `reflection`, `command_injection`, `path_traversal`, `open_redirect`, `ssrf` stay `unverified` on DVWA); target 95% precision in the replay-verified tier on a meaningful count of verified findings
 - [ ] 4.4 Seeded the WebGoat crawl so Wapiti reaches the lesson endpoints (it ends in 3.6 s today; recall .571)
