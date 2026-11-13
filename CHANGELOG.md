@@ -55,6 +55,7 @@
 - Changed the `reflection` replay payload to close a script element, so a reflection inside script text can verify
 - Changed the external-tool command log to mask the whole value after `-H` or `-header`
 - Changed `bench/README.md`: a missing Wapiti now ends `failed`, not `skipped`
+- Changed the bench ground truth to ignore the `dns_missing_*` records of the bench host name and the Spring `content-disposition` header on WebGoat `/WebGoat/trace.axd`, and to label DVWA stored XSS on `mtxMessage` as a true positive
 
 ### Fixed
 

@@ -36,6 +36,15 @@ entries:
     expected: true_positive
     source: https://github.com/digininja/DVWA
     notes: Wapiti reports stored XSS as reflected.
+  - id: dvwa-xss-stored-message
+    method: POST
+    url: /vulnerabilities/xss_s
+    parameter: mtxMessage
+    vuln_class: xss_stored
+    cwe: CWE-79
+    expected: true_positive
+    source: https://github.com/digininja/DVWA/blob/master/vulnerabilities/xss_s/source/low.php
+    notes: Low level only strips slashes and SQL-escapes the message; HTML is stored and rendered raw. HARIS may also report it as xss_reflected.
   - id: dvwa-xss-stored-name
     method: POST
     url: /vulnerabilities/xss_s
@@ -174,6 +183,15 @@ ignore:
   - vuln_class: unclassified:wapiti:anomaly-internal-server-error-the-server-responded-with-a-500-http-error-code-while-attempting-to-inject-a-pay
     url: /vulnerabilities/open_redirect/source/info.php
     reason: Wapiti anomaly record from payload injection, not a weakness.
+  - vuln_class: dns_missing_caa
+    url: /
+    reason: DNS records of the runner's host name; DVWA ships no DNS or mail configuration.
+  - vuln_class: dns_missing_spf
+    url: /
+    reason: DNS records of the runner's host name; DVWA ships no DNS or mail configuration.
+  - vuln_class: dns_missing_dmarc
+    url: /
+    reason: DNS records of the runner's host name; DVWA ships no DNS or mail configuration.
   - vuln_class: unclassified:nuclei:php2shell-cve-2026-109618-cve-2026-109619-active-crash-detection-cve-2026-109618
     url: /
     reason: Version match only (PHP 8.5.11 is below the NVD fixed version 8.5.12); no crash or code execution was shown.

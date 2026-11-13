@@ -62,6 +62,15 @@ ignore:
   - vuln_class: banner_disclosure
     url: /*
     reason: Version banner is a property of the target image, not a seeded weakness.
+  - vuln_class: dns_missing_caa
+    url: /
+    reason: DNS record of the scanned hostname; Juice Shop ships no DNS zone and no challenge covers it.
+  - vuln_class: dns_missing_spf
+    url: /
+    reason: DNS record of the scanned hostname; Juice Shop ships no DNS zone and no challenge covers it.
+  - vuln_class: dns_missing_dmarc
+    url: /
+    reason: DNS record of the scanned hostname; Juice Shop ships no DNS zone and no challenge covers it.
   - vuln_class: sensitive_file
     url: /robots.txt
     reason: Info-level discovery record, not a weakness.

@@ -7,7 +7,7 @@ The harness in `bench/` measures how many of HARIS's findings are real (precisio
 | Target | Kind | Ground truth |
 |---|---|---|
 | OWASP Juice Shop `v20.4.0` | external | seed set of 6 entries from the [companion guide](https://pwning.owasp-juice.shop/); 0 known gaps |
-| DVWA (digest of `latest`) | external | seed set of 17 entries from the [module list](https://github.com/digininja/DVWA), security level low; 0 known gaps |
+| DVWA (digest of `latest`) | external | seed set of 18 entries from the [module list](https://github.com/digininja/DVWA), security level low; 0 known gaps |
 | WebGoat `v2026.5` | external | seed set of 7 entries from the [WebGoat repository](https://github.com/WebGoat/WebGoat) |
 | `spa_catchall` | fixture | the fixture's real properties: plain HTTP, `Server` banner, five missing security headers; any path or debug finding is a false positive |
 | `vuln_ai_app` | fixture | 7 deliberate weaknesses (prompt injection, system-prompt leak, unauthenticated inference, verbose error, output XSS, unauthenticated MCP `tools/list`, poisoned MCP tool description) plus 4 real properties (plain HTTP, `Server` banner, no rate limit, ignored `max_tokens`); the `/health` path and `ai_endpoint_discovered` records are ignored |
@@ -22,7 +22,7 @@ The harness in `bench/` measures how many of HARIS's findings are real (precisio
 
 - `vuln_class` is an `id` in `src/haris/resources/config/vuln_classes.yaml` (or an `unclassified:` token HARIS emits); `tests/test_bench_ground_truth.py` enforces it.
 - A weakness HARIS cannot yet detect stays an entry, so recall shows the miss (`juice-ftp-listing`); no ground-truth file lists known gaps in its header.
-- The three external files each ignore 6 target properties: plain HTTP, missing headers, `Server` banner, and the `robots.txt`, `sitemap.xml` and `security.txt` records. Extras: Juice Shop ignores the nikto `X-Recruiting` note; WebGoat ignores the nikto `X-Frame-Options` advisory; DVWA ignores Wapiti's cleartext-password and 500-anomaly records, the Nuclei PHP version match, and two nikto notes (login page, junk methods).
+- The three external files each ignore these target properties: plain HTTP, missing headers, `Server` banner, and the `robots.txt`, `sitemap.xml` and `security.txt` records, and the `dns_missing_caa`, `dns_missing_spf` and `dns_missing_dmarc` records of the bench host name. Extras: Juice Shop ignores the nikto `X-Recruiting` note; WebGoat ignores the nikto `X-Frame-Options` advisory and the `content-disposition` header on `/WebGoat/trace.axd`, which Spring adds to error responses for unregistered extensions; DVWA ignores Wapiti's cleartext-password record, its 500-anomaly record on `/vulnerabilities/open_redirect/source/info.php` (the other anomaly records count as false positives), the Nuclei PHP version match, and two nikto notes (login page, junk methods).
 
 ## Scoring
 
@@ -52,7 +52,7 @@ uv run python bench/run.py --runs 3
 # optional: --targets spa_catchall,vuln_ai_app  --profile <profile>  --baseline-profile <profile>  --verify replay
 ```
 
-Each target has its own profile: `quick` by default, `ai-security` with `--ai-active --i-have-authorization` for `vuln_ai_app`. `--profile` overrides the profile of every target and keeps each target's extra flags. `--baseline-profile` adds baseline runs for the false-positive reduction rate. A target can also carry its own excluded paths (DVWA: `/logout.php`, `/setup.php`), which the runner adds to the default exclusions in the generated `--config`. Juice Shop's nikto run is bounded to 40 s (`-maxtime 40s`, set in the generated `--config` only) because the target aborts under nikto's full request volume.
+Each target has its own profile: `quick` by default, `ai-security` with `--ai-active --i-have-authorization` for `vuln_ai_app`. `--profile` overrides the profile of every target and keeps each target's extra flags. `--baseline-profile` adds baseline runs for the false-positive reduction rate. A baseline run uses the named profile with `--verify` off and without the target's extra flags, so pass the profile of the verified runs (for example `full`) and verification is the only difference; `vuln_ai_app` then has no `--ai-active` in its baseline. A target can also carry its own excluded paths (DVWA: `/logout.php`, `/setup.php`), which the runner adds to the default exclusions in the generated `--config`. Juice Shop's nikto run is bounded to 40 s (`-maxtime 40s`, set in the generated `--config` only) because the target aborts under nikto's full request volume.
 
 Wapiti and sslyze are not in the production image. To scan with them, build the `bench` target (`docker build --target bench --load -t haris-prod:bench .`) and run through `bench/in_image.py` (`bench/README.md`); a missing Wapiti ends `failed`.
 

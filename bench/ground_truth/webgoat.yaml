@@ -82,3 +82,15 @@ ignore:
   - vuln_class: unclassified:nikto:x-frame-options-header-is-deprecated-and-was-replaced-with-the-content-security-policy-http-header-with-the-frame-ancest
     url: /WebGoat
     reason: Advisory about the X-Frame-Options header the image sets; a property of the target.
+  - vuln_class: unclassified:nikto:uncommon-header-s-content-disposition-found-with-contents-inline-filename-f-txt
+    url: /WebGoat/trace.axd
+    reason: Spring MVC adds `Content-Disposition inline;filename=f.txt` to error responses for paths with an unregistered extension (such as .axd); framework RFD protection, not a lesson weakness.
+  - vuln_class: dns_missing_caa
+    url: /
+    reason: DNS record of the bench host name; WebGoat ships no DNS or mail configuration.
+  - vuln_class: dns_missing_spf
+    url: /
+    reason: DNS record of the bench host name; WebGoat ships no DNS or mail configuration.
+  - vuln_class: dns_missing_dmarc
+    url: /
+    reason: DNS record of the bench host name; WebGoat ships no DNS or mail configuration.
