@@ -49,6 +49,16 @@ class VerifySettings(BaseModel):
     error_signatures: list[str] = Field(min_length=1)
     header_valid: dict[str, str] = Field(default_factory=dict)
     canary_instruction: str
+    # PHP source; {left} and {right} join to a marker the source does not contain.
+    code_eval_template: str = Field(min_length=1)
+    code_eval_wrapper: str = Field(min_length=1)
+    code_eval_cost: int = Field(ge=1)
+    # {prefix} is a fresh token so the sent value can be stripped before compare.
+    boolean_true: str = Field(min_length=1)
+    boolean_false: str = Field(min_length=1)
+    boolean_control: str = Field(min_length=1)
+    boolean_repeats: int = Field(ge=1)
+    file_marker_cost: int = Field(ge=1)
     llm: LLMVerdictSettings = Field(default_factory=LLMVerdictSettings)
 
     @field_validator("error_signatures")

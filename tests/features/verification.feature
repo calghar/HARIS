@@ -241,7 +241,7 @@ Feature: verification
       | 0.80  | 0.85  | 0.90   | 0.7, documented as uncalibrated |
 
   # Requirement: Replay coverage for Wapiti classes
-  # The replay verifier SHALL give each of the classes `sqli_error`, `xss_reflected`, `command_injection`, `path_traversal` and `open_redirect` a deterministic oracle that compares a probe with a control, with these positive conditions: - `command_injection`: probe time exceeds control time by the `timing` rule of `verify.timing`, using only delay payloads (`sleep {d}` forms) that run no other command. - `path_traversal`: the probe body matches `root:[x*]:0:0:` or `\[boot loader\]`, and the control body does not. - `open_redirect`: the probe answers `3xx` with a `Location` whose host equals the probe's marker host (`haris-<16 hex>.invalid`), and the control does not. Findings of class `ssrf` and `xxe` MUST stay `unverified` with method `none`; no out-of-band callback listener exists in this release. All oracle results follow the tier rules of "Deterministic replay verifier". On the bench run of DVWA with replay on, `verified_precision` MUST be at least 0.95 over at least 10 `replay_verified` findings.
+  # The replay verifier SHALL give each of the classes `sqli_error`, `xss_reflected`, `command_injection`, `path_traversal` and `open_redirect` a deterministic oracle that compares a probe with a control, with these positive conditions: - `command_injection`: probe time exceeds control time by the `timing` rule of `verify.timing`, using only delay payloads (`sleep {d}` forms) that run no other command. WHEN that is inconclusive and the stored request used a `data:` wrapper, `code_eval` echoes a random marker and is positive only when the probe has it and the control does not (Previously: delay payloads only). `sqli_error` then runs `boolean_sqli`, positive only when every repeat has the true response equal to the control and the false response different (Previously: `error_signature` only). - `path_traversal`: the probe body matches `root:[x*]:0:0:` or `\[boot loader\]`, and the control body does not. - `open_redirect`: the probe answers `3xx` with a `Location` whose host equals the probe's marker host (`haris-<16 hex>.invalid`), and the control does not. Findings of class `ssrf` and `xxe` MUST stay `unverified` with method `none`; no out-of-band callback listener exists in this release. All oracle results follow the tier rules of "Deterministic replay verifier". On the bench run of DVWA with replay on, `verified_precision` MUST be at least 0.95 over at least 10 `replay_verified` findings.
 
   @requirement_replay_coverage_for_wapiti_classes
   Scenario Outline: Oracle matrix for new classes
@@ -266,6 +266,72 @@ Feature: verification
     When the scorer reports tiers
     Then at least 10 findings are `replay_verified`
     And `verified_precision` is at least 0.95
+
+  @requirement_replay_coverage_for_wapiti_classes
+  Scenario Outline: Replay keeps sibling fields
+    Given a finding of class `xss_reflected` on a form that answers a bare form to any request without the field `Submit`, with the stored request `<stored>`
+    When the replay verifier runs
+    Then the probe and the control each carry the fields of the stored request, with only the tested parameter replaced
+    And its tier is `<tier>`
+
+    Examples:
+      | stored                       | tier            |
+      | POST body `name=x&Submit=Go` | replay_verified |
+      | GET query `name=x&Submit=Go` | replay_verified |
+      | none                         | unverified      |
+
+  @requirement_replay_coverage_for_wapiti_classes
+  Scenario Outline: Script-context reflection
+    Given a finding of class `xss_reflected` whose page echoes the parameter inside a script element literal and `<observation>`
+    When the replay verifier runs
+    Then its tier is `<tier>`
+
+    Examples:
+      | observation                | tier            |
+      | leaves `<` and `>` as sent | replay_verified |
+      | encodes `<` and `>`        | unverified      |
+
+  @requirement_replay_coverage_for_wapiti_classes
+  Scenario Outline: PHP marker after the data wrapper
+    Given a `command_injection` finding whose stored request used a `data:` wrapper
+    When the replay responses are `<case>`
+    Then the outcome is `<outcome>`
+
+    Examples:
+      | case                                     | outcome                 |
+      | marker only in the probe                 | replay_verified         |
+      | marker in the probe and the control     | unverified              |
+      | a finding of another class               | that class's own oracle |
+      | fewer requests left than the chain cost | unverified, method none |
+
+  @requirement_replay_coverage_for_wapiti_classes
+  Scenario Outline: Boolean SQL pair
+    Given a `sqli_error` finding
+    When `error_signature` is inconclusive and the boolean responses are `<case>`
+    Then the outcome is `<outcome>`
+
+    Examples:
+      | case                                                       | outcome                 |
+      | true equals the control and false differs on every repeat | replay_verified         |
+      | true equals the control and false does too                | unverified              |
+      | a finding of another class                                 | that class's own oracle |
+      | fewer requests left than the chain cost                   | unverified, method none |
+
+  # Requirement: Multipart marker replay
+  # WHEN the stored request is multipart, replay SHALL, after the class oracles stay inconclusive, send a small file for the tested parameter and a control file. The file name and the file content are the same random marker. Other stored form parts are sent unchanged. The result SHALL be positive only when the marker is live in the probe HTML, after inert markup is removed, and absent from the control. Each such replay writes those two files on the target.
+
+  @requirement_multipart_marker_replay
+  Scenario Outline: Multipart marker file
+    Given a stored multipart request for the tested parameter
+    When the replay responses are `<case>`
+    Then the outcome is `<outcome>`
+
+    Examples:
+      | case                                     | outcome                 |
+      | marker live only in the probe           | replay_verified         |
+      | marker in the probe and the control     | unverified              |
+      | a finding of another class               | that class's own oracle |
+      | fewer requests left than the chain cost | unverified, method none |
 
   # Requirement: Redirect catch-all hosts
   # WHEN a path probe returns `3xx` and its `Location`, with the random segment removed, equals that of a host control, the baseline SHALL NOT report the path, and an external finding of that path SHALL become `refuted` on replay. A `3xx` probe with a `Location` that differs from every control keeps the existing behavior.
@@ -332,7 +398,7 @@ Feature: verification
     Then `errors` contains `<note>`
 
   # Requirement: Classified external noise
-  # A nikto finding whose message starts with `This might be interesting` SHALL carry class `unclassified:nikto:interesting_path` and severity `info`, SHALL be replayed with the `soft404` oracle under the unclassified-external rule, and MUST NOT be hidden. On the bench run of Juice Shop, WebGoat and the `spa_catchall` fixture, the nuclei template `gocd-encryption-key` on the `security.txt` prefix route and the WebGoat `trace.axd` header finding MUST each be absent or `refuted`.
+  # A nikto finding whose message starts with `This might be interesting` SHALL carry class `unclassified:nikto:interesting_path` and severity `info`, SHALL be replayed with the `soft404` oracle under the unclassified-external rule, and MUST NOT be hidden. On the bench run of Juice Shop, WebGoat and the `spa_catchall` fixture, the nuclei template `gocd-encryption-key` on the `security.txt` prefix route and the WebGoat `trace.axd` header finding MUST each be absent or `refuted`. A nikto finding `Uncommon header(s) '<names>' found` on a path other than `/` MUST be `refuted` when a GET of a random path with the same directory and extension answers with every named header at the same value.
 
   @requirement_classified_external_noise
   Scenario: Nikto interesting path
@@ -350,3 +416,16 @@ Feature: verification
       | target     | item                                                            |
       | juice-shop | nuclei `gocd-encryption-key` on the `security.txt` prefix route |
       | webgoat    | nikto `trace.axd` header finding                                |
+
+  @requirement_classified_external_noise
+  Scenario Outline: Header on the control path
+    Given an `unverified` nikto finding `<message>` on the path `/WebGoat/trace.axd`
+    When the replay verifier runs and the random path `/WebGoat/<token>.axd` answers `<control>`
+    Then its tier is `<tier>`
+
+    Examples:
+      | message                                        | control                                  | tier       |
+      | Uncommon header(s) 'content-disposition' found | with the same `Content-Disposition` value    | refuted    |
+      | Uncommon header(s) 'content-disposition' found | with another `Content-Disposition` value | unverified |
+      | Uncommon header(s) 'content-disposition' found | without `Content-Disposition`            | unverified |
+      | This might be interesting.                     | with the same `Content-Disposition` value    | unverified |

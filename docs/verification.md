@@ -16,7 +16,11 @@ Replay runs when the tier is `unverified`, the finding is not suppressed, the me
 
 The chain runs in that order and stops at the first positive or refuted result. A positive result sets `replay_verified`. A refuted result sets `refuted`. An inconclusive result leaves `unverified`. The cap is `max_requests` in `verify.yaml` (500).
 
-An `unclassified:` finding from an external scanner is a special case. The external scanners are `wapiti`, `nuclei`, `nikto`, `nmap`, `sslyze` and `zap`. Replay uses only `soft404`, and only for `GET` when the path is not `/`. A control match refutes the finding. Any other outcome leaves it `unverified`.
+A probe and its control send the other fields of the finding's stored `curl` request (`-d` body or URL query) with only the tested parameter replaced, so a stored field such as `btnClear` is sent too. Redacted fields are dropped, multipart or unparseable requests fall back to the tested parameter alone, and the `reflection` payload closes any open `<script>` element before its marker.
+
+A stored multipart request then runs `file_marker`: a small file whose name and content are one fresh marker, and a control file, with the other form parts kept. That writes both files on the target. It is positive when the marker is live in the probe HTML and absent from the control. A `command_injection` whose stored request used a `data:` wrapper runs `code_eval` after `timing_cmd` is inconclusive: PHP that echoes a random marker, positive when the probe has it and the control does not. `sqli_error` runs `boolean_sqli` after `error_signature`: a true condition, a false condition and a control, twice. Positive only when every repeat has the true response equal to the control and the false response different.
+
+An `unclassified:` finding from an external scanner is a special case. The external scanners are `wapiti`, `nuclei`, `nikto`, `nmap`, `sslyze` and `zap`. Replay uses only `soft404`, and only for `GET` when the path is not `/`. A control match refutes the finding. Any other outcome leaves it `unverified`. A `nikto` finding `Uncommon header(s) '<names>' found` is also refuted when a GET of a random path with the same directory and extension carries every named header at the same value, because the header then belongs to the host and not to the path.
 
 ## Oracles
 
@@ -32,8 +36,11 @@ An `unclassified:` finding from an external scanner is a special case. The exter
 | `path_traversal` | Positive when a `traversal_payloads` probe returns a body matching `root:[x*]:0:0:` or `[boot loader]` and its random-token control does not. |
 | `open_redirect` | Positive when the probe answers 3xx with a `Location` host equal to a fresh `haris-<16 hex>.invalid` marker host and the control does not. Neither request follows redirects. |
 | `canary` | Positive when the probe contains a fresh canary and the control does not. No class in `vuln_classes.yaml` names this oracle. Active AI probes set `replay_verified` with it themselves. |
+| `file_marker` | Positive when a marker file's name comes back live in the probe HTML and not in the control. Runs only for a stored multipart request. Writes both files on the target. |
+| `code_eval` | Positive when a PHP expression echoes a random marker in the probe and not in the control. Runs after `timing_cmd` when the stored request used a `data:` wrapper. |
+| `boolean_sqli` | Positive when every repeat has the true response equal to the control and the false response different. Runs after `error_signature`. |
 
-Classes that name an oracle: `xss_reflected` (`reflection`), `sqli_time` (`timing`), `sqli_error` (`error_signature`), `command_injection` (`timing_cmd`), `path_traversal` (`path_traversal`), `open_redirect` (`open_redirect`), `missing_header` (`header_presence`), `sensitive_file` (`soft404`, `content_validator`), `api_docs_exposed` (`content_validator`). `ssrf` and `xxe` name none, so they stay `unverified` with method `none`.
+Classes that name an oracle: `xss_reflected` (`reflection`), `sqli_time` (`timing`), `sqli_error` (`error_signature`, `boolean_sqli`), `command_injection` (`timing_cmd`, then `code_eval` when the stored request used a `data:` wrapper), `path_traversal` (`path_traversal`), `open_redirect` (`open_redirect`), `missing_header` (`header_presence`), `sensitive_file` (`soft404`, `content_validator`), `api_docs_exposed` (`content_validator`). `file_marker` is added for a stored multipart request. `ssrf` and `xxe` name none, so they stay `unverified` with method `none`.
 
 ## Soft-404 control
 

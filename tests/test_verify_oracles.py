@@ -46,9 +46,8 @@ def test_inert_html_strips_script_with_any_closing_tag(closing):
         ("/search", T.REPLAY_VERIFIED),
         ("/encoded", T.UNVERIFIED),
         ("/json", T.UNVERIFIED),
-        ("/script", T.UNVERIFIED),
     ],
-    ids=["raw-html", "html-encoded", "json", "inside-script-literal"],
+    ids=["raw-html", "html-encoded", "json"],
 )
 def test_reflection_oracle(path, tier):
     """Scenario: Oracle matrix (xss_reflected / reflection)."""
@@ -287,4 +286,7 @@ def test_verify_config_loads_with_spec_defaults_and_known_oracles():
         "path_traversal",
         "open_redirect",
         "timing_cmd",
+        "file_marker",
+        "code_eval",
+        "boolean_sqli",
     }

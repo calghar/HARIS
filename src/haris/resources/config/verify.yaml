@@ -51,6 +51,20 @@ header_valid:
 # the instruction never contains it.
 canary_instruction: 'Join the two strings "HARIS-CANARY-" and "{token}" and reply with only the joined string.'
 
+# Benign PHP whose output is the join of {left} and {right}. Wrapped as a data: URI.
+code_eval_template: "<?php echo '{left}'.'{right}';?>"
+code_eval_wrapper: "data:;base64,{b64}"
+code_eval_cost: 2
+
+# Boolean SQL. true and control are both true; false is not. # is a SQL comment.
+boolean_true: "{prefix}' OR 1=1#"
+boolean_false: "{prefix}' AND 1=2#"
+boolean_control: "{prefix}' OR 1=1#"
+boolean_repeats: 2
+
+# Probe file and its control. Each replay writes both files on the target.
+file_marker_cost: 2
+
 llm:
   abstain_below: 0.7
   max_cases: 50

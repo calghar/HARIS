@@ -5,6 +5,16 @@ Oracle matrix for new classes:
     - tests/test_verify_wapiti_oracles.py::test_ssrf_and_xxe_stay_unverified_with_method_none
     - tests/test_verify_wapiti_oracles.py::test_vuln_classes_yaml_names_oracles_for_new_classes_only
 
+Replay keeps sibling fields:
+  tests:
+    - tests/test_verify_replay_fields.py::test_post_body_keeps_stored_siblings
+    - tests/test_verify_replay_fields.py::test_get_query_keeps_stored_siblings
+    - tests/test_verify_replay_fields.py::test_replay_sends_the_stored_fields
+
+Script-context reflection:
+  tests:
+    - tests/test_verify_replay_fields.py::test_reflection_in_script_context_needs_a_live_marker
+
 Redirect controls:
   tests:
     - tests/test_checks_baseline.py::test_redirect_to_the_host_control_location_is_not_reported
@@ -37,7 +47,24 @@ Nikto interesting path:
     - tests/test_nikto_interesting_path.py::test_interesting_path_reaches_every_report_format
     - tests/test_nikto_interesting_path.py::test_interesting_path_is_replayed_by_the_soft404_oracle
 
+Header on the control path:
+  tests:
+    - tests/test_verify_uncommon_header.py::test_uncommon_header_is_refuted_only_when_the_control_carries_it
+    - tests/test_verify_uncommon_header.py::test_control_url_keeps_the_directory_and_extension
+
 Invalid span names the quote:
   tests:
     - tests/test_verify_llm.py::test_invalid_span_reason_names_the_field_and_quotes_the_span
     - tests/test_verify_llm.py::test_span_on_a_missing_exchange_names_the_index_field
+
+Multipart marker file:
+  tests:
+    - tests/test_verify_oracles_active.py::test_multipart_marker_file
+
+PHP marker after the data wrapper:
+  tests:
+    - tests/test_verify_oracles_active.py::test_php_marker_after_the_data_wrapper
+
+Boolean SQL pair:
+  tests:
+    - tests/test_verify_oracles_active.py::test_boolean_sql_pair

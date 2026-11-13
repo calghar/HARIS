@@ -36,7 +36,7 @@ classes:
   - id: sqli_error
     primary_cwe: CWE-89
     granularity: parameter
-    oracle: error_signature
+    oracle: error_signature, boolean_sqli
     aliases:
       wapiti: ["SQL Injection"]
       nuclei: ["SQL Injection", "sqli"]

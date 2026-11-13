@@ -15,6 +15,7 @@ from ..models import (
 from ..net import NetworkError, RequestBudgetExceeded, ScopedClient, TransportError
 from . import oracles_baseline, timing  # noqa: F401  # importing registers the oracles
 from .oracles import ORACLES, OracleResult
+from .oracles_active import chain_active
 from .probe import NotReplayable, Prober, VerifyBudgetExhausted
 from .settings import VerifySettings
 
@@ -54,7 +55,8 @@ def oracle_names(case: CorrelatedFinding, base_url: str = "") -> list[str]:
         return ["soft404"]
     cls = get_registry().classes.get(case.canonical.vuln_class)
     names = [n.strip() for n in cls.oracle.split(",")] if cls else []
-    return [n for n in names if n != NO_ORACLE]
+    names = [n for n in names if n != NO_ORACLE]
+    return chain_active(names, case.canonical)
 
 
 def replayable(

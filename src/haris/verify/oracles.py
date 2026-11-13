@@ -79,7 +79,7 @@ def reflection(
     finding: Finding, prober: Prober, settings: VerifySettings
 ) -> OracleResult:
     marker = f"<{MARKER_TAG}{secrets.token_hex(4)}>"
-    payload = f"\"'>{marker}"
+    payload = f"\"'></script>{marker}"
     probe = prober.send(finding, payload)
     control = prober.send(finding, random_token(len(payload)))
     live = marker in INERT_HTML.sub("", probe.text)

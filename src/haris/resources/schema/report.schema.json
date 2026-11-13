@@ -581,7 +581,10 @@
         "canary",
         "path_traversal",
         "open_redirect",
-        "timing_cmd"
+        "timing_cmd",
+        "file_marker",
+        "code_eval",
+        "boolean_sqli"
       ],
       "title": "VerificationOracle",
       "type": "string"

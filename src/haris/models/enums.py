@@ -87,6 +87,9 @@ class VerificationOracle(enum.StrEnum):
     PATH_TRAVERSAL = "path_traversal"
     OPEN_REDIRECT = "open_redirect"
     TIMING_CMD = "timing_cmd"
+    FILE_MARKER = "file_marker"
+    CODE_EVAL = "code_eval"
+    BOOLEAN_SQLI = "boolean_sqli"
 
 
 class ScanState(enum.StrEnum):

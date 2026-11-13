@@ -21,6 +21,9 @@
 - Added glob matching for `vuln_class` in bench ground-truth entries, and the Juice Shop entry `juice-ftp-robots-nikto`
 - Added DEBUG logs of the LLM verdict stage: exchange text lengths, the raw model reply and the validation error; the bench passes `--log-level DEBUG`
 - Added the Wapiti option `seed_paths`, target-relative paths passed as `--start`, and `bench/wapiti_seeds.yaml` with the WebGoat lesson endpoints for the bench
+- Added `refuted` replay verdicts for a nikto `Uncommon header(s) '<names>' found` finding when a GET of a random path with the same directory and extension carries every named header at the same value
+- Added the DVWA ground-truth entry `dvwa-server-status`, a true positive
+- Added the replay oracles `file_marker` (marker upload for a stored multipart request), `code_eval` (PHP marker through a stored `data:` wrapper) and `boolean_sqli` (true, false and control pair for `sqli_error`), and added their names to the oracle enum of `report.schema.json`
 
 ### Changed
 
@@ -47,6 +50,8 @@
 - Changed the LLM verdict exchange text to use `\n` for `\r\n`, and the prompt to require each cited span to be one unbroken run of that text
 - Changed the nuclei baseline group to scan the base URL only (`-u`), and the URL list to keep only URLs with the base URL's scheme, host and port
 - Changed the default nuclei `phase2_timeout_s` from 300 to 900
+- Changed replay to send the sibling form fields of the stored request with the tested parameter replaced
+- Changed the `reflection` replay payload to close a script element, so a reflection inside script text can verify
 - Changed the external-tool command log to mask the whole value after `-H` or `-header`
 - Changed `bench/README.md`: a missing Wapiti now ends `failed`, not `skipped`
 

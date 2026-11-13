@@ -141,6 +141,14 @@ entries:
     expected: true_positive
     source: https://github.com/digininja/DVWA
     notes: The data wrapper runs PHP and the body starts with the echoed marker (checked live); Wapiti reports it as command execution.
+  - id: dvwa-server-status
+    method: GET
+    url: /server-status
+    vuln_class: sensitive_file
+    cwe: CWE-538
+    expected: true_positive
+    source: https://github.com/digininja/DVWA
+    notes: Apache mod_status is enabled for any client and the body is the live status page (stored exchange, run 2026-11-13-113256).
 ignore:
   - vuln_class: no_https
     url: /*
