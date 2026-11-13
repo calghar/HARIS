@@ -60,6 +60,22 @@ entries:
     expected: true_positive
     source: https://github.com/WebGoat/WebGoat
     notes: Error responses carry a Java stack trace in the body (checked live on a missing path with a session).
+  - id: webgoat-actuator-configprops
+    method: GET
+    url: /WebGoat/actuator/configprops
+    vuln_class: unclassified:nuclei:detect-springboot-configprops-actuator
+    cwe: CWE-538
+    expected: true_positive
+    source: https://raw.githubusercontent.com/WebGoat/WebGoat/main/src/main/resources/application-webgoat.properties
+    notes: Config exposes configprops (`management.endpoints.web.exposure.include=env, health,configprops`); `/actuator/**` is permitAll.
+  - id: webgoat-tomcat-stack-trace
+    method: GET
+    url: /WebGoat
+    vuln_class: unclassified:nuclei:tomcat-stack-traces-enabled
+    cwe: CWE-209
+    expected: true_positive
+    source: https://raw.githubusercontent.com/WebGoat/WebGoat/main/src/main/resources/application-webgoat.properties
+    notes: Config sets `spring.web.error.include-stacktrace=always`; same weakness as webgoat-verbose-error under the nuclei token.
 ignore:
   - vuln_class: no_https
     url: /*

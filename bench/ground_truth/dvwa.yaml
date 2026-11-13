@@ -158,6 +158,14 @@ entries:
     expected: true_positive
     source: https://github.com/digininja/DVWA
     notes: Apache mod_status is enabled for any client and the body is the live status page (stored exchange, run 2026-11-13-113256).
+  - id: dvwa-server-status-nuclei
+    method: GET
+    url: /server-status
+    vuln_class: unclassified:nuclei:apache-server-status-disclosure
+    cwe: CWE-538
+    expected: true_positive
+    source: https://github.com/digininja/DVWA
+    notes: Same page as dvwa-server-status under the nuclei token; Debian defaults to `Require local`, the bench run served it to any client.
 ignore:
   - vuln_class: no_https
     url: /*
@@ -201,3 +209,6 @@ ignore:
   - vuln_class: unclassified:nikto:web-server-returns-a-valid-response-with-junk-http-methods-which-may-cause-false-positives
     url: /
     reason: Apache treats an unknown method as GET; nikto flags its own possible false positive.
+  - vuln_class: unclassified:nuclei:dvwa-exposed-setup-page
+    url: /setup.php
+    reason: Shipped installer page that the README tells every user to open (https://raw.githubusercontent.com/digininja/DVWA/master/README.md).
