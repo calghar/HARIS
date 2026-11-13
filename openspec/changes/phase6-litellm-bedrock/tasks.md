@@ -32,12 +32,14 @@ Ids in brackets map to `modernise-0-7/tasks.md` section 4; tick both files when 
 ## 4. Scanners and external tools
 
 - [x] 4.1 `partial` and `skipped` statuses in `ScannerResult.metadata`, `scanner_status`, `Engine._final_state`, reports and the DB round trip; regression test: existing exit-code matrix and `scanner_status` tests pass
-- [ ] 4.2 `scanners.nuclei.phase2_timeout_s` (default 300) with process-group kill and kept findings; ran Juice Shop and recorded the phase 2 time [4.6]
+- [ ] 4.2 `scanners.nuclei.phase2_timeout_s` (default 900) with process-group kill and kept findings; baseline group on `-u <base_url>`, URL list limited to the base origin; ran Juice Shop and recorded the phase 2 time [4.6]
 - [x] 4.3 sslyze skipped when the target is HTTP and no TLS port was found; regression test: HTTPS target still runs sslyze [4.6]
 - [x] 4.4 Per-tool address binding or blocking network for nuclei, nmap, nikto, sslyze and Wapiti after reading each `--help`; rebinding test per tool; a tool with neither does not start; updated the Known limits note in `docs/agent_safety.md` and `SECURITY.md` [4.13]
 - [ ] 4.5 Seeded the WebGoat crawl so Wapiti reaches the lesson endpoints; recorded recall before and after [4.4]
 - [ ] 4.6 Live-tested Wapiti `information_disclosure` on DVWA in the sandbox; dropped the exclusion only on a clean run [4.5]
 - [x] 4.7 Passed `ScanContext.tool_rate_rps` to nuclei `-rl`, nmap `--max-rate` and nikto `-Pause` per the existing "External tool pre-flight and rate split" requirement of `modernise-0-7`; replaced the pending entry of `Rate split` in `tests/bdd/maps/scoped-http.preserved.yaml` with its tests; regression test: existing `test_engine_pipeline.py` rate tests pass with nmap expectations corrected to the scenario
+- [x] 4.8 Nuclei template selection by technology: tag group before baseline group, deterministic map union LLM tags, allowlist from `nuclei -tgl`, no fingerprint pass, report note per run; regression test: existing nuclei tests pass with phase 1 removed
+- [x] 4.10 Nuclei `retries` option, one rate flag, argv redaction that keeps the flags after a cookie header, per-phase durations in the scanner metadata; regression test: existing rate-flag tests pass
 
 ## 5. Classification
 

@@ -73,7 +73,7 @@ The `ScanContext` model accumulates cross-scanner intelligence during a scan:
 - `open_ports`: Open ports from Nmap results
 - `server_headers`: Response headers captured by header checks
 
-The recon stage writes `ScanContext`. The scan stage reads it. Nuclei phase 2b uses `detected_technologies`.
+The recon stage writes `ScanContext`. The scan stage reads it. Nuclei derives its tag group from `detected_technologies`.
 
 ### 7. Orchestration Engine (`src/haris/core/engine.py`)
 
@@ -84,7 +84,7 @@ The recon stage writes `ScanContext`. The scan stage reads it. Nuclei phase 2b u
 3. OWASP tags and stable finding identity.
 4. Correlation: one finding per fingerprint. The inputs are not mutated.
 5. Ignore file, then verification (`off`, `replay` or `llm`). The engine default is `off`. The CLI default is `replay`.
-6. Risk and remediation. An empty scanner status, or a status with no completed or partial scanner, gives posture `unknown`. A scanner may report `partial` or `skipped` with a note; the note appears in every report format except CSV.
+6. Risk and remediation. An empty scanner status, or a status with no completed or partial scanner, gives posture `unknown`. A scanner may report a note with any status; the note appears in every report format except CSV.
 
 `extract_context` runs only in recon. `header_checks`, `misc_checks` and `info_disclosure` copy `Server`, `X-Powered-By` and `X-AspNet-Version`. nmap copies open ports and product or service names. `extract_context` also copies each finding URL that starts with `http`. Nikto's extractor stays idle because Nikto runs in the scan stage. Wapiti has no extractor.
 
@@ -182,7 +182,7 @@ Reusable presets that bundle a scan profile with per-scanner option overrides. F
 
 Per-scanner options per template:
 
-- **Nuclei**: `template_dirs`, `tags`, `severity`, `exclude_tags`, `rate_limit`, `timeout`, `phase2_timeout_s` (seconds for phase 2 in total; default 300 from `nuclei.yaml`; at the limit nuclei is killed, findings are kept and the scanner is `partial`)
+- **Nuclei**: `template_dirs`, `tags`, `severity`, `exclude_tags`, `rate_limit`, `timeout`, `phase2_timeout_s` (seconds for phase 2 in total; default 900 from `nuclei.yaml`; at the limit nuclei is killed, findings are kept and the scanner is `partial`)
 - **Nikto**: `plugins`, `tuning`, `timeout`
 - **Wapiti**: `modules`, `scope`, `max_scan_time`, `max_links`, `timeout`
 - **Nmap**: `ports`, `script_categories`, `timeout`

@@ -9,11 +9,12 @@ from ..net.ssrf import vet_host
 
 logger = logging.getLogger(__name__)
 
-_SCHEMES = frozenset({"http", "https"})
+_DEFAULT_PORTS = {"http": 80, "https": 443}
+_SCHEMES = frozenset(_DEFAULT_PORTS)
 
 
 def filter_discovered_urls(target: Target, context: ScanContext, cap: int) -> list[str]:
-    """Base URL plus in-scope vetted URLs; empty when only the base remains."""
+    """Base URL plus in-scope vetted URLs of its origin; empty when only the base."""
     if not context.discovered_urls:
         return []
     urls = [target.base_url]
@@ -28,19 +29,25 @@ def filter_discovered_urls(target: Target, context: ScanContext, cap: int) -> li
     return urls[:cap]
 
 
-def _admitted(target: Target, context: ScanContext, url: str) -> bool:
+def _origin(url: str) -> tuple[str, str | None, int | None]:
     parts = urlsplit(url)
-    if parts.scheme not in _SCHEMES:
+    try:
+        port = parts.port or _DEFAULT_PORTS.get(parts.scheme)
+    except ValueError:
+        port = None
+    return parts.scheme, parts.hostname, port
+
+
+def _admitted(target: Target, context: ScanContext, url: str) -> bool:
+    scheme, host, port = _origin(url)
+    if scheme not in _SCHEMES or not host or port is None:
         return False
-    host = parts.hostname
-    if not host or not target.scope.is_url_in_scope(url):
+    if (scheme, host, port) != _origin(target.base_url):
+        return False
+    if not target.scope.is_url_in_scope(url):
         return False
     client = context.http
     if not isinstance(client, ScopedClient):
-        return False
-    try:
-        port = parts.port or (443 if parts.scheme == "https" else 80)
-    except ValueError:
         return False
     try:
         vet_host(

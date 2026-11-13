@@ -5,13 +5,11 @@ from pydantic import BaseModel, Field
 
 from .correlator import CorrelatedFinding
 from .enrichment import AttackChain, EnrichedFinding, TriagedFinding
-from .enums import OwaspCategory, RiskPosture, ScannerStatus, ScanState, Severity
+from .enums import OwaspCategory, RiskPosture, ScanState, Severity
 from .finding import Finding
 from .remediation import RemediationStep
 from .scanner import ScannerResult
 from .target import Target
-
-NOTED_STATUSES = frozenset({ScannerStatus.PARTIAL, ScannerStatus.SKIPPED})
 
 
 class ScanSession(BaseModel):
@@ -65,12 +63,8 @@ class ScanSession(BaseModel):
 
     @property
     def scanner_notes(self) -> dict[str, str]:
-        """Note of each partial or skipped scanner that gave one."""
-        return {
-            r.scanner_name: r.note
-            for r in self.scanner_results
-            if r.note and r.status in NOTED_STATUSES
-        }
+        """Note of each scanner that gave one, whatever its status."""
+        return {r.scanner_name: r.note for r in self.scanner_results if r.note}
 
     def report_extras(self) -> dict[str, Any]:
         """Report keys added in 0.7: state, stage log, scanner status, correlated."""

@@ -73,12 +73,10 @@ class TestFlagFromBoundContext:
             assert after(argv, FLAGS[tool]) == value
 
     def test_every_nuclei_run_gets_the_flag(self) -> None:
-        argvs = tool_argvs(
-            "nuclei", 5.0, skip_tech_detection=False, automatic_scan=True
-        )
+        argvs = tool_argvs("nuclei", 5.0)
 
-        assert len(argvs) == 3, "expected phase 1, phase 2 broad and targeted"
-        assert [last_value(argv, "-rl") for argv in argvs] == ["5", "5", "5"]
+        assert len(argvs) == 2, "expected the tag group and the baseline group"
+        assert [last_value(argv, "-rl") for argv in argvs] == ["5", "5"]
 
     def test_nuclei_floors_below_one_to_one(self) -> None:
         scanner = NucleiScanner()
@@ -91,6 +89,21 @@ class TestFlagFromBoundContext:
     def test_nuclei_rate_limit_option_can_lower_the_split(self) -> None:
         for argv in tool_argvs("nuclei", 5.0, rate_limit=2):
             assert last_value(argv, "-rl") == "2"
+
+
+class TestOneRateFlag:
+    @pytest.mark.parametrize(
+        ("rate", "flag", "value"),
+        [(5.0, "-rl", "5"), (0.0, "-rate-limit", "100")],
+    )
+    def test_argv_holds_one_rate_flag(self, rate: float, flag: str, value: str) -> None:
+        scanner = NucleiScanner()
+        scanner._begin(Target(base_url=HTTPS_URL), bound_context(tool_rate_rps=rate))
+
+        argv = scanner._build_command(Target(base_url=HTTPS_URL))
+
+        assert [t for t in argv if t in {"-rl", "-rate-limit"}] == [flag]
+        assert after(argv, flag) == value
 
 
 class TestNoRateNoFlag:

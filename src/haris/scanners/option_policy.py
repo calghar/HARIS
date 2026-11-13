@@ -45,10 +45,10 @@ _OPTION_KEYS: dict[str, frozenset[str]] = {
             "template_dirs",
             "extra_args",
             "enable_interactsh",
-            "skip_tech_detection",
             "automatic_scan",
             "update_templates",
             "timeout_per_request",
+            "retries",
             "phase2_timeout_s",
         }
     ),

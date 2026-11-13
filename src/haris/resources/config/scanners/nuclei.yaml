@@ -16,45 +16,26 @@ confidence_map:
   info: TENTATIVE
   unknown: TENTATIVE
 
-# Generic Nuclei metadata tags (NOT technology names)
-# These appear in info.tags and must be excluded from tech extraction
-meta_tags:
-  - tech
-  - waf
-  - misc
-  - discovery
-  - cms
-  - detect
-  - panel
-  - exposure
-  - osint
-  - recon
-  - token
-  - cloud
-  - network
-  - dns
+# Baseline group: runs after the tag group on every scan, whatever the technologies
+baseline_template_dirs:
+  - http/exposures         # exposed files, backups, cloud storage, secrets
+  - http/misconfiguration  # misconfigs, security headers, CORS, etc.
+  - http/vulnerabilities   # injection, XSS, SSRF beyond Wapiti
+  - http/takeovers         # subdomain takeover detection
+  - dast                   # dynamic application security testing
+
+# Total seconds for Phase 2 (tag group plus baseline group); at the limit nuclei is killed, findings kept
+phase2_timeout_s: 900
+
+# Tag selector: most tags the LLM may add, tags it may never pick, and the template-count
+# range (from `nuclei -tgl`) a tag needs to be pickable
+max_selected_tags: 10
+deny_tags:
+  - dos
+  - intrusive
   - fuzz
-  - headless
-  - file
-  - iot
-
-# Default template directories for scanning
-# Focused on checks NOT already covered by other HARIS scanners
-default_template_dirs:
-  - http/cves              # 3830 — known CVE checks (largest, most impactful)
-  - http/exposures         # 683 — exposed files, backups, cloud storage, secrets
-  - http/exposed-panels    # 1351 — admin panels, CMS logins, management UIs
-  - http/vulnerabilities   # 934 — injection, XSS, SSRF beyond Wapiti
-  - http/default-logins    # 270 — default credentials (unique to nuclei)
-  - http/takeovers         # 74  — subdomain takeover detection
-  - http/misconfiguration  # 920 — misconfigs, security headers, CORS, etc.
-  - dast                   # 249 — dynamic application security testing
-
-# Template directory for technology fingerprinting (Phase 1)
-tech_fingerprint_dir: http/technologies
-
-# Total seconds for Phase 2 (broad plus targeted); at the limit nuclei is killed, findings kept
-phase2_timeout_s: 300
+min_tag_templates: 3
+max_tag_templates: 300
 
 # Nuclei OWASP tag mapping
 # Maps Nuclei template tags/matcher-names to OWASP-aligned tags

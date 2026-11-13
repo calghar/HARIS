@@ -82,7 +82,7 @@ Findings are mapped to the OWASP Top 10 2025 categories:
 | SSLyze | TLS/SSL configuration analysis | CLI adapter (subprocess) |
 | Nmap | Port scanning, service detection, recon | CLI adapter (subprocess) |
 | Nikto | Web server misconfigurations, outdated software | CLI adapter (subprocess) |
-| Nuclei | CVE detection, default credentials, exposed panels, tech fingerprinting | CLI adapter (subprocess, multi-phase) |
+| Nuclei | CVE detection, default credentials, exposed panels, tech-targeted templates | CLI adapter (subprocess, multi-phase) |
 | ZAP | Active and passive web scan | CLI adapter, off by default, not in any profile |
 | Built-in header_checks | HTTP security headers | ScopedClient |
 | Built-in tls_checks | Certificate and TLS basics | Python ssl |
@@ -114,10 +114,9 @@ The framework enforces multiple safety mechanisms:
 
 The recon stage runs the built-in checks and nmap, one at a time, in profile order. It is the only stage that writes `ScanContext`. `header_checks`, `misc_checks` and `info_disclosure` copy `Server`, `X-Powered-By` and `X-AspNet-Version`. nmap copies open ports and product or service names. The scan stage runs the other scanners in parallel and only reads that context.
 
-Nuclei, in the scan stage, uses a three-phase strategy:
+Nuclei, in the scan stage, runs two groups under one time limit:
 
-- **Phase 1**: Technology fingerprinting via `http/technologies` templates — identifies CMS, WAF, frameworks
-- **Phase 2a**: Broad vulnerability scan across 8 template directories (CVEs, exposures, panels, vulnerabilities, default-logins, takeovers, misconfigurations, DAST)
-- **Phase 2b**: Tech-targeted scan using Nuclei tags and workflows specific to detected technologies (e.g. WordPress, Django, Jenkins)
+- **Tag group**: templates carrying tags derived from the recorded technologies (for example WordPress, Django, Jenkins) plus tags an LLM selector adds from a fixed allowlist; `-as` when there are none
+- **Baseline group**: the `baseline_template_dirs` (exposures, misconfiguration, vulnerabilities, takeovers, DAST)
 
-Phase 1 is stored as technologies, not as findings. Phase 2 passes `-es info` unless the scanner options set `severity`.
+Nuclei runs no fingerprint pass; the recon stage supplies the technologies. Both groups pass `-es info` unless the scanner options set `severity`.

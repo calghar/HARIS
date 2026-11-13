@@ -89,7 +89,7 @@ class ExternalToolScanner(BaseScanner):
         capture: bool = True,  # noqa: ARG002
     ) -> tuple[int, str, str]:
         """Run *cmd*; a timeout raises ``ToolTimeoutError`` with partial output."""
-        logger.info("Running: %s", " ".join(redact_argv(cmd, self._secrets)))
+        logger.info("Running: %s", redact_argv(cmd, self._secrets))
         try:
             return run_process(cmd, timeout)
         except FileNotFoundError:

@@ -4,14 +4,14 @@ from urllib.parse import urlsplit
 
 import pytest
 
-from haris.models import Finding, Severity
+from haris.models import Severity
 from haris.models.scan_context import ScanContext
 from haris.models.target import Scope, Target
 from haris.net.scoped_client import ScopedClient
-from haris.scanners.nuclei_scanner import (
-    DEFAULT_TEMPLATE_DIRS,
-    TECH_FINGERPRINT_DIR,
-    NucleiScanner,
+from haris.scanners.nuclei_scanner import BASELINE_TEMPLATE_DIRS, NucleiScanner
+from haris.scanners.option_policy import (
+    ScannerOptionsError,
+    prepare_web_scanner_options,
 )
 from tests.conftest import bound_context
 
@@ -39,11 +39,11 @@ class TestBuildCommand:
         cmd = scanner._build_command(target)
         assert "-pt" not in cmd
 
-    def test_default_template_dirs_fallback(self, target: Target) -> None:
+    def test_baseline_template_dirs_fallback(self, target: Target) -> None:
         scanner = NucleiScanner()
         cmd = scanner._build_command(target)
         t_flags = [cmd[i + 1] for i, v in enumerate(cmd) if v == "-t"]
-        for tdir in DEFAULT_TEMPLATE_DIRS:
+        for tdir in BASELINE_TEMPLATE_DIRS:
             assert tdir in t_flags
 
     def test_explicit_template_dirs(self, target: Target) -> None:
@@ -53,7 +53,7 @@ class TestBuildCommand:
         t_flags = [cmd[i + 1] for i, v in enumerate(cmd) if v == "-t"]
         assert "http/misconfiguration" in t_flags
         assert "ssl" in t_flags
-        for tdir in DEFAULT_TEMPLATE_DIRS:
+        for tdir in BASELINE_TEMPLATE_DIRS:
             if tdir not in explicit:
                 assert tdir not in t_flags
 
@@ -63,7 +63,7 @@ class TestBuildCommand:
         assert "-tags" in cmd
         assert cmd[cmd.index("-tags") + 1] == "cve"
         t_flags = [cmd[i + 1] for i, v in enumerate(cmd) if v == "-t"]
-        for tdir in DEFAULT_TEMPLATE_DIRS:
+        for tdir in BASELINE_TEMPLATE_DIRS:
             assert tdir not in t_flags
 
     def test_templates_skips_default_dirs(self, target: Target) -> None:
@@ -72,7 +72,7 @@ class TestBuildCommand:
         cmd = scanner._build_command(target)
         t_flags = [cmd[i + 1] for i, v in enumerate(cmd) if v == "-t"]
         assert custom_path in t_flags
-        for tdir in DEFAULT_TEMPLATE_DIRS:
+        for tdir in BASELINE_TEMPLATE_DIRS:
             assert tdir not in t_flags
 
 
@@ -104,6 +104,22 @@ class TestDefaults:
     def test_timeout_per_request_override(self, target: Target) -> None:
         cmd = NucleiScanner(options={"timeout_per_request": 10})._build_command(target)
         assert cmd[cmd.index("-timeout") + 1] == "10"
+
+    @pytest.mark.parametrize("retries", [0, 1, 5])
+    def test_retries_option_reaches_argv(self, target: Target, retries: int) -> None:
+        cmd = NucleiScanner(options={"retries": retries})._build_command(target)
+        assert cmd[cmd.index("-retries") + 1] == str(retries)
+
+    def test_retries_accepted_from_web_options(self) -> None:
+        options = {"nuclei": {"retries": 0}}
+        assert prepare_web_scanner_options(options) == options
+
+    @pytest.mark.parametrize("value", [-1, "2", True])
+    def test_retries_rejects_invalid_values_from_web_options(
+        self, value: object
+    ) -> None:
+        with pytest.raises(ScannerOptionsError, match="nuclei.retries"):
+            prepare_web_scanner_options({"nuclei": {"retries": value}})
 
 
 class TestParseResults:
@@ -263,148 +279,21 @@ class TestBuildCommandKeywordArgs:
         assert "-w" in cmd
 
 
-class TestDefaultTemplateDirs:
-    def test_includes_misconfiguration_dir(self) -> None:
-        assert "http/misconfiguration" in DEFAULT_TEMPLATE_DIRS
-
-    def test_includes_cves_dir(self) -> None:
-        assert "http/cves" in DEFAULT_TEMPLATE_DIRS
-
-    def test_excludes_ssl_by_default(self) -> None:
-        assert "ssl" not in DEFAULT_TEMPLATE_DIRS
-
-    def test_excludes_tech_fingerprint_dir(self) -> None:
-        assert TECH_FINGERPRINT_DIR not in DEFAULT_TEMPLATE_DIRS
-        assert "http/technologies" not in DEFAULT_TEMPLATE_DIRS
-
-
-class TestExtractTechnologies:
-    def test_extract_from_matcher_name(self) -> None:
-        findings = [
-            Finding(
-                title="Tech Detection",
-                description="",
-                severity=Severity.INFO,
-                raw_data={"matcher-name": "nginx"},
-            )
+class TestBaselineTemplateDirs:
+    def test_yaml_default_is_the_five_baseline_dirs(self) -> None:
+        assert BASELINE_TEMPLATE_DIRS == [
+            "http/exposures",
+            "http/misconfiguration",
+            "http/vulnerabilities",
+            "http/takeovers",
+            "dast",
         ]
-        techs = NucleiScanner._extract_technologies(findings)
-        assert "nginx" in techs
 
-    def test_extract_multiple_techs(self) -> None:
-        findings = [
-            Finding(
-                title="Tech 1",
-                description="",
-                severity=Severity.INFO,
-                raw_data={"matcher-name": "nginx"},
-            ),
-            Finding(
-                title="Tech 2",
-                description="",
-                severity=Severity.INFO,
-                raw_data={"matcher-name": "wordpress"},
-            ),
-        ]
-        techs = NucleiScanner._extract_technologies(findings)
-        assert "nginx" in techs
-        assert "wordpress" in techs
-
-    def test_extract_from_nuclei_tags(self) -> None:
-        findings = [
-            Finding(
-                title="Tech Detection",
-                description="",
-                severity=Severity.INFO,
-                raw_data={"nuclei-tags": ["php", "apache"]},
-            )
-        ]
-        techs = NucleiScanner._extract_technologies(findings)
-        assert "php" in techs
-        assert "apache" in techs
-
-    def test_deduplicate_techs(self) -> None:
-        findings = [
-            Finding(
-                title="Tech 1",
-                description="",
-                severity=Severity.INFO,
-                raw_data={"matcher-name": "nginx"},
-            ),
-            Finding(
-                title="Tech 2",
-                description="",
-                severity=Severity.INFO,
-                raw_data={"matcher-name": "nginx"},
-            ),
-        ]
-        techs = NucleiScanner._extract_technologies(findings)
-        assert techs.count("nginx") == 1
-
-    def test_skip_tech_tag_itself(self) -> None:
-        findings = [
-            Finding(
-                title="Tech Detection",
-                description="",
-                severity=Severity.INFO,
-                raw_data={"nuclei-tags": ["tech", "nginx"]},
-            )
-        ]
-        techs = NucleiScanner._extract_technologies(findings)
-        assert "tech" not in techs
-        assert "nginx" in techs
-
-    def test_skip_all_meta_tags(self) -> None:
-        """Generic Nuclei classification tags should be filtered out."""
-        findings = [
-            Finding(
-                title="WAF Detection",
-                description="",
-                severity=Severity.INFO,
-                raw_data={
-                    "matcher-name": "cloudflare",
-                    "nuclei-tags": ["waf", "tech", "misc", "discovery", "cms"],
-                },
-            )
-        ]
-        techs = NucleiScanner._extract_technologies(findings)
-        assert "cloudflare" in techs
-        for meta in ("waf", "tech", "misc", "discovery", "cms"):
-            assert meta not in techs
-
-    def test_extract_from_extracted_results(self) -> None:
-        """metatag-cms and similar use extracted-results for the actual tech."""
-        findings = [
-            Finding(
-                title="Metatag CMS Detection",
-                description="",
-                severity=Severity.INFO,
-                raw_data={
-                    "matcher-name": "",
-                    "extracted-results": ["Astro v5.15.9"],
-                    "nuclei-tags": ["tech", "cms", "discovery"],
-                },
-            )
-        ]
-        techs = NucleiScanner._extract_technologies(findings)
-        assert "astro" in techs
-        assert "tech" not in techs
-        assert "cms" not in techs
-
-    def test_empty_findings_returns_empty(self) -> None:
-        techs = NucleiScanner._extract_technologies([])
-        assert techs == []
-
-    def test_no_raw_data_returns_empty(self) -> None:
-        findings = [
-            Finding(
-                title="No raw data",
-                description="",
-                severity=Severity.INFO,
-            )
-        ]
-        techs = NucleiScanner._extract_technologies(findings)
-        assert techs == []
+    @pytest.mark.parametrize("excluded", ["http/cves", "http/technologies", "ssl"])
+    def test_product_specific_and_fingerprint_dirs_are_not_baseline(
+        self, excluded: str
+    ) -> None:
+        assert excluded not in BASELINE_TEMPLATE_DIRS
 
 
 def _vetted(target: Target) -> ScanContext:
@@ -483,52 +372,40 @@ class TestBuildUrlList:
         assert "other.test" not in seen
         assert "10.0.0.5" not in seen
 
-
-class TestResolveTargetedSelection:
-    def test_explicit_template_dirs_returned_as_is(self, target: Target) -> None:
-        scanner = NucleiScanner(options={"template_dirs": ["ssl", "dns"]})
-        ctx = ScanContext()
-        ctx.add_technologies(["nginx", "wordpress"])
-        template_dirs, tags, workflows = scanner._resolve_targeted_selection(
-            ctx, has_explicit=True
-        )
-        assert template_dirs == ["ssl", "dns"]
-        assert tags == []
-        assert workflows == []
-
-    def test_explicit_tags_not_repeated_for_targeted_phase(
-        self, target: Target
+    @pytest.mark.parametrize(
+        ("url", "kept"),
+        [
+            ("https://example.com/robots.txt", True),
+            ("https://example.com:443/robots.txt", True),
+            ("http://example.com/robots.txt", False),
+            ("https://example.com:8443/robots.txt", False),
+            ("https://other.test/robots.txt", False),
+            ("https://example.com", True),
+            ("https://host.containers.internal", False),
+        ],
+    )
+    def test_list_holds_the_base_origin_only(
+        self, target: Target, url: str, kept: bool
     ) -> None:
-        """Explicit tags already run in the broad phase; 2b must not repeat them."""
-        scanner = NucleiScanner(options={"tags": ["cve", "rce"]})
-        ctx = ScanContext()
-        template_dirs, tags, workflows = scanner._resolve_targeted_selection(
-            ctx, has_explicit=True
-        )
+        ctx = _vetted(target)
+        ctx.discovered_urls = ["https://example.com/robots.txt", url]
+        assert (url in NucleiScanner._build_url_list(target, ctx)) is kept
+
+
+class TestMapTagsAndWorkflows:
+    def test_no_tech_gives_nothing(self) -> None:
+        tags, workflows = NucleiScanner()._map_tags_and_workflows(ScanContext())
         assert tags == []
         assert workflows == []
 
-    def test_default_template_dirs_when_no_tech(self, target: Target) -> None:
-        scanner = NucleiScanner()
-        ctx = ScanContext()
-        template_dirs, tags, workflows = scanner._resolve_targeted_selection(
-            ctx, has_explicit=False
-        )
-        assert template_dirs == list(DEFAULT_TEMPLATE_DIRS)
-        assert tags == []
-        assert workflows == []
-
-    def test_wordpress_tech_adds_tags(self, target: Target) -> None:
-        scanner = NucleiScanner()
+    def test_wordpress_tech_adds_tags(self) -> None:
         ctx = ScanContext()
         ctx.add_technologies(["wordpress"])
-        template_dirs, tags, workflows = scanner._resolve_targeted_selection(
-            ctx, has_explicit=False
-        )
+        tags, _ = NucleiScanner()._map_tags_and_workflows(ctx)
         assert "wordpress" in tags
         assert "wp-plugin" in tags or "wp-theme" in tags
 
-    def test_wordpress_tech_adds_workflow(self, target: Target, tmp_path: Path) -> None:
+    def test_wordpress_tech_adds_workflow(self, tmp_path: Path) -> None:
         from unittest.mock import patch
 
         scanner = NucleiScanner()
@@ -537,60 +414,34 @@ class TestResolveTargetedSelection:
         (tmp_path / "workflows").mkdir()
         (tmp_path / "workflows" / "wordpress-workflow.yaml").write_text("id: x")
         with patch.object(scanner, "_template_root", return_value=tmp_path):
-            template_dirs, tags, workflows = scanner._resolve_targeted_selection(
-                ctx, has_explicit=False
-            )
+            _, workflows = scanner._map_tags_and_workflows(ctx)
         assert "workflows/wordpress-workflow.yaml" in workflows
 
-    def test_multiple_techs_combine_tags(self, target: Target) -> None:
-        scanner = NucleiScanner()
+    def test_multiple_techs_combine_tags(self) -> None:
         ctx = ScanContext()
         ctx.add_technologies(["wordpress", "nginx", "php"])
-        template_dirs, tags, workflows = scanner._resolve_targeted_selection(
-            ctx, has_explicit=False
-        )
-        assert "wordpress" in tags
-        assert "nginx" in tags
-        assert "php" in tags
+        tags, _ = NucleiScanner()._map_tags_and_workflows(ctx)
+        assert {"wordpress", "nginx", "php"} <= set(tags)
 
-    def test_tech_tag_deduplication(self, target: Target) -> None:
-        scanner = NucleiScanner()
+    def test_tech_tag_deduplication(self) -> None:
         ctx = ScanContext()
         ctx.add_technologies(["apache-tomcat", "tomcat"])
-        template_dirs, tags, workflows = scanner._resolve_targeted_selection(
-            ctx, has_explicit=False
-        )
+        tags, _ = NucleiScanner()._map_tags_and_workflows(ctx)
         tomcat_tags = [t for t in tags if "tomcat" in t]
         assert len(tomcat_tags) == len(set(tomcat_tags))
 
-    def test_unknown_tech_no_tags_added(self, target: Target) -> None:
-        scanner = NucleiScanner()
+    def test_unknown_tech_no_tags_added(self) -> None:
         ctx = ScanContext()
         ctx.add_technologies(["unknown-tech-xyz"])
-        template_dirs, tags, workflows = scanner._resolve_targeted_selection(
-            ctx, has_explicit=False
-        )
+        tags, _ = NucleiScanner()._map_tags_and_workflows(ctx)
         assert "unknown-tech-xyz" not in tags
 
-    def test_case_insensitive_tech_matching(self, target: Target) -> None:
-        scanner = NucleiScanner()
+    def test_case_insensitive_tech_matching(self) -> None:
         ctx = ScanContext()
         ctx.add_technologies(["WordPress", "NGINX"])
-        template_dirs, tags, workflows = scanner._resolve_targeted_selection(
-            ctx, has_explicit=False
-        )
+        tags, _ = NucleiScanner()._map_tags_and_workflows(ctx)
         assert any("wordpress" in t.lower() for t in tags)
         assert any("nginx" in t.lower() for t in tags)
-
-
-class TestSkipTechDetection:
-    def test_skip_tech_detection_true(self, target: Target) -> None:
-        scanner = NucleiScanner(options={"skip_tech_detection": True})
-        assert scanner.options["skip_tech_detection"] is True
-
-    def test_skip_tech_detection_false_by_default(self, target: Target) -> None:
-        scanner = NucleiScanner()
-        assert scanner.options["skip_tech_detection"] is False
 
 
 class TestCheckTemplatesAvailable:
@@ -756,7 +607,6 @@ class TestWriteUrlList:
 
 class TestGenericRemediation:
     def test_known_tag_returns_specific_remediation(self) -> None:
-        from haris.models import Severity
 
         remediation = NucleiScanner._generic_remediation(
             ["sql_injection"], Severity.HIGH
@@ -764,7 +614,6 @@ class TestGenericRemediation:
         assert "parameterised queries" in remediation.lower()
 
     def test_unknown_tag_returns_default(self) -> None:
-        from haris.models import Severity
 
         remediation = NucleiScanner._generic_remediation(
             ["unknown-tag-xyz"], Severity.MEDIUM
@@ -772,7 +621,6 @@ class TestGenericRemediation:
         assert "security standard" in remediation.lower()
 
     def test_first_match_wins(self) -> None:
-        from haris.models import Severity
 
         # Both are in remediation_map, should return first match
         remediation = NucleiScanner._generic_remediation(
@@ -830,16 +678,17 @@ class TestScanFullFlow:
             assert len(result.errors) == 1
             assert "not installed" in result.errors[0]
 
-    def test_skip_tech_detection_skips_phase_1(self, target: Target) -> None:
+    def test_default_scan_runs_the_tag_group_and_the_baseline_group(
+        self, target: Target
+    ) -> None:
         from unittest.mock import patch
 
-        scanner = NucleiScanner(options={"skip_tech_detection": True})
+        scanner = NucleiScanner()
         with (
             patch.object(scanner, "_check_tool_available", return_value=True),
             patch.object(scanner, "_check_templates_available", return_value=True),
             patch.object(scanner, "_run_phase", return_value=([], [], "")) as mock_run,
         ):
             scanner.scan(target, bound_context())
-            # Should only call _run_phase once (Phase 2), not twice
-            # (Phase 1 fingerprinting should be skipped)
-            assert mock_run.call_count == 1
+        labels = [c.kwargs["phase_label"] for c in mock_run.call_args_list]
+        assert labels == ["phase2-tags", "phase2-baseline"]

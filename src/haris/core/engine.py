@@ -194,6 +194,11 @@ class ScanEngine:
         )
         context = ScanContext(
             http=client,
+            llm_backend=(
+                self._llm_backend
+                if self._llm_config.get("enrichment_enabled")
+                else None
+            ),
             target_ip=target_ip,
             egress_proxy=proxy.start() if proxy else "",
         )

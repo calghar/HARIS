@@ -26,6 +26,7 @@ _NUMBER_KEYS = (
     "passive_minutes",
     "phase2_timeout_s",
     "rate_limit",
+    "retries",
     "spider_minutes",
     "threads",
     "timeout",
@@ -43,7 +44,6 @@ _BOOL_KEYS = (
     "check_version_endpoints",
     "enable_interactsh",
     "follow_redirects",
-    "skip_tech_detection",
     "update_templates",
 )
 _TEXT_KEYS = (

@@ -8,46 +8,59 @@ from typing import Any
 from ..core.decorators import handle_scanner_errors, register_scanner
 from ..data.scanner_config import (
     check_nuclei_phase2_timeout,
+    get_nuclei_deny_tags,
     get_nuclei_exclude_template_types,
+    get_nuclei_max_selected_tags,
+    get_nuclei_max_tag_templates,
+    get_nuclei_min_tag_templates,
     get_nuclei_phase2_timeout,
     get_nuclei_unproxied_template_types,
 )
 from ..models import Finding, ScannerResult, Target
 from ..models.scan_context import ScanContext
 from .nuclei_results import (
-    DEFAULT_TEMPLATE_DIRS,
+    BASELINE_TEMPLATE_DIRS,
     EXCLUDED_TEMPLATE_IDS,
-    TECH_FINGERPRINT_DIR,
     TECH_TAG_MAP,
     TECH_WORKFLOW_MAP,
     NucleiResults,
 )
+from .nuclei_selection import (
+    SelectionResult,
+    read_allowlist,
+    select_tags,
+    selection_note,
+)
 from .nuclei_templates import TEMPLATES_CONFIG_FILE, config_dir_from, templates_dir_from
 from .nuclei_urls import filter_discovered_urls
 from .process import ToolTimeoutError
+from .redaction import redact_argv
 
 logger = logging.getLogger(__name__)
 
 VERSION_TIMEOUT_SECONDS = 30
 MAX_URL_LIST = 500
 EXCLUDED_SEVERITY = "info"
+EXPLICIT_OPTIONS = "explicit template options"
 
 
 @register_scanner
 class NucleiScanner(NucleiResults):
     """Adapter for the Nuclei template-based vulnerability scanner (3.x).
 
-    Phase 1 fingerprints technologies (reported as technologies, not findings).
-    Phase 2a runs the default template dirs without info-level results; Phase 2b
-    runs tech-derived tags and workflows over the templates 2a did not cover.
-    Explicit ``template_dirs`` or ``tags`` replace the multi-phase strategy.
+    Phase 2 runs the tag group (deterministic and LLM-selected tags, or ``-as``
+    when there are none) and then the baseline group (``baseline_template_dirs``)
+    under one deadline; only the tag group gets the URL list, the baseline group
+    runs on the base URL. Explicit ``template_dirs`` or ``tags`` replace both groups
+    with one run and the tag selector is not called.
 
-    Options: ``timeout`` (seconds per phase), ``phase2_timeout_s`` (seconds for
+    Options: ``timeout`` (seconds per run), ``phase2_timeout_s`` (seconds for
     all of Phase 2; overrides ``nuclei.yaml``), ``template_dirs``, ``templates``,
     ``tags``, ``severity``, ``exclude_tags``, ``rate_limit``, ``concurrency``,
     ``bulk_size``, ``max_host_errors`` (``-mhe``), ``timeout_per_request``,
-    ``enable_interactsh``, ``skip_tech_detection``, ``automatic_scan`` (``-as``
-    for Phase 2b), ``update_templates`` (run ``-ut`` first), ``extra_args``.
+    ``retries`` (``-retries``), ``enable_interactsh``, ``automatic_scan`` (also
+    add ``-as`` to the tag group), ``update_templates`` (run ``-ut`` first),
+    ``extra_args``.
     """
 
     name = "nuclei"
@@ -69,13 +82,14 @@ class NucleiScanner(NucleiResults):
         self.options.setdefault("template_dirs", [])
         self.options.setdefault("extra_args", [])
         self.options.setdefault("enable_interactsh", False)
-        self.options.setdefault("skip_tech_detection", False)
         self.options.setdefault("automatic_scan", False)
         self.options.setdefault("update_templates", False)
         self.options.setdefault("timeout_per_request", 30)
+        self.options.setdefault("retries", 2)
         self._root_resolved = False
         self._root: Path | None = None
         self.phase2_stopped = False
+        self.phase_durations_s: dict[str, float] = {}
 
     def _template_root(self) -> Path | None:
         """Template root from nuclei's own config, cached per scanner."""
@@ -135,74 +149,65 @@ class NucleiScanner(NucleiResults):
         all_findings: list[Finding] = []
         all_errors: list[str] = []
         all_raw: list[str] = []
-        technologies: list[str] = []
+        self.phase_durations_s = {}
         context = context or ScanContext()
 
         if self.options["update_templates"]:
             all_errors.extend(self._update_templates())
         self._check_templates_available()
 
-        has_explicit = bool(
-            self.options.get("template_dirs") or self.options.get("tags")
-        )
-
-        if not has_explicit and not self.options.get("skip_tech_detection"):
-            tech_findings, errors, raw = self._run_phase(
-                target,
-                template_dirs=[TECH_FINGERPRINT_DIR],
-                phase_label="phase1-tech",
-                phase_one=True,
-            )
-            all_raw.append(raw)
-            all_errors.extend(errors)
-            technologies = self._extract_technologies(tech_findings)
-            context.add_technologies(technologies)
-            logger.info(
-                "Nuclei Phase 1: detected %d technologies: %s",
-                len(technologies),
-                ", ".join(technologies[:20]),
-            )
-
         target_urls = self._build_url_list(target, context)
-        dirs, tags, workflows = self._resolve_targeted_selection(context, has_explicit)
+        runs: list[tuple[str, dict[str, Any]]]
+        if self.options.get("template_dirs") or self.options.get("tags"):
+            selection = SelectionResult(reason=EXPLICIT_OPTIONS)
+            runs = [("phase2-explicit", {})]
+        else:
+            map_tags, workflows = self._map_tags_and_workflows(context)
+            selection = self._select_tags(context)
+            tags = list(dict.fromkeys([*map_tags, *selection.tags]))
+            runs = [
+                (
+                    "phase2-tags",
+                    {
+                        "extra_tags": tags,
+                        "workflows": workflows,
+                        "exclude_templates": BASELINE_TEMPLATE_DIRS,
+                        "automatic": bool(self.options["automatic_scan"])
+                        or not (tags or workflows),
+                    },
+                ),
+                (
+                    "phase2-baseline",
+                    {"template_dirs": BASELINE_TEMPLATE_DIRS, "url_list": None},
+                ),
+            ]
 
         self.phase2_stopped = False
         limit = self._phase2_limit()
         deadline = time.monotonic() + limit
-        broad, errors, raw = self._run_phase(
-            target,
-            template_dirs=dirs,
-            url_list=target_urls,
-            phase_label="phase2-broad",
-            deadline=deadline,
-        )
-        all_raw.append(raw)
-        all_findings.extend(broad)
-        all_errors.extend(errors)
-
-        automatic = bool(self.options["automatic_scan"]) and not has_explicit
-        if tags or workflows or automatic:
-            targeted, errors, raw = self._run_phase(
+        for label, run_args in runs:
+            findings, errors, raw = self._run_phase(
                 target,
-                extra_tags=tags,
-                workflows=workflows,
-                exclude_templates=dirs,
-                automatic=automatic,
-                url_list=target_urls,
-                phase_label="phase2-targeted",
+                phase_label=label,
                 deadline=deadline,
+                **{"url_list": target_urls, **run_args},
             )
             all_raw.append(raw)
-            all_findings.extend(targeted)
+            all_findings.extend(findings)
             all_errors.extend(errors)
 
-        metadata: dict[str, Any] = {"technologies": technologies}
+        metadata: dict[str, Any] = {
+            "phase_durations_s": dict(self.phase_durations_s),
+        }
+        notes = [selection_note(selection)]
         if self.phase2_stopped:
             metadata["status"] = "partial"
-            metadata["note"] = (
+            notes.insert(
+                0,
                 f"phase 2 stopped at the {limit:g} s limit "
-                "(scanners.nuclei.phase2_timeout_s); results so far kept"
+                "(scanners.nuclei.phase2_timeout_s); results so far kept",
             )
+        metadata["note"] = "; ".join(notes)
         return ScannerResult(
             scanner_name=self.name,
             raw_output=self._redact("\n".join(all_raw)),
@@ -246,7 +251,6 @@ class NucleiScanner(NucleiResults):
         automatic: bool = False,
         url_list: list[str] | None = None,
         phase_label: str = "",
-        phase_one: bool = False,
         deadline: float | None = None,
     ) -> tuple[list[Finding], list[str], str]:
         """Run one nuclei invocation; returns (findings, errors, raw_stdout).
@@ -267,6 +271,7 @@ class NucleiScanner(NucleiResults):
             self._write_url_list(url_list) if url_list and len(url_list) > 1 else None
         )
         errors: list[str] = []
+        started = time.monotonic()
         try:
             cmd = self._build_command(
                 target,
@@ -276,10 +281,11 @@ class NucleiScanner(NucleiResults):
                 exclude_templates=exclude_templates,
                 automatic=automatic,
                 url_file=url_file,
-                phase_one=phase_one,
             )
             logger.info(
-                "nuclei [%s] command: %s", phase_label, self._redact(" ".join(cmd))
+                "nuclei [%s] command: %s",
+                phase_label,
+                redact_argv(cmd, self._secrets),
             )
             try:
                 returncode, stdout, stderr = self._run_command(cmd, timeout=timeout)
@@ -295,6 +301,10 @@ class NucleiScanner(NucleiResults):
         finally:
             if url_file:
                 Path(url_file).unlink(missing_ok=True)
+
+        elapsed = time.monotonic() - started
+        self.phase_durations_s[phase_label] = round(elapsed, 1)
+        logger.info("nuclei [%s] finished in %.1f s", phase_label, elapsed)
 
         filtered_stderr = self._redact(
             "\n".join(
@@ -331,21 +341,10 @@ class NucleiScanner(NucleiResults):
 
         return findings, errors, stdout
 
-    def _resolve_targeted_selection(
-        self,
-        context: ScanContext,
-        has_explicit: bool,
-    ) -> tuple[list[str], list[str], list[str]]:
-        """Return (template_dirs, extra_tags, workflows) for Phase 2.
-
-        Explicit user ``template_dirs``/``tags`` are returned as the broad run's
-        dirs only; user tags are already merged into that command, so they are
-        never repeated as Phase 2b tags.
-        """
-        if has_explicit:
-            return list(self.options.get("template_dirs", [])), [], []
-
-        template_dirs = list(DEFAULT_TEMPLATE_DIRS)
+    def _map_tags_and_workflows(
+        self, context: ScanContext
+    ) -> tuple[list[str], list[str]]:
+        """Return the (tags, workflows) the technology maps give for the context."""
         extra_tags: list[str] = []
         workflows: list[str] = []
         seen_tags: set[str] = set()
@@ -381,7 +380,25 @@ class NucleiScanner(NucleiResults):
                 "Nuclei Phase 2: tech-derived workflows: %s", ", ".join(workflows[:10])
             )
 
-        return template_dirs, extra_tags, workflows
+        return extra_tags, workflows
+
+    def _select_tags(self, context: ScanContext) -> SelectionResult:
+        """Ask the selector for extra tags; read the allowlist only with a backend."""
+        backend = context.llm_backend
+        allowed = None
+        if backend is not None:
+            # -duc: the update check would reach the network outside the egress proxy.
+            allowed = read_allowlist(
+                lambda cmd: self._run_command(
+                    [*cmd, "-duc"], timeout=VERSION_TIMEOUT_SECONDS
+                ),
+                get_nuclei_deny_tags(),
+                get_nuclei_min_tag_templates(),
+                get_nuclei_max_tag_templates(),
+            )
+        return select_tags(
+            context, backend, allowed, max_tags=get_nuclei_max_selected_tags()
+        )
 
     @staticmethod
     def _build_url_list(target: Target, context: ScanContext) -> list[str]:
@@ -398,13 +415,8 @@ class NucleiScanner(NucleiResults):
         exclude_templates: list[str] | None = None,
         automatic: bool = False,
         url_file: str | None = None,
-        phase_one: bool = False,
     ) -> list[str]:
-        """Build the nuclei argv.
-
-        ``phase_one`` keeps info-level results and ignores the user severity
-        filter so technology fingerprints are never hidden.
-        """
+        """Build the nuclei argv."""
         cmd = [
             "nuclei",
             "-jsonl",
@@ -417,11 +429,9 @@ class NucleiScanner(NucleiResults):
             "-tls-impersonate",
             "-fhr",
             "-retries",
-            "2",
+            str(self.options["retries"]),
             "-mhe",
             str(self.options["max_host_errors"]),
-            "-rate-limit",
-            str(self.options["rate_limit"]),
             "-c",
             str(self.options["concurrency"]),
             "-bs",
@@ -432,6 +442,8 @@ class NucleiScanner(NucleiResults):
 
         if self._proxy:
             cmd.extend(["-proxy", self._proxy])
+        if self._rate_rps <= 0:
+            cmd.extend(["-rate-limit", str(self.options["rate_limit"])])
 
         excluded_types = list(
             dict.fromkeys(
@@ -492,14 +504,13 @@ class NucleiScanner(NucleiResults):
             cmd.extend(["-et", ",".join(exclude_templates)])
 
         if not has_template_selection:
-            for tdir in DEFAULT_TEMPLATE_DIRS:
+            for tdir in BASELINE_TEMPLATE_DIRS:
                 cmd.extend(["-t", tdir])
 
-        if not phase_one:
-            if self.options.get("severity"):
-                cmd.extend(["-severity", ",".join(self.options["severity"])])
-            else:
-                cmd.extend(["-es", EXCLUDED_SEVERITY])
+        if self.options.get("severity"):
+            cmd.extend(["-severity", ",".join(self.options["severity"])])
+        else:
+            cmd.extend(["-es", EXCLUDED_SEVERITY])
 
         exclude_tags = list(self.options.get("exclude_tags", []))
         if "dos" not in [t.lower() for t in exclude_tags]:
@@ -512,6 +523,7 @@ class NucleiScanner(NucleiResults):
         cmd.extend(self._extra_args())
         if self._rate_rps > 0:
             # After extra_args so a user -rl cannot raise it; rate_limit may lower it.
+            # Replaces -rate-limit (same flag as -rl) so argv carries one rate flag.
             rate = max(1, math.floor(self._rate_rps))
             cmd.extend(["-rl", str(min(rate, int(self.options["rate_limit"])))])
         return cmd

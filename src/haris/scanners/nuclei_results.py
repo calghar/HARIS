@@ -3,14 +3,12 @@ import logging
 from typing import Any
 
 from ..data.scanner_config import (
+    get_nuclei_baseline_template_dirs,
     get_nuclei_confidence_map,
-    get_nuclei_default_template_dirs,
     get_nuclei_exclude_template_ids,
-    get_nuclei_meta_tags,
     get_nuclei_remediation_map,
     get_nuclei_severity_map,
     get_nuclei_tag_map,
-    get_nuclei_tech_fingerprint_dir,
     get_nuclei_tech_tag_map,
     get_nuclei_tech_workflow_map,
 )
@@ -23,8 +21,7 @@ _NUCLEI_SEVERITY_MAP: dict[str, Severity] = {
     k: getattr(Severity, v) for k, v in get_nuclei_severity_map().items()
 }
 _NUCLEI_TAG_MAP = get_nuclei_tag_map()
-DEFAULT_TEMPLATE_DIRS = get_nuclei_default_template_dirs()
-TECH_FINGERPRINT_DIR = get_nuclei_tech_fingerprint_dir()
+BASELINE_TEMPLATE_DIRS = get_nuclei_baseline_template_dirs()
 TECH_TAG_MAP = get_nuclei_tech_tag_map()
 TECH_WORKFLOW_MAP = get_nuclei_tech_workflow_map()
 _NUCLEI_CONFIDENCE_MAP: dict[str, Confidence] = {
@@ -64,8 +61,6 @@ def _derive_tags(
 
 class NucleiResults(ExternalToolScanner):
     """Nuclei JSONL parsing; ``NucleiScanner`` adds the process orchestration."""
-
-    _NUCLEI_META_TAGS: frozenset[str] = get_nuclei_meta_tags()
 
     def parse_results(self, raw_output: str) -> list[Finding]:
         """Parse Nuclei JSONL; unparseable lines and excluded templates are skipped."""
@@ -181,45 +176,6 @@ class NucleiResults(ExternalToolScanner):
             tags=tags,
             raw_data=self._redact_data(raw_data),
         )
-
-    @staticmethod
-    def _extract_technologies(findings: list[Finding]) -> list[str]:
-        """Extract technology names from Phase 1 fingerprinting results.
-
-        Uses ``matcher-name``, the first word of ``extracted-results`` and the
-        template tags (minus generic metadata tags).
-        """
-        techs: list[str] = []
-        seen: set[str] = set()
-
-        for finding in findings:
-            raw = finding.raw_data or {}
-
-            matcher = raw.get("matcher-name", "")
-            if matcher and matcher.lower() not in seen:
-                techs.append(matcher.lower())
-                seen.add(matcher.lower())
-
-            extracted = raw.get("extracted-results", [])
-            if isinstance(extracted, list):
-                for val in extracted:
-                    if isinstance(val, str) and val.strip():
-                        # e.g. "Astro v5.15.9" -> "astro"
-                        tech_name = val.split()[0].lower().rstrip(",;:")
-                        if tech_name and tech_name not in seen:
-                            techs.append(tech_name)
-                            seen.add(tech_name)
-
-            for tag in raw.get("nuclei-tags", []):
-                tag_lower = tag.lower()
-                if (
-                    tag_lower not in seen
-                    and tag_lower not in NucleiResults._NUCLEI_META_TAGS
-                ):
-                    techs.append(tag_lower)
-                    seen.add(tag_lower)
-
-        return techs
 
     @staticmethod
     def _generic_remediation(tags: list[str], severity: Severity) -> str:  # noqa: ARG004

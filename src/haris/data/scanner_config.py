@@ -30,9 +30,11 @@ class _NucleiConfig(BaseModel):
 
     severity_map: dict[str, str] = Field(default_factory=dict)
     confidence_map: dict[str, str] = Field(default_factory=dict)
-    meta_tags: list[str] = Field(default_factory=list)
-    default_template_dirs: list[str] = Field(default_factory=list)
-    tech_fingerprint_dir: str = "http/technologies"
+    baseline_template_dirs: list[str] = Field(default_factory=list)
+    max_selected_tags: int = 10
+    deny_tags: list[str] = Field(default_factory=list)
+    min_tag_templates: int = 3
+    max_tag_templates: int = 300
     tag_map: dict[str, list[str]] = Field(default_factory=dict)
     tech_tag_map: dict[str, list[str]] = Field(default_factory=dict)
     tech_workflow_map: dict[str, str] = Field(default_factory=dict)
@@ -40,7 +42,7 @@ class _NucleiConfig(BaseModel):
     exclude_template_types: list[str] = Field(default_factory=list)
     exclude_template_ids: list[str] = Field(default_factory=list)
     unproxied_template_types: list[str] = Field(default_factory=list)
-    phase2_timeout_s: float = 300
+    phase2_timeout_s: float = 900
 
 
 def _load_scanner_config(scanner_name: str) -> dict[str, Any]:
@@ -202,24 +204,43 @@ def get_nuclei_confidence_map() -> dict[str, str]:
     )
 
 
-def get_nuclei_meta_tags() -> frozenset[str]:
-    """Get Nuclei generic metadata tags (excluded from tech extraction)."""
-    tags = _load_scanner_config("nuclei").get("meta_tags", [])
-    return frozenset(tags)
-
-
-def get_nuclei_default_template_dirs() -> list[str]:
-    """Get default Nuclei template directories."""
+def get_nuclei_baseline_template_dirs() -> list[str]:
+    """Get the Nuclei template directories of the baseline group."""
     return cast(
-        list[str], _load_scanner_config("nuclei").get("default_template_dirs", [])
+        list[str], _load_scanner_config("nuclei").get("baseline_template_dirs", [])
     )
 
 
-def get_nuclei_tech_fingerprint_dir() -> str:
-    """Get Nuclei technology fingerprinting directory."""
+def _nuclei_count(key: str, default: int, minimum: int) -> int:
+    value = _load_scanner_config("nuclei").get(key, default)
+    if isinstance(value, bool) or not isinstance(value, int) or value < minimum:
+        raise ValueError(
+            f"scanners.nuclei.{key} must be an integer of at least {minimum}, "
+            f"got {value!r}"
+        )
+    return value
+
+
+def get_nuclei_max_selected_tags() -> int:
+    """Get the most tags the Nuclei tag selector may return."""
+    return _nuclei_count("max_selected_tags", 10, 1)
+
+
+def get_nuclei_min_tag_templates() -> int:
+    """Get the fewest templates a tag needs to enter the selector allowlist."""
+    return _nuclei_count("min_tag_templates", 3, 1)
+
+
+def get_nuclei_max_tag_templates() -> int:
+    """Get the most templates a tag may carry to enter the selector allowlist."""
+    return _nuclei_count("max_tag_templates", 300, get_nuclei_min_tag_templates())
+
+
+def get_nuclei_deny_tags() -> list[str]:
+    """Get the Nuclei tags the selector allowlist never holds."""
     return cast(
-        str,
-        _load_scanner_config("nuclei").get("tech_fingerprint_dir", "http/technologies"),
+        list[str],
+        _load_scanner_config("nuclei").get("deny_tags", ["dos", "intrusive", "fuzz"]),
     )
 
 
@@ -264,9 +285,9 @@ def get_nuclei_exclude_template_ids() -> list[str]:
 
 
 def get_nuclei_phase2_timeout() -> float:
-    """Get the total seconds Nuclei Phase 2 (broad plus targeted) may run."""
+    """Get the total seconds Nuclei Phase 2 (tag group plus baseline group) may run."""
     return check_nuclei_phase2_timeout(
-        _load_scanner_config("nuclei").get("phase2_timeout_s", 300)
+        _load_scanner_config("nuclei").get("phase2_timeout_s", 900)
     )
 
 

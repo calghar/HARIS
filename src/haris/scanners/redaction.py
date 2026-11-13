@@ -5,6 +5,7 @@ from ..models.target import Target
 
 REDACTED = "[REDACTED]"
 MIN_SECRET_LENGTH = 4
+HEADER_FLAGS = frozenset({"-H", "-header"})
 
 _SECRET_NAME = r"(?:[\w-]*(?:token|secret|api[-_]?key|auth|session)[\w-]*)"
 # Header lines in free text (raw requests, curl commands, JSON-escaped dumps).
@@ -53,5 +54,13 @@ def redact_obj(obj: Any, secrets: tuple[str, ...] = ()) -> Any:
     return obj
 
 
-def redact_argv(cmd: list[str], secrets: tuple[str, ...] = ()) -> list[str]:
-    return [redact_text(arg, secrets) for arg in cmd]
+def redact_argv(argv: list[str], secrets: tuple[str, ...] = ()) -> str:
+    """Join *argv* for logging; each header argument keeps only its name."""
+    masked: list[str] = []
+    for index, arg in enumerate(argv):
+        if index and argv[index - 1] in HEADER_FLAGS:
+            name, colon, _ = arg.partition(":")
+            masked.append(f"{name}{colon} {REDACTED}" if colon else REDACTED)
+        else:
+            masked.append(redact_text(arg, secrets))
+    return " ".join(masked)

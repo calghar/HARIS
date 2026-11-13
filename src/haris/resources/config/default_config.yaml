@@ -90,9 +90,7 @@ scanners:
       rate_limit: 100
       concurrency: 10
       timeout_per_request: 30  # per-request nuclei timeout (seconds)
-      # Two-phase scanning: tech fingerprint → targeted templates
-      # Set skip_tech_detection: true to disable Phase 1
-      skip_tech_detection: false
+      retries: 2  # nuclei -retries per failed request
       # Enable OOB interaction server for blind vuln detection
       # (sends data to interact.sh — opt-in only)
       enable_interactsh: false

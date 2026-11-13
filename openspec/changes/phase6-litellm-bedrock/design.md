@@ -56,6 +56,9 @@ Subclass of `ProviderBackend`; `_send` builds one kwargs dict (`model`, `message
 ### D10. OWASP by class
 `Engine._auto_map_owasp` first maps from the canonical class id, then from tags and title as today. `vuln_classes.yaml` gains an `unmapped:` list; a test asserts every class id is in the mapping or the list.
 
+### D11. Nuclei template selection
+`src/haris/scanners/nuclei_selection.py` holds `read_allowlist` (runs `nuclei -tgl`, keeps tags carried by `min_tag_templates` to `max_tag_templates` templates, minus `deny_tags`; a measured v10.5.2 list has 9031 tags, 41 of them carried by over 300 templates such as `vuln` (7137) and `cve`, and the 1638 tags with 3 to 300 templates fit in 14 KB, against 92 KB for the whole list) and `select_tags` (one `call_structured` call, answer validated whole, `SelectionResult` with `tags`, `source`, `model`, `reason`). `ScanContext` carries the backend (`llm_backend`, excluded from dumps, set only when `llm.enrichment_enabled`), so the engine changes by one argument and the scanner calls the selector itself. The scanner runs the tag group (union of map tags and LLM tags, or `-as` when empty) before the baseline group (`baseline_template_dirs`: exposures, misconfiguration, vulnerabilities, takeovers, dast), both under `phase2_timeout_s` (default 900). Only the tag group gets the `-list` file, limited to URLs of the base origin; the baseline group runs on `-u <base_url>` (baseline requests scale with the URL count). Phase 1 (`http/technologies`) goes away: recon already records technologies and `-as` covers the empty case. The union keeps a hostile banner from shrinking coverage, and the allowlist bounds the model to tags. Option `skip_tech_detection` is removed with phase 1.
+
 ## Risks / Trade-offs
 
 - [Existing `--llm-backend anthropic` users break] → one error naming `litellm`, `llm.model` and an example; README and `docs/llm_integration.md` carry the old-to-new table; CHANGELOG marks BREAKING.
@@ -65,7 +68,8 @@ Subclass of `ProviderBackend`; `_send` builds one kwargs dict (`model`, `message
 - [Compromised `litellm` release] → exact pin, hashes, deny-list gate, cooldown, container note, no secrets read by HARIS beyond one variable.
 - [Bedrock ids unverified] → task 4.2 runs against the gateway first; docs show ids as examples only.
 - [Replay with more requests spends budget] → the existing `verify.max_requests` cap still counts every request.
-- [`partial` hides lost coverage] → the note is in every report; the status appears in `scanner_status`.
+- [`partial` hides lost coverage] → the note is in every report, and `scanner_notes` lists the note of every status; the status appears in `scanner_status`.
+- [A header steers the selector to few tags] → union with the deterministic tags, whole-answer discard, tags only.
 - [Wapiti blocked when no blocking network exists] → it does not start and the scan records an error, never a silent unbound run.
 
 ## Migration Plan

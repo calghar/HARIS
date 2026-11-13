@@ -17,6 +17,7 @@ from tests.test_engine_pipeline import TARGET, Probe
 S = ScanState
 NOTE = "phase 2 stopped at 300s"
 SKIP_NOTE = "no TLS port found"
+WAPITI_NOTE = "crawl seeded"
 
 
 class StatusProbe(Probe):
@@ -96,7 +97,7 @@ def test_scanner_status_values_and_errors_win():
         "e": "failed",
         "f": "failed",
     }
-    assert session.scanner_notes == {"c": "n", "d": "n"}
+    assert session.scanner_notes == {"c": "n", "d": "n", "e": "n", "f": "n"}
 
 
 def test_partial_scanner_keeps_risk_posture_known():
@@ -119,7 +120,7 @@ def noted_session() -> ScanSession:
                 scanner_name="sslyze",
                 metadata={"status": "skipped", "note": SKIP_NOTE},
             ),
-            ScannerResult(scanner_name="wapiti", metadata={"note": "ignored"}),
+            ScannerResult(scanner_name="wapiti", metadata={"note": WAPITI_NOTE}),
         ],
     )
 
@@ -131,20 +132,24 @@ def test_json_report_carries_status_and_notes():
         "sslyze": "skipped",
         "wapiti": "completed",
     }
-    assert data["scanner_notes"] == {"nuclei": NOTE, "sslyze": SKIP_NOTE}
+    assert data["scanner_notes"] == {
+        "nuclei": NOTE,
+        "sslyze": SKIP_NOTE,
+        "wapiti": WAPITI_NOTE,
+    }
 
 
-def test_json_report_notes_empty_without_partial_or_skipped():
+def test_json_report_notes_empty_without_notes():
     data = json.loads(JSONReporter().generate(run_engine("completed")))
     assert data["scanner_notes"] == {}
 
 
 @pytest.mark.parametrize("fmt", sorted(set(REPORTER_REGISTRY) - {"csv"}))
-def test_every_reporter_but_csv_shows_both_notes(fmt):
+def test_every_reporter_but_csv_shows_every_note(fmt):
     report = REPORTER_REGISTRY[fmt]().generate(noted_session())
     assert NOTE in report
     assert SKIP_NOTE in report
-    assert "ignored" not in report
+    assert WAPITI_NOTE in report
 
 
 def test_markdown_does_not_call_partial_or_skipped_scanners_failed():
@@ -165,7 +170,11 @@ def test_status_and_note_survive_the_database(tmp_path: Path):
     assert loaded is not None
     assert record is not None
     assert loaded.scanner_status == noted_session().scanner_status
-    assert loaded.scanner_notes == {"nuclei": NOTE, "sslyze": SKIP_NOTE}
+    assert loaded.scanner_notes == {
+        "nuclei": NOTE,
+        "sslyze": SKIP_NOTE,
+        "wapiti": WAPITI_NOTE,
+    }
     assert record["scanner_status"] == {
         "nuclei": "partial",
         "sslyze": "skipped",

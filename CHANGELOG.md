@@ -9,10 +9,13 @@
 - Added replay oracles for `path_traversal`, `open_redirect` and `command_injection`; the last runs delay-only payloads from `verify.timing.cmd_payloads` under the oracle name `timing_cmd`, and `ssrf` and `xxe` stay `unverified`
 - Added the nikto class `unclassified:nikto:interesting_path` with severity `info` for "This might be interesting" findings, replayed with the `soft404` oracle
 - Added scanner statuses `partial` and `skipped`; neither makes the scan `incomplete`, and `skipped` is left out of the completion count
-- Added `scanner_notes` to the JSON report and a note line to the Markdown, HTML, SARIF and JUnit reports for each `partial` or `skipped` scanner
+- Added `scanner_notes` to the JSON report and a note line to the Markdown, HTML, SARIF and JUnit reports for each scanner that gave a note, whatever its status
 - Added `scanners.nuclei.phase2_timeout_s` (default 300; 0 or less is rejected) as one limit on nuclei phase 2; at the limit the process group is killed, findings are kept and the scanner is `partial`
 - Added a local egress proxy for nuclei, nikto and Wapiti; it dials only vetted addresses, pins the target host to its pre-flight address and always blocks cloud metadata addresses
 - Added `verify.poc_max_requests` (default 20), the cap on requests sent when an agent PoC is re-executed
+- Added an LLM template selector for nuclei: one call per scan adds tags from `nuclei -tgl` to the technology-map tags, limited to `scanners.nuclei.max_selected_tags` (default 10) tags carried by `min_tag_templates` to `max_tag_templates` templates (default 3 to 300) and not in `deny_tags` (`dos`, `intrusive`, `fuzz`)
+- Added a `template selection:` note to the nuclei scanner result that names the tags the selector added, or the reason the scan used the technology map alone
+- Added the nuclei option `retries` (default 2) and `phase_durations_s` in the nuclei scanner metadata
 - Added glob matching for `vuln_class` in bench ground-truth entries, and the Juice Shop entry `juice-ftp-robots-nikto`
 - Added DEBUG logs of the LLM verdict stage: exchange text lengths, the raw model reply and the validation error; the bench passes `--log-level DEBUG`
 
@@ -33,9 +36,15 @@
 - Changed sslyze to be `skipped` with the note `no TLS endpoint` when the target scheme is `http` and nmap found no TLS port
 - Changed OWASP mapping to use the finding's class before its tags and title; `cleartext_password_submission` now maps to A04 with CWE-319
 - Changed nmap, nuclei and nikto to receive the per-tool rate as `--max-rate`, `-rl` (rounded down, minimum 1) and `-Pause` (1/rate seconds), placed after `extra_args`
+- Changed nuclei phase 2 to run a tag group first (technology-map tags plus selector tags, or `-as` when there are none) and a baseline group second (`baseline_template_dirs`: `http/exposures`, `http/misconfiguration`, `http/vulnerabilities`, `http/takeovers`, `dast`), both inside the one `phase2_timeout_s` limit
+- Changed nuclei to send one rate flag, `-rl`, instead of `-rl` and `-rate-limit`
+- Changed `scanner_notes` to list the note of a scanner of any status; it listed only `partial` and `skipped` scanners
 - Changed the LLM verdict rationale limit from 600 to 2000 characters and `verify.llm.max_output_tokens` from 800 to 2000
 - Changed the reason of an invalid LLM verdict span to name the field and quote the first 120 characters of the span
 - Changed the LLM verdict exchange text to use `\n` for `\r\n`, and the prompt to require each cited span to be one unbroken run of that text
+- Changed the nuclei baseline group to scan the base URL only (`-u`), and the URL list to keep only URLs with the base URL's scheme, host and port
+- Changed the default nuclei `phase2_timeout_s` from 300 to 900
+- Changed the external-tool command log to mask the whole value after `-H` or `-header`
 
 ### Fixed
 
@@ -48,7 +57,12 @@
 - Fixed the `CodeQL` job of the `Security` workflow failing on SARIF upload while GitHub default setup is on: the job is removed and default setup scans `main`
 - Fixed the image scan failing on 26 fixed CVEs in the `nuclei` 3.11.1 Go dependencies, the latest release: `.trivyignore.yaml` ignores them for `usr/local/bin/nuclei` only, until 2026-12-12
 - Fixed external tools re-resolving the target host after the pre-flight and connecting to a private address (DNS rebinding): nuclei, nikto and Wapiti now go through the vetting proxy, and nmap and sslyze connect to the vetted address
+- Fixed nuclei phase 2 never reaching the tag-targeted templates, because an unbounded fingerprint pass and the broad set used the whole limit: the fingerprint pass is gone and the tag group runs first
 - Fixed bench ground truth missing the nikto `robots.txt` entry on `/ftp/`: `vuln_class` now accepts globs
+
+### Removed
+
+- Removed the nuclei fingerprint pass on `http/technologies`, the option `skip_tech_detection` and the keys `default_template_dirs`, `tech_fingerprint_dir` and `meta_tags`; a saved template that sets `skip_tech_detection` is now rejected
 
 ## 0.7.1 — 2026-11-12
 

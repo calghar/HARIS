@@ -41,6 +41,12 @@ class ScanContext(BaseModel):
         repr=False,
         description="Scan-wide ScopedClient (typed Any to avoid an import cycle).",
     )
+    llm_backend: Any = Field(
+        default=None,
+        exclude=True,
+        repr=False,
+        description="Backend of the nuclei tag selector; None if enrichment is off.",
+    )
     tool_rate_rps: float = Field(
         default=0.0,
         description="Request rate each concurrent external tool may use.",

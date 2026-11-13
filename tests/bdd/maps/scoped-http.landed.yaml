@@ -15,6 +15,10 @@ Phase 2 over the bound:
     - tests/test_nuclei_phase2_bound.py::TestOverTheBound::test_group_killed_findings_kept_status_partial
     - tests/test_nuclei_phase2_bound.py::TestOverTheBound::test_scan_stays_completed_and_reports_list_the_note
 
+Default bound:
+  tests:
+    - tests/test_nuclei_phase2_bound.py::TestLimitSource::test_yaml_default_is_900
+
 Phase 2 within the bound:
   tests:
     - tests/test_nuclei_phase2_bound.py::TestWithinTheBound::test_status_completed_and_targeted_run_happens
@@ -28,3 +32,35 @@ Rebinding after pre-flight:
 Tool that cannot be bound:
   tests:
     - tests/test_scanner_binding.py::TestUnboundNeverStarts::test_stub_never_runs_and_one_error_names_tool_and_reason
+
+Selection outcome:
+  tests:
+    - tests/test_nuclei_selection.py::TestSpecExamples
+    - tests/test_nuclei_groups.py::TestSelectedTags::test_map_tags_then_llm_tags_in_argv
+    - tests/test_nuclei_groups.py::TestSelectedTags::test_no_tags_uses_the_automatic_scan
+
+Tag group runs before the baseline:
+  tests:
+    - tests/test_nuclei_groups.py::TestGroupOrder::test_tag_group_runs_before_the_baseline_group
+    - tests/test_nuclei_groups.py::TestGroupOrder::test_one_deadline_spans_both_groups
+
+Baseline group runs on the base URL:
+  tests:
+    - tests/test_nuclei_phases.py::TestPhaseTwo::test_baseline_runs_on_the_base_url_and_tag_group_gets_the_list
+
+URL list holds the base origin only:
+  tests:
+    - tests/test_nuclei_scanner.py::TestBuildUrlList::test_list_holds_the_base_origin_only
+
+Selector input is fenced:
+  tests:
+    - tests/test_nuclei_selection.py::TestPromptInput::test_hostile_header_stays_fenced_and_credentials_are_absent
+
+No fingerprint pass:
+  tests:
+    - tests/test_nuclei_groups.py::TestNoFingerprintPass::test_no_invocation_selects_http_technologies
+
+User-selected templates:
+  tests:
+    - tests/test_nuclei_groups.py::TestExplicitOptions::test_selector_is_not_called
+    - tests/test_nuclei_groups.py::TestExplicitOptions::test_given_tags_reach_argv_unchanged

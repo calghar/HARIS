@@ -28,6 +28,7 @@ BOUND_S = 3
 BOUND_NOTE = (
     f"phase 2 stopped at the {BOUND_S} s limit (scanners.nuclei.phase2_timeout_s)"
 )
+SELECTION_NOTE = "template selection: deterministic (selector disabled)"
 
 
 class Stub:
@@ -93,7 +94,7 @@ def pid_gone(pid: int, wait_s: float = 3.0) -> bool:
 
 
 def scanner(**options: Any) -> NucleiScanner:
-    return NucleiScanner({"skip_tech_detection": True, **options})
+    return NucleiScanner(options)
 
 
 class TestOverTheBound:
@@ -107,7 +108,7 @@ class TestOverTheBound:
         assert len(result.findings) == 1
         assert result.errors == []
         assert result.status == "partial"
-        assert BOUND_NOTE in (result.note or "")
+        assert result.note == f"{BOUND_NOTE}; results so far kept; {SELECTION_NOTE}"
 
     def test_scan_stays_completed_and_reports_list_the_note(
         self, install_stub: Install
@@ -124,17 +125,16 @@ class TestOverTheBound:
         assert BOUND_NOTE in data["scanner_notes"]["nuclei"]
         assert BOUND_NOTE.split(" (")[0] in MarkdownReporter().generate(session)
 
-    def test_broad_run_using_the_budget_skips_the_targeted_run(
+    def test_tag_group_runs_first_and_the_baseline_is_killed_at_the_bound(
         self, install_stub: Install, target: Target
     ) -> None:
         stub = install_stub(True)
-        result = scanner(phase2_timeout_s=BOUND_S, automatic_scan=True).scan(
-            target, bound_context()
-        )
+        result = scanner(phase2_timeout_s=BOUND_S).scan(target, bound_context())
 
+        tags_run, baseline_run = stub.runs()
+        assert " -et " in f" {tags_run} "
+        assert " -et " not in f" {baseline_run} "
         assert result.status == "partial"
-        assert len(stub.runs()) == 1, stub.runs()
-        assert "-et" not in stub.runs()[0].split()
 
 
 class TestWithinTheBound:
@@ -142,12 +142,10 @@ class TestWithinTheBound:
         self, install_stub: Install, target: Target
     ) -> None:
         stub = install_stub(False)
-        result = scanner(phase2_timeout_s=30, automatic_scan=True).scan(
-            target, bound_context()
-        )
+        result = scanner(phase2_timeout_s=30).scan(target, bound_context())
 
         assert result.status == "completed"
-        assert not result.note
+        assert result.note == SELECTION_NOTE
         assert "status" not in result.metadata
         assert len(stub.runs()) == 2
 
@@ -163,9 +161,9 @@ class TestWithinTheBound:
 
 
 class TestLimitSource:
-    def test_yaml_default_is_300(self) -> None:
-        assert get_nuclei_phase2_timeout() == 300
-        assert NucleiScanner()._phase2_limit() == 300
+    def test_yaml_default_is_900(self) -> None:
+        assert get_nuclei_phase2_timeout() == 900
+        assert NucleiScanner()._phase2_limit() == 900
 
     def test_option_overrides_yaml(self) -> None:
         assert NucleiScanner({"phase2_timeout_s": 7})._phase2_limit() == 7

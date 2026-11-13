@@ -196,13 +196,16 @@ The scanner module docstring names the tool's purpose, the install command, the 
 
 ### Nuclei (`src/haris/scanners/nuclei_scanner.py`)
 
-- **Focus**: CVE detection, default credentials, exposed panels, technology fingerprinting
+- **Focus**: technology-targeted templates plus a baseline of exposure, misconfiguration, vulnerability, takeover and DAST checks
 - **Output**: JSONL (one JSON object per line)
-- **Strategy**: Multi-phase scanning
-  - **Phase 1**: `http/technologies` templates for fingerprinting (detects CMS, WAF, frameworks)
-  - **Phase 2a**: Broad scan across 8 `DEFAULT_TEMPLATE_DIRS` (CVEs, exposures, panels, vulnerabilities, default-logins, takeovers, misconfigurations, DAST)
-  - **Phase 2b**: Tech-targeted scan using `TECH_TAG_MAP` and `TECH_WORKFLOW_MAP` based on `ScanContext`
-- **Flags on every run**: `-jsonl`, `-or`, `-ot`, `-duc`, `-silent`, `-no-color`, `-system-resolvers`, `-tls-impersonate`, `-fhr`, `-retries 2`, `-mhe` (the `max_host_errors` option)
+- **Strategy**: two groups under one deadline (`phase2_timeout_s`)
+  - **Tag group**: templates outside the baseline dirs that carry a selected tag. Selected tags are the `TECH_TAG_MAP` tags for `ScanContext` technologies plus the tags the LLM selector adds (`nuclei_selection.py`); with none, `-as` runs instead. `TECH_WORKFLOW_MAP` workflows run here too.
+  - **Baseline group**: the `baseline_template_dirs` of `nuclei.yaml`, run with `-u <base_url>` and no `-list`
+  - **URL list**: only the tag group gets `-list`; it holds the base URL plus discovered URLs with the same scheme, host and port
+  - **Selector settings** (`nuclei.yaml`): `max_selected_tags`, `deny_tags`, `min_tag_templates`, `max_tag_templates`
+  - **Explicit options**: `template_dirs` or `tags` give one run and skip the selector
+  - **Note**: every run records `template selection: llm tags <list>` or `template selection: deterministic (<reason>)`
+- **Flags on every run**: `-jsonl`, `-or`, `-ot`, `-duc`, `-silent`, `-no-color`, `-system-resolvers`, `-tls-impersonate`, `-fhr`, `-retries` (the `retries` option, default 2), `-mhe` (the `max_host_errors` option), and one rate flag (`-rate-limit` from `rate_limit`, or `-rl` when the scan rate is bound)
 - **Context-aware**: Uses `ScanContext.detected_technologies` to select targeted Nuclei tags and workflows
 
 ## Testing Adapters

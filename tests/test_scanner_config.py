@@ -11,9 +11,11 @@ class TestNucleiConfigValidation:
         valid = {
             "severity_map": {"critical": "CRITICAL", "high": "HIGH"},
             "confidence_map": {"critical": "CONFIRMED"},
-            "meta_tags": ["tech", "waf"],
-            "default_template_dirs": ["http/cves", "http/exposures"],
-            "tech_fingerprint_dir": "http/technologies",
+            "baseline_template_dirs": ["http/exposures", "dast"],
+            "max_selected_tags": 10,
+            "deny_tags": ["dos"],
+            "min_tag_templates": 3,
+            "max_tag_templates": 300,
             "tag_map": {"sql": ["sql_injection"]},
             "tech_tag_map": {"wordpress": ["wordpress"]},
             "tech_workflow_map": {"wordpress": "workflows/wordpress-workflow.yaml"},
@@ -28,7 +30,7 @@ class TestNucleiConfigValidation:
         """Wrong type logs warning but returns data unchanged."""
         invalid = {
             "severity_map": "not-a-dict",  # should be dict
-            "meta_tags": "not-a-list",  # should be list
+            "deny_tags": "not-a-list",  # should be list
         }
         result = _validate_nuclei_config(invalid)
         assert result == invalid
@@ -54,13 +56,13 @@ class TestNucleiConfigValidation:
         assert "severity_map" in data
         assert "tech_workflow_map" in data
 
-    def test_default_template_dirs_are_strings(self) -> None:
-        """default_template_dirs validates as list of strings."""
-        valid = {"default_template_dirs": ["http/cves", "http/exposures"]}
+    def test_baseline_template_dirs_are_strings(self) -> None:
+        """baseline_template_dirs validates as list of strings."""
+        valid = {"baseline_template_dirs": ["http/exposures", "dast"]}
         result = _validate_nuclei_config(valid)
         assert result == valid
 
         # Integer list should fail validation but still return data
-        invalid = {"default_template_dirs": [123, 456]}
+        invalid = {"baseline_template_dirs": [123, 456]}
         result = _validate_nuclei_config(invalid)
         assert result == invalid

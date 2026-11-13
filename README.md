@@ -11,7 +11,7 @@ Orchestrates security scanners, correlates findings, and writes one prioritised 
 ## What this does
 
 1. **Cross-tool correlation.** Findings that share a fingerprint become one finding. The score combines the scanners that reported it.
-2. **Cross-scanner context.** Built-in checks and nmap fill a `ScanContext`. Later scanners read it. Nuclei uses detected technologies in phase 2b.
+2. **Cross-scanner context.** Built-in checks and nmap fill a `ScanContext`. Later scanners read it. Nuclei derives its tag group from detected technologies.
 3. **Business-risk text.** Plain-language impact sits next to the technical finding.
 4. **Prioritised remediation.** Fixes are grouped and ordered by impact and effort.
 5. **Profiles.** `quick`, `pre-launch`, `full`, `ai-security`, `regression`, `compliance`.
@@ -28,7 +28,7 @@ Orchestrates security scanners, correlates findings, and writes one prioritised 
 | SSLyze | TLS protocols, cipher suites, certificate chain, Heartbleed, ROBOT | `pipx install sslyze` | 6.x |
 | Nmap | Open ports, service versions, exposed databases | system package manager | 7.x |
 | Nikto | Web server misconfigurations, outdated software, dangerous files | `brew install nikto` | 2.x |
-| Nuclei | CVE checks, default credentials, exposed panels, tech fingerprint (phase 1, 2a, 2b) | `brew install nuclei` | 3.x |
+| Nuclei | technology-targeted templates, then exposure, misconfiguration and DAST baseline | `brew install nuclei` | 3.x |
 | ZAP | Active and passive web scan. Off by default and in no profile. `--scanners zap` | [ZAP download](https://www.zaproxy.org/download/) | 2.16 |
 | garak | Injection and leakage probes on a discovered chat route. Runs only with `--ai-active` and `--i-have-authorization` | install the binary | 0.17 |
 | promptfoo | Red-team plugins on a discovered chat route. Same flags as garak | install the binary | 0.125 |

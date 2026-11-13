@@ -49,8 +49,6 @@ UNBOUND = {
 
 
 def scanner_for(tool: str, **options: Any) -> ExternalToolScanner:
-    if tool == "nuclei":
-        options.setdefault("skip_tech_detection", True)
     return TOOLS[tool](options)
 
 

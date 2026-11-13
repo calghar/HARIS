@@ -15,7 +15,7 @@ from haris.scanners.nikto_scanner import NiktoScanner
 from haris.scanners.nmap_scanner import NmapScanner
 from haris.scanners.nuclei_scanner import NucleiScanner
 from haris.scanners.process import ToolTimeoutError, run_process
-from haris.scanners.redaction import REDACTED, redact_obj, redact_text
+from haris.scanners.redaction import REDACTED, redact_argv, redact_obj, redact_text
 from haris.scanners.sslyze_scanner import SSLyzeScanner
 from haris.scanners.wapiti_scanner import WapitiScanner
 from tests.conftest import bound_context
@@ -199,6 +199,27 @@ class TestRedactionHelpers:
 
     def test_plain_text_untouched(self) -> None:
         assert redact_text("Server: Apache/2.2.8") == "Server: Apache/2.2.8"
+
+    @pytest.mark.parametrize("flag", ["-H", "-header"])
+    def test_argv_keeps_flags_after_a_cookie_header_with_spaces(
+        self, flag: str
+    ) -> None:
+        argv = ["nuclei", flag, "Cookie: a=b; c=d", "-rl", "3"]
+
+        assert redact_argv(argv) == f"nuclei {flag} Cookie: {REDACTED} -rl 3"
+
+    def test_argv_masks_any_header_value_and_known_secrets(self) -> None:
+        argv = [
+            "nuclei",
+            "-H",
+            "X-Other: plain value",
+            "-u",
+            "http://h/?k=s3cr3t-value",
+        ]
+
+        assert redact_argv(argv, ("s3cr3t-value",)) == (
+            f"nuclei -H X-Other: {REDACTED} -u http://h/?k={REDACTED}"
+        )
 
 
 class TestArgvLogRedaction:
