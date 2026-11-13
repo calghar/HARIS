@@ -199,6 +199,7 @@ The scanner module docstring names the tool's purpose, the install command, the 
 
 - **Focus**: technology-targeted templates plus a baseline of exposure, misconfiguration, vulnerability, takeover and DAST checks
 - **Output**: JSONL (one JSON object per line)
+- **Argv**: `nuclei_argv.py` holds technology-tag mapping and argv construction; `nuclei_scanner.py` runs the process
 - **Strategy**: two groups under one deadline (`phase2_timeout_s`)
   - **Tag group**: templates outside the baseline dirs that carry a selected tag. Selected tags are the `TECH_TAG_MAP` tags for `ScanContext` technologies plus the tags the LLM selector adds (`nuclei_selection.py`); with none, `-as` runs instead. `TECH_WORKFLOW_MAP` workflows run here too.
   - **Baseline group**: the `baseline_template_dirs` of `nuclei.yaml`, run with `-u <base_url>` and no `-list`

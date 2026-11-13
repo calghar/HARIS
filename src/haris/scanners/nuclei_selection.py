@@ -1,6 +1,6 @@
 import logging
 import re
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Iterable, Sequence
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict
@@ -158,6 +158,11 @@ def select_tags(
     if selection.reason:
         logger.info("nuclei tag selector answer discarded: %s", selection.reason)
     return selection
+
+
+def merge_tags(map_tags: Iterable[str], selected: Iterable[str]) -> list[str]:
+    """Technology-map tags first, then selector tags; repeats dropped."""
+    return list(dict.fromkeys([*map_tags, *selected]))
 
 
 def selection_note(result: SelectionResult) -> str:

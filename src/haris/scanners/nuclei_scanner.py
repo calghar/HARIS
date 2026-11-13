@@ -1,5 +1,4 @@
 import logging
-import math
 import tempfile
 import time
 from pathlib import Path
@@ -18,15 +17,11 @@ from ..data.scanner_config import (
 )
 from ..models import Finding, ScannerResult, Target
 from ..models.scan_context import ScanContext
-from .nuclei_results import (
-    BASELINE_TEMPLATE_DIRS,
-    EXCLUDED_TEMPLATE_IDS,
-    TECH_TAG_MAP,
-    TECH_WORKFLOW_MAP,
-    NucleiResults,
-)
+from .nuclei_argv import build_argv, map_technologies
+from .nuclei_results import BASELINE_TEMPLATE_DIRS, NucleiResults
 from .nuclei_selection import (
     SelectionResult,
+    merge_tags,
     read_allowlist,
     select_tags,
     selection_note,
@@ -40,7 +35,6 @@ logger = logging.getLogger(__name__)
 
 VERSION_TIMEOUT_SECONDS = 30
 MAX_URL_LIST = 500
-EXCLUDED_SEVERITY = "info"
 EXPLICIT_OPTIONS = "explicit template options"
 
 
@@ -163,7 +157,7 @@ class NucleiScanner(NucleiResults):
         else:
             map_tags, workflows = self._map_tags_and_workflows(context)
             selection = self._select_tags(context)
-            tags = list(dict.fromkeys([*map_tags, *selection.tags]))
+            tags = merge_tags(map_tags, selection.tags)
             runs = [
                 (
                     "phase2-tags",
@@ -344,31 +338,20 @@ class NucleiScanner(NucleiResults):
         self, context: ScanContext
     ) -> tuple[list[str], list[str]]:
         """Return the (tags, workflows) the technology maps give for the context."""
-        extra_tags: list[str] = []
+        extra_tags, candidates = map_technologies(context.detected_technologies)
         workflows: list[str] = []
-        seen_tags: set[str] = set()
-
-        for tech in context.detected_technologies:
-            tech_lower = tech.lower()
-            for key, tag_list in TECH_TAG_MAP.items():
-                if key in tech_lower:
-                    for tag in tag_list:
-                        if tag not in seen_tags:
-                            extra_tags.append(tag)
-                            seen_tags.add(tag)
-
-            for key, workflow_path in TECH_WORKFLOW_MAP.items():
-                if key in tech_lower and workflow_path not in workflows:
-                    root = self._template_root()
-                    if root is None or not (root / workflow_path).exists():
-                        logger.warning(
-                            "nuclei workflow not found: %s (template root %s); "
-                            "skipping",
-                            workflow_path,
-                            root,
-                        )
-                        continue
-                    workflows.append(workflow_path)
+        for workflow_path in candidates:
+            if workflow_path in workflows:
+                continue
+            root = self._template_root()
+            if root is None or not (root / workflow_path).exists():
+                logger.warning(
+                    "nuclei workflow not found: %s (template root %s); skipping",
+                    workflow_path,
+                    root,
+                )
+                continue
+            workflows.append(workflow_path)
 
         if extra_tags:
             logger.info(
@@ -416,116 +399,28 @@ class NucleiScanner(NucleiResults):
         url_file: str | None = None,
     ) -> list[str]:
         """Build the nuclei argv."""
-        cmd = [
-            "nuclei",
-            "-jsonl",
-            "-or",
-            "-ot",
-            "-duc",
-            "-silent",
-            "-no-color",
-            "-system-resolvers",
-            "-tls-impersonate",
-            "-fhr",
-            "-retries",
-            str(self.options["retries"]),
-            "-mhe",
-            str(self.options["max_host_errors"]),
-            "-c",
-            str(self.options["concurrency"]),
-            "-bs",
-            str(self.options["bulk_size"]),
-            "-timeout",
-            str(self.options.get("timeout_per_request", 30)),
-        ]
-
-        if self._proxy:
-            cmd.extend(["-proxy", self._proxy])
-        if self._rate_rps <= 0:
-            cmd.extend(["-rate-limit", str(self.options["rate_limit"])])
-
-        excluded_types = list(
-            dict.fromkeys(
-                [
-                    *get_nuclei_exclude_template_types(),
-                    *get_nuclei_unproxied_template_types(),
-                ]
-            )
+        return build_argv(
+            self.options,
+            target.base_url,
+            proxy=self._proxy,
+            rate_rps=self._rate_rps,
+            headers=target.auth.as_headers(),
+            extra_args=self._extra_args(),
+            excluded_types=list(
+                dict.fromkeys(
+                    [
+                        *get_nuclei_exclude_template_types(),
+                        *get_nuclei_unproxied_template_types(),
+                    ]
+                )
+            ),
+            template_dirs=template_dirs,
+            extra_tags=extra_tags,
+            workflows=workflows,
+            exclude_templates=exclude_templates,
+            automatic=automatic,
+            url_file=url_file,
         )
-        if excluded_types:
-            cmd.extend(["-ept", ",".join(excluded_types)])
-        if EXCLUDED_TEMPLATE_IDS:
-            cmd.extend(["-eid", ",".join(sorted(EXCLUDED_TEMPLATE_IDS))])
-
-        if not self.options.get("enable_interactsh"):
-            cmd.append("-no-interactsh")
-
-        if url_file:
-            cmd.extend(["-list", url_file])
-        else:
-            cmd.extend(["-u", target.base_url])
-
-        has_template_selection = automatic
-        effective_dirs = template_dirs if template_dirs is not None else []
-        user_template_dirs = self.options.get("template_dirs", [])
-
-        if user_template_dirs:
-            for tdir in user_template_dirs:
-                cmd.extend(["-t", tdir])
-                has_template_selection = True
-        else:
-            for tdir in effective_dirs:
-                cmd.extend(["-t", tdir])
-                has_template_selection = True
-
-            if not effective_dirs:
-                for template_path in self.options.get("templates", []):
-                    cmd.extend(["-t", template_path])
-                    has_template_selection = True
-
-        for workflow_path in workflows or []:
-            cmd.extend(["-w", workflow_path])
-            has_template_selection = True
-
-        all_tags: list[str] = list(self.options.get("tags", []))
-        seen = {t.lower() for t in all_tags}
-        for tag in extra_tags or []:
-            if tag.lower() not in seen:
-                all_tags.append(tag)
-                seen.add(tag.lower())
-        if all_tags:
-            cmd.extend(["-tags", ",".join(all_tags)])
-            has_template_selection = True
-
-        if automatic:
-            cmd.append("-as")
-        if exclude_templates:
-            cmd.extend(["-et", ",".join(exclude_templates)])
-
-        if not has_template_selection:
-            for tdir in BASELINE_TEMPLATE_DIRS:
-                cmd.extend(["-t", tdir])
-
-        if self.options.get("severity"):
-            cmd.extend(["-severity", ",".join(self.options["severity"])])
-        else:
-            cmd.extend(["-es", EXCLUDED_SEVERITY])
-
-        exclude_tags = list(self.options.get("exclude_tags", []))
-        if "dos" not in [t.lower() for t in exclude_tags]:
-            exclude_tags.append("dos")
-        cmd.extend(["-etags", ",".join(exclude_tags)])
-
-        for header_name, header_value in target.auth.as_headers().items():
-            cmd.extend(["-H", f"{header_name}: {header_value}"])
-
-        cmd.extend(self._extra_args())
-        if self._rate_rps > 0:
-            # After extra_args so a user -rl cannot raise it; rate_limit may lower it.
-            # Replaces -rate-limit (same flag as -rl) so argv carries one rate flag.
-            rate = max(1, math.floor(self._rate_rps))
-            cmd.extend(["-rl", str(min(rate, int(self.options["rate_limit"])))])
-        return cmd
 
     @staticmethod
     def _write_url_list(urls: list[str]) -> str:

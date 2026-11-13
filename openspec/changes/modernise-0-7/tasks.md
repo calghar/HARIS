@@ -45,5 +45,5 @@
 - [x] 4.13 Closed the DNS-rebinding window for external scanners: pin the vetted IP per tool (nuclei, nmap, nikto, sslyze, Wapiti) or run them in a network that blocks private ranges; the 0.7.0 fix only re-vets the host right before each tool starts (security review H-2)
 - [x] 4.14 Replaced decorator-based registration with explicit built-in maps for checks, scanners and oracles, removed the second scanner registry and the trigger-only imports (structural review S-01)
 - [x] 4.15 Split `cli.py` into parser, command handlers and scan orchestration modules, with `main` as dispatch only (S-02)
-- [ ] 4.16 Moved Nuclei template selection and argv construction out of `nuclei_scanner.py` into a data-only module (S-05)
+- [x] 4.16 Moved Nuclei template selection and argv construction out of `nuclei_scanner.py` into a data-only module (S-05)
 - [x] 4.17 Split `bench/run.py` into target preparation and authentication, and command execution, with CLI dispatch left in `run.py` (S-06)
