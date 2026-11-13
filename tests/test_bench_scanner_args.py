@@ -44,9 +44,9 @@ def scan_config(
         (out / "report.json").write_text("{}")
         return subprocess.CompletedProcess(cmd, 0, "", "")
 
-    monkeypatch.setattr(runner, "WAPITI_ENDPOINTS", {})
-    monkeypatch.setattr(runner, "TARGET_EXCLUDED_PATHS", [])
-    monkeypatch.setattr(runner, "TARGET_SCANNER_ARGS", {})
+    monkeypatch.setattr(runner.execute, "WAPITI_ENDPOINTS", {})
+    monkeypatch.setattr(runner.execute, "TARGET_EXCLUDED_PATHS", [])
+    monkeypatch.setattr(runner.execute, "TARGET_SCANNER_ARGS", {})
     monkeypatch.setattr(runner, "compose", lambda *a: None)
     monkeypatch.setattr(runner, "resolve_base_url", lambda t: "http://127.0.0.1:1")
     monkeypatch.setattr(runner, "wait_healthy", lambda *a: None)
@@ -65,7 +65,7 @@ def test_only_juice_shop_carries_scanner_extra_args() -> None:
         if t.scanner_extra_args
     }
     assert carriers == {"juice_shop": {"nikto": tuple(NIKTO_ARGS)}}
-    assert runner.JUICE_NIKTO_MAX_TIME == "40s"
+    assert runner.prepare.JUICE_NIKTO_MAX_TIME == "40s"
 
 
 def test_juice_shop_config_bounds_nikto_and_keeps_its_timeout(

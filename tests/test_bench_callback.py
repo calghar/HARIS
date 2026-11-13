@@ -144,8 +144,8 @@ class TestRunnerConfig:
 
         options = callback.wapiti_endpoints("http://127.0.0.1:19090")
         monkeypatch.setattr(runner.subprocess, "run", fake_run)
-        monkeypatch.setattr(runner, "WAPITI_ENDPOINTS", options)
-        runner.run_command(["haris"], None)
+        monkeypatch.setattr(runner.execute, "WAPITI_ENDPOINTS", options)
+        runner.execute.run_command(["haris"], None)
         wapiti = next(s for s in seen["config"]["scanners"] if s["name"] == "wapiti")
         assert wapiti["options"]["external_endpoint"] == options["external_endpoint"]
         assert wapiti["options"]["internal_endpoint"] == options["internal_endpoint"]

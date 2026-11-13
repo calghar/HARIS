@@ -46,4 +46,4 @@
 - [ ] 4.14 Replaced decorator-based registration with explicit built-in maps for checks, scanners and oracles, removed the second scanner registry and the trigger-only imports (structural review S-01)
 - [ ] 4.15 Split `cli.py` into parser, command handlers and scan orchestration modules, with `main` as dispatch only (S-02)
 - [ ] 4.16 Moved Nuclei template selection and argv construction out of `nuclei_scanner.py` into a data-only module (S-05)
-- [ ] 4.17 Split `bench/run.py` into target preparation and authentication, and command execution, with CLI dispatch left in `run.py` (S-06)
+- [x] 4.17 Split `bench/run.py` into target preparation and authentication, and command execution, with CLI dispatch left in `run.py` (S-06)

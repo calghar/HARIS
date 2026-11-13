@@ -91,7 +91,7 @@ def webgoat_transport(posts: Posts, *, accept: bool = True) -> httpx.MockTranspo
 class TestDvwaLogin:
     def test_login_and_security_forms_carry_their_own_csrf_token(self) -> None:
         posts: Posts = []
-        cookies = runner.login_dvwa(BASE_URL, dvwa_transport(posts))
+        cookies = runner.prepare.login_dvwa(BASE_URL, dvwa_transport(posts))
         assert cookies == DVWA_COOKIES
         assert posts == [
             (
@@ -115,13 +115,13 @@ class TestDvwaLogin:
 
     def test_rejected_login_raises_instead_of_scanning_unauthenticated(self) -> None:
         with pytest.raises(RuntimeError, match="DVWA login was rejected"):
-            runner.login_dvwa(BASE_URL, dvwa_transport([], accept=False))
+            runner.prepare.login_dvwa(BASE_URL, dvwa_transport([], accept=False))
 
 
 class TestWebgoatLogin:
     def test_registers_then_logs_in_and_returns_the_session_cookie(self) -> None:
         posts: Posts = []
-        cookies = runner.login_webgoat(BASE_URL, webgoat_transport(posts))
+        cookies = runner.prepare.login_webgoat(BASE_URL, webgoat_transport(posts))
         assert cookies == WEBGOAT_SESSION
         register, login = posts
         assert register[0] == "/WebGoat/register.mvc"
@@ -129,12 +129,15 @@ class TestWebgoatLogin:
         assert register[1]["agree"] == ["agree"]
         assert login == (
             "/WebGoat/login",
-            {"username": [runner.WEBGOAT_USER], "password": [runner.WEBGOAT_PASSWORD]},
+            {
+                "username": [runner.prepare.WEBGOAT_USER],
+                "password": [runner.prepare.WEBGOAT_PASSWORD],
+            },
         )
 
     def test_rejected_login_raises_instead_of_scanning_unauthenticated(self) -> None:
         with pytest.raises(RuntimeError, match="WebGoat login was rejected"):
-            runner.login_webgoat(BASE_URL, webgoat_transport([], accept=False))
+            runner.prepare.login_webgoat(BASE_URL, webgoat_transport([], accept=False))
 
 
 class TestSessionHandover:
@@ -174,7 +177,7 @@ class TestSessionHandover:
     ) -> None:
         caplog.set_level(logging.DEBUG)
         seen = self.run_with_session(tmp_path, monkeypatch, DVWA_COOKIES)
-        assert seen["env"][runner.AUTH_HEADER_ENV] == DVWA_COOKIES
+        assert seen["env"][runner.execute.AUTH_HEADER_ENV] == DVWA_COOKIES
         assert seen["config"]["target"]["auth"] == {
             "method": "header",
             "header_name": "Cookie",
@@ -182,7 +185,9 @@ class TestSessionHandover:
         assert DVWA_COOKIES not in " ".join(seen["cmd"])
         assert not list((tmp_path / "out").glob("*.yaml"))
         for log in ("stdout.log", "stderr.log"):
-            assert (tmp_path / "out" / log).read_text() == f"Cookie: {runner.REDACTED}"
+            assert (
+                tmp_path / "out" / log
+            ).read_text() == f"Cookie: {runner.execute.REDACTED}"
         assert DVWA_COOKIES not in caplog.text
 
     def test_no_session_leaves_command_and_environment_untouched(
@@ -261,8 +266,8 @@ class TestDvwaPrepare:
                 302, headers={"Location": "index.php" if ready else "setup.php"}
             )
 
-        monkeypatch.setattr(runner.time, "sleep", lambda seconds: None)
-        runner.prepare_dvwa(BASE_URL, httpx.MockTransport(handler))
+        monkeypatch.setattr(runner.prepare.time, "sleep", lambda seconds: None)
+        runner.prepare.prepare_dvwa(BASE_URL, httpx.MockTransport(handler))
         assert len(creates) == database_ready_after
 
     def test_setup_is_retried_while_the_database_is_down(
@@ -286,8 +291,8 @@ class TestDvwaPrepare:
                 return httpx.Response(200, text="setup")
             return httpx.Response(302, headers={"Location": "index.php"})
 
-        monkeypatch.setattr(runner.time, "sleep", lambda seconds: None)
-        runner.prepare_dvwa(BASE_URL, httpx.MockTransport(handler))
+        monkeypatch.setattr(runner.prepare.time, "sleep", lambda seconds: None)
+        runner.prepare.prepare_dvwa(BASE_URL, httpx.MockTransport(handler))
         assert len(creates) == posts_while_down // 2 + 1
 
     def test_setup_that_never_succeeds_times_out(
@@ -298,6 +303,8 @@ class TestDvwaPrepare:
                 return httpx.Response(200, text=TOKEN_PAGE.format(LOGIN_TOKEN))
             return httpx.Response(302, headers={"Location": "setup.php"})
 
-        monkeypatch.setattr(runner.time, "sleep", lambda seconds: None)
+        monkeypatch.setattr(runner.prepare.time, "sleep", lambda seconds: None)
         with pytest.raises(TimeoutError):
-            runner.prepare_dvwa(BASE_URL, httpx.MockTransport(handler), timeout=0)
+            runner.prepare.prepare_dvwa(
+                BASE_URL, httpx.MockTransport(handler), timeout=0
+            )

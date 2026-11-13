@@ -143,8 +143,8 @@ def capture_scan_config(
         seen.append((cmd, config))
         return subprocess.CompletedProcess(cmd, 0, "", "")
 
-    monkeypatch.setattr(runner, "WAPITI_ENDPOINTS", {})
-    monkeypatch.setattr(runner, "TARGET_EXCLUDED_PATHS", [])
+    monkeypatch.setattr(runner.execute, "WAPITI_ENDPOINTS", {})
+    monkeypatch.setattr(runner.execute, "TARGET_EXCLUDED_PATHS", [])
     monkeypatch.setattr(runner, "compose", lambda *a: None)
     monkeypatch.setattr(runner, "resolve_base_url", lambda t: "http://127.0.0.1:1")
     monkeypatch.setattr(runner, "wait_healthy", lambda *a: None)
@@ -157,7 +157,7 @@ def capture_scan_config(
 
 
 def default_excluded_paths() -> list[str]:
-    raw = yaml.safe_load(runner.default_config_path().read_text())
+    raw = yaml.safe_load(runner.execute.default_config_path().read_text())
     return list(raw["target"]["scope"]["excluded_paths"])
 
 
@@ -193,10 +193,10 @@ def run_command_config(
         seen.append((cmd, config))
         return subprocess.CompletedProcess(cmd, 0, "", "")
 
-    monkeypatch.setattr(runner, "WAPITI_ENDPOINTS", {})
-    monkeypatch.setattr(runner, "TARGET_EXCLUDED_PATHS", excluded)
+    monkeypatch.setattr(runner.execute, "WAPITI_ENDPOINTS", {})
+    monkeypatch.setattr(runner.execute, "TARGET_EXCLUDED_PATHS", excluded)
     monkeypatch.setattr(runner.subprocess, "run", fake_run)
-    runner.run_command(["haris"], cookie)
+    runner.execute.run_command(["haris"], cookie)
     return seen[0]
 
 
