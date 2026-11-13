@@ -52,6 +52,14 @@ Header on the control path:
     - tests/test_verify_uncommon_header.py::test_uncommon_header_is_refuted_only_when_the_control_carries_it
     - tests/test_verify_uncommon_header.py::test_control_url_keeps_the_directory_and_extension
 
+Threshold selection:
+  tests:
+    - tests/test_calibrate_abstain.py::test_threshold_selection
+
+Too few confirmed verdicts:
+  tests:
+    - tests/test_calibrate_abstain.py::test_too_few_confirmed_verdicts
+
 Invalid span names the quote:
   tests:
     - tests/test_verify_llm.py::test_invalid_span_reason_names_the_field_and_quotes_the_span

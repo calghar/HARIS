@@ -58,3 +58,4 @@ config/*secret*
 # Benchmark results (raw artifacts are published by CI, not committed)
 bench/results/*
 !bench/results/README.md
+!bench/results/calibration/

@@ -54,6 +54,8 @@ The `soft404` oracle refutes only that control match. A catch-all or unstable ho
 
 `verify.llm.abstain_below` defaults to 0.7 in `LLMVerdictSettings` and in `verify.yaml`. The threshold is uncalibrated.
 
+`bench/calibrate_abstain.py` picks the default from labelled bench runs. It takes the lowest value on the grid 0.50 to 0.95 whose non-abstained `confirmed` verdicts have a Wilson score lower bound of at least 0.80 on their precision (95% confidence). A grid point with no `confirmed` verdict never reaches it, and 16 verdicts that all match a label are the smallest set that does. When no grid point reaches it, the default stays 0.7.
+
 The stage runs only in mode `llm`. It considers findings that are still `unverified`, are not suppressed, and already have evidence. A verdict with confidence below 0.7 is stored as `abstained`. The tier stays put. A verdict of `confirmed` or `likely_fp` with status `ok` changes `confidence_score` only. The model output does not delete the finding and does not set the tier. The case cap is `max_cases` (50).
 
 The model must return up to 5 cited spans of at most 300 characters each and a rationale of at most 2000 characters. An answer that breaks a limit, or cites text that is not in the exchange, is stored as `invalid`. The exchange text sent to the model has `\r\n` replaced by `\n`, and a cited span must be one unbroken run of that text. The stored reason names the failing field. For a cited span it also quotes the first 120 characters. The allow-list `verify.llm.response_headers` includes `content-disposition` and `access-control-allow-origin`. At DEBUG level the log holds the exchange text lengths, the raw reply and the validation error of each case. `verify.llm.max_output_tokens` defaults to 2000.

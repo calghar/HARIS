@@ -225,20 +225,32 @@ Feature: verification
       | PoC targeting an out-of-scope host                                 | replay_verified   |
 
   # Requirement: Calibrated LLM abstain threshold
-  # The shipped default of `verify.llm.abstain_below` SHALL be the lowest value on the grid 0.50, 0.55, ..., 0.95 at which the `confirmed` verdicts of the labelled bench set that are not abstained, run through the `litellm` backend, reach precision of at least 0.95 against the labels. WHEN no threshold reaches 0.95, the default MUST stay 0.7 and `docs/verification.md` MUST state that it is uncalibrated. The raw per-case verdicts, confidences, labels and the model string MUST be committed under `bench/results/` and cited in `docs/verification.md`.
+  # The shipped default of `verify.llm.abstain_below` SHALL be the lowest value on the grid 0.50, 0.55, ..., 0.95 at which the `confirmed` verdicts of the labelled bench set that are not abstained, run through the `litellm` backend, have a precision against the labels whose Wilson score lower bound at 95% confidence is at least 0.80. For `n` such verdicts of which `k` match a label, with `p = k / n` and `z = 1.96`, the lower bound is `(p + z^2 / 2n - z * sqrt(p(1 - p) / n + z^2 / 4n^2)) / (1 + z^2 / n)`. A grid point with no such verdict MUST NOT count as reaching 0.80. WHEN no grid point reaches 0.80, the default MUST stay 0.7 and `docs/verification.md` MUST state that it is uncalibrated. The raw per-case verdicts, confidences, labels and the model string MUST be committed under `bench/results/` and cited in `docs/verification.md`.
 
   @requirement_calibrated_llm_abstain_threshold
   Scenario Outline: Threshold selection
-    Given labelled verdicts where `confirmed` precision is `<p_low>` at 0.5, `<p_mid>` at 0.7 and `<p_high>` at 0.9, and the grid points between them lie on the lower of their neighbours
+    Given non-abstained `confirmed` verdicts numbering 60 at 0.5, 40 at 0.7 and 20 at 0.9, of which `<c_low>`, `<c_mid>` and `<c_high>` match a label, and the grid points between them lie on the lower of their neighbours
     When the default is chosen
     Then `abstain_below` is `<default>`
 
     Examples:
-      | p_low | p_mid | p_high | default                         |
-      | 0.97  | 0.98  | 1.00   | 0.5                             |
-      | 0.90  | 0.96  | 1.00   | 0.7                             |
-      | 0.80  | 0.90  | 0.96   | 0.9                             |
-      | 0.80  | 0.85  | 0.90   | 0.7, documented as uncalibrated |
+      | c_low | c_mid | c_high | default                         |
+      | 55    | 39    | 20     | 0.5                             |
+      | 52    | 40    | 20     | 0.7                             |
+      | 50    | 34    | 20     | 0.9                             |
+      | 50    | 34    | 19     | 0.7, documented as uncalibrated |
+
+  @requirement_calibrated_llm_abstain_threshold
+  Scenario Outline: Too few confirmed verdicts
+    Given non-abstained `confirmed` verdicts that all match a label, numbering `<count>` at every grid point
+    When the default is chosen
+    Then `abstain_below` is `<default>`
+
+    Examples:
+      | count | default                         |
+      | 16    | 0.5                             |
+      | 15    | 0.7, documented as uncalibrated |
+      | 0     | 0.7, documented as uncalibrated |
 
   # Requirement: Replay coverage for Wapiti classes
   # The replay verifier SHALL give each of the classes `sqli_error`, `xss_reflected`, `command_injection`, `path_traversal` and `open_redirect` a deterministic oracle that compares a probe with a control, with these positive conditions: - `command_injection`: probe time exceeds control time by the `timing` rule of `verify.timing`, using only delay payloads (`sleep {d}` forms) that run no other command. WHEN that is inconclusive and the stored request used a `data:` wrapper, `code_eval` echoes a random marker and is positive only when the probe has it and the control does not (Previously: delay payloads only). `sqli_error` then runs `boolean_sqli`, positive only when every repeat has the true response equal to the control and the false response different (Previously: `error_signature` only). - `path_traversal`: the probe body matches `root:[x*]:0:0:` or `\[boot loader\]`, and the control body does not. - `open_redirect`: the probe answers `3xx` with a `Location` whose host equals the probe's marker host (`haris-<16 hex>.invalid`), and the control does not. Findings of class `ssrf` and `xxe` MUST stay `unverified` with method `none`; no out-of-band callback listener exists in this release. All oracle results follow the tier rules of "Deterministic replay verifier". On the bench run of DVWA with replay on, `verified_precision` MUST be at least 0.95 over at least 10 `replay_verified` findings.

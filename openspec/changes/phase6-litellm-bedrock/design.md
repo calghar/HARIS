@@ -41,7 +41,7 @@ Subclass of `ProviderBackend`; `_send` builds one kwargs dict (`model`, `message
 `UPDATE scan_config_templates SET llm_backend='litellm' WHERE llm_backend IN ('anthropic','openai','ollama','bedrock')`. Rollback is a no-op; the original names are lost.
 
 ### D8. Verification additions
-- Threshold: `bench/calibrate_abstain.py` reads the committed verdict artifacts, applies the grid rule of the spec, writes `bench/results/<run>/abstain.json`.
+- Threshold: `bench/calibrate_abstain.py` reads the committed verdict artifacts, applies the grid rule of the spec (Wilson lower bound of confirmed precision at least 0.80, stored per grid row as `lower_bound`), writes `bench/results/<run>/abstain.json`.
 - Oracles: `path_traversal` and `open_redirect` become `content_validator`-style oracles in `verify/oracles.py`; `command_injection` runs the `timing` code with `verify.timing.cmd_payloads` under the oracle name `timing_cmd`. `vuln_classes.yaml` gains the `oracle:` keys. `ssrf` and `xxe` get none.
 - Redirect catch-all: `baseline.judge` compares `Location` (random segment removed) before the early non-2xx return; `verify/replay.py` applies the same rule for external findings.
 - Agent PoC re-execution: `agent/validator.reexecute` sends every PoC request with its control through one `Prober`, stops at `verify.poc_max_requests` (default 20 sends), and confirms when any request is positive. The replay stage has no PoC list, so no `refuted` aggregation exists. Sends count toward `Scope.max_requests`, and the client token bucket spaces them. Soft-404 controls use `verify.request_timeout_s`; `finish()` keeps skip notes when the state is `failed`.

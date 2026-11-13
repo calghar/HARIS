@@ -48,6 +48,7 @@
 - Changed the LLM verdict rationale limit from 600 to 2000 characters and `verify.llm.max_output_tokens` from 800 to 2000
 - Changed the reason of an invalid LLM verdict span to name the field and quote the first 120 characters of the span
 - Changed the LLM verdict exchange text to use `\n` for `\r\n`, and the prompt to require each cited span to be one unbroken run of that text
+- Changed the `verify.llm.abstain_below` calibration to pick the lowest threshold whose Wilson 95% lower bound of `confirmed` precision is at least 0.80, replacing the 10-verdict, 0.95 rule
 - Changed the nuclei baseline group to scan the base URL only (`-u`), and the URL list to keep only URLs with the base URL's scheme, host and port
 - Changed the default nuclei `phase2_timeout_s` from 300 to 900
 - Changed replay to send the sibling form fields of the stored request with the tested parameter replaced
