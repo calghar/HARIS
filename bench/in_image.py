@@ -9,7 +9,7 @@ IMAGE = os.environ.get("HARIS_BENCH_IMAGE", "haris-prod:bench")
 HOST_ALIAS = "host.containers.internal"
 LOOPBACK = ("127.0.0.1", "localhost")
 REPORT_DIR = "/app/reports/out"
-CONFIG_PATH = "/tmp/bench-config.yaml"
+CONFIG_PATH = "/tmp/bench-config.yaml"  # nosec B108: path inside the container
 HOME_VOLUME = "haris-bench-home"
 FORWARDED_ENV = ("HARIS_AUTH_HEADER", "LITELLM_API_KEY")
 
