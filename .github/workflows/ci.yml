@@ -72,7 +72,7 @@ jobs:
           python-version: ${{ matrix.python-version }}
 
       - name: Install dependencies
-        # Excludes the scanners extra (sslyze/wapiti3) — scanners are mocked in tests
+        # sslyze and wapiti3 are not project dependencies; tests mock them
         run: uv sync --extra web --extra reporting --extra llm
 
       - name: Run tests

@@ -54,6 +54,8 @@ uv run python bench/run.py --runs 3
 
 Each target has its own profile: `quick` by default, `ai-security` with `--ai-active --i-have-authorization` for `vuln_ai_app`. `--profile` overrides the profile of every target and keeps each target's extra flags. `--baseline-profile` adds baseline runs for the false-positive reduction rate. A target can also carry its own excluded paths (DVWA: `/logout.php`, `/setup.php`), which the runner adds to the default exclusions in the generated `--config`. Juice Shop's nikto run is bounded to 40 s (`-maxtime 40s`, set in the generated `--config` only) because the target aborts under nikto's full request volume.
 
+Wapiti and sslyze are not in the production image. To scan with them, build the `bench` target (`docker build --target bench --load -t haris-prod:bench .`) and run through `bench/in_image.py` (`bench/README.md`); a missing Wapiti ends `failed`.
+
 `garak` and `promptfoo` may be absent on the runner. The `vuln_ai_app` run then ends `incomplete` (exit code 2); the runner accepts a non-zero `haris` exit when exactly one JSON report exists.
 
 The runner starts the targets, waits for health, runs `haris` for each run, stores artifacts under a new `bench/results/<date>-<time>/` per invocation, removes each target (and its database) after its runs, and tears the project down at the end. It scans only the `127.0.0.1` targets from the compose file. WebGoat takes about a minute to start.

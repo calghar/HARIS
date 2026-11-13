@@ -80,4 +80,6 @@ extra_args_allowlist:
   "--max-attack-time": 1
   "--max-files-per-dir": 1
   "--verify-ssl": 1
+  "-s": 1
+  "--start": 1
   "--drop-set-cookie": 0

@@ -61,6 +61,7 @@ _LIST_KEYS = (
     "plugins",
     "probes",
     "script_categories",
+    "seed_paths",
     "severity",
     "system_prompt_markers",
     "tags",

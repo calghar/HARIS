@@ -1,0 +1,8 @@
+# Bench-only Wapiti start paths per target; the product default stays `seed_paths: []`.
+# Lesson endpoints come from ground_truth/webgoat.yaml; the paths include the /WebGoat base.
+webgoat:
+  wapiti:
+    seed_paths:
+      - /WebGoat/SqlInjection/assignment5a?account=a
+      - /WebGoat/xxe/simple
+      - /WebGoat/CrossSiteScripting/attack5a?field1=a

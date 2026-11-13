@@ -139,6 +139,18 @@ class TestBoundArgv:
         assert argvs == []
         assert result.errors == [f"{tool} was not started: no egress proxy"]
 
+    @pytest.mark.parametrize("flag", ["-s", "--start"])
+    def test_wapiti_seed_flag_reaches_argv_and_keeps_the_proxy(self, flag: str) -> None:
+        seed = f"{HTTPS_URL}/WebGoat/lesson"
+        scanner = scanner_for("wapiti", extra_args=[flag, seed])
+
+        result, argvs = run_scan(scanner, HTTPS_URL, bound_context())
+
+        assert result.errors == []
+        [argv] = argvs
+        assert after(argv, flag) == seed
+        assert after(argv, "--proxy") == PROXY
+
 
 @pytest.fixture(scope="module")
 def stub_bin(tmp_path_factory: pytest.TempPathFactory) -> Path:

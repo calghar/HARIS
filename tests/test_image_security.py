@@ -7,9 +7,8 @@ ROOT = Path(__file__).resolve().parents[1]
 
 class TestImageScanFixes:
     def test_runtime_stage_upgrades_zlib_and_removes_base_pip(self) -> None:
-        parts = (ROOT / "Dockerfile").read_text().split("FROM python:3.13-slim@")
-        assert len(parts) == 3
-        runtime = parts[2]
+        text = (ROOT / "Dockerfile").read_text()
+        runtime = text.split(" AS runtime\n", 1)[1].split("FROM runtime AS ", 1)[0]
         assert "zlib1g=1:1.3.dfsg+really1.3.1-1+deb13u1" in runtime
         assert "/usr/local/lib/python3.13/site-packages/pip" in runtime
 

@@ -218,7 +218,10 @@ def login_dvwa(base_url: str, transport: httpx.BaseTransport | None = None) -> s
         done = client.post(DVWA_LOGIN_PATH, data=form)
         done.raise_for_status()
         if done.url.path == DVWA_LOGIN_PATH:
-            raise RuntimeError(f"{base_url}: DVWA login was rejected")
+            raise RuntimeError(
+                f"{base_url}: DVWA login was rejected "
+                f"(HTTP {done.status_code}, {done.url.path})"
+            )
         form = dvwa_form(
             client,
             DVWA_SECURITY_PATH,
@@ -362,8 +365,6 @@ def scan_target(name: str, args: argparse.Namespace, results: Path) -> None:
     TARGET_EXCLUDED_PATHS[:] = target.excluded_paths
     TARGET_SCANNER_ARGS.clear()
     TARGET_SCANNER_ARGS.update(target.scanner_extra_args)
-    if name in PREPARE:
-        PREPARE[name](base_url)
     scan_url = base_url + target.scan_path
     profiles = {
         "runs": resolve_profile(target, args.profile),
@@ -373,6 +374,9 @@ def scan_target(name: str, args: argparse.Namespace, results: Path) -> None:
         if not profile:
             continue
         for run in range(1, args.runs + 1):
+            # A scan changes target state, so every run starts from a reset.
+            if name in PREPARE:
+                PREPARE[name](base_url)
             session_cookie = LOGIN[name](base_url) if name in LOGIN else None
             run_haris(
                 shlex.split(args.haris),

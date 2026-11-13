@@ -39,14 +39,29 @@ ENV UV_COMPILE_BYTECODE=1 \
     UV_LINK_MODE=copy \
     UV_PYTHON_DOWNLOADS=never
 
-# scanners extra conflicts with web and pins known-vulnerable libraries, so it stays out.
+# Wapiti and sslyze pin conflicting, known-vulnerable libraries; they live only in the bench stage.
 COPY pyproject.toml uv.lock ./
 RUN uv sync --frozen --no-dev --no-install-project --extra web --extra reporting --extra llm
 COPY README.md ./
 COPY src ./src
 RUN uv sync --frozen --no-dev --no-editable --extra web --extra reporting --extra llm
 
-FROM python:3.13-slim@sha256:e48f59cdba69a3cbd9ed2cf0f348d90d45a8d350d98134cf1070bc106ee9ed90
+FROM python:3.13-slim@sha256:e48f59cdba69a3cbd9ed2cf0f348d90d45a8d350d98134cf1070bc106ee9ed90 AS tools
+
+COPY --from=ghcr.io/astral-sh/uv:0.9.13@sha256:f07d1bf7b1fb4b983eed2b31320e25a2a76625bdf83d5ff0208fe105d4d8d2f5 /uv /uvx /bin/
+
+ENV UV_COMPILE_BYTECODE=1 \
+    UV_LINK_MODE=copy \
+    UV_PYTHON_DOWNLOADS=never
+
+COPY docker/tools /tmp/tools
+RUN set -eu; \
+    for tool in wapiti sslyze; do \
+      uv venv "/opt/tools/$tool"; \
+      uv pip install --python "/opt/tools/$tool/bin/python" --require-hashes -r "/tmp/tools/$tool.txt"; \
+    done
+
+FROM python:3.13-slim@sha256:e48f59cdba69a3cbd9ed2cf0f348d90d45a8d350d98134cf1070bc106ee9ed90 AS runtime
 
 # Pinned base still ships zlib1g +b1; trixie-security has deb13u1.
 # Base-image pip vendors vulnerable msgpack, urllib3 and setuptools; the app uses the venv.
@@ -82,3 +97,13 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
     CMD curl -fsS http://127.0.0.1:8000/health || exit 1
 
 CMD ["uvicorn", "--factory", "haris.web.app:create_app", "--host", "0.0.0.0", "--port", "8000", "--proxy-headers"]
+
+FROM runtime AS bench
+USER root
+COPY --from=tools /opt/tools /opt/tools
+RUN ln -s /opt/tools/wapiti/bin/wapiti /usr/local/bin/wapiti \
+    && ln -s /opt/tools/sslyze/bin/sslyze /usr/local/bin/sslyze
+USER 10001
+
+# Last stage, so a build without --target yields production.
+FROM runtime AS prod

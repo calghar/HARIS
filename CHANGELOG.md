@@ -16,8 +16,11 @@
 - Added an LLM template selector for nuclei: one call per scan adds tags from `nuclei -tgl` to the technology-map tags, limited to `scanners.nuclei.max_selected_tags` (default 10) tags carried by `min_tag_templates` to `max_tag_templates` templates (default 3 to 300) and not in `deny_tags` (`dos`, `intrusive`, `fuzz`)
 - Added a `template selection:` note to the nuclei scanner result that names the tags the selector added, or the reason the scan used the technology map alone
 - Added the nuclei option `retries` (default 2) and `phase_durations_s` in the nuclei scanner metadata
+- Added a `bench` Docker target with Wapiti 3.3.2 and sslyze 6.3.1 in hashed, isolated venvs under `/opt/tools`; the default build stays production and has neither tool
+- Added `-s` and `--start` to the Wapiti `extra_args` allowlist for seeded crawls
 - Added glob matching for `vuln_class` in bench ground-truth entries, and the Juice Shop entry `juice-ftp-robots-nikto`
 - Added DEBUG logs of the LLM verdict stage: exchange text lengths, the raw model reply and the validation error; the bench passes `--log-level DEBUG`
+- Added the Wapiti option `seed_paths`, target-relative paths passed as `--start`, and `bench/wapiti_seeds.yaml` with the WebGoat lesson endpoints for the bench
 
 ### Changed
 
@@ -45,11 +48,13 @@
 - Changed the nuclei baseline group to scan the base URL only (`-u`), and the URL list to keep only URLs with the base URL's scheme, host and port
 - Changed the default nuclei `phase2_timeout_s` from 300 to 900
 - Changed the external-tool command log to mask the whole value after `-H` or `-header`
+- Changed `bench/README.md`: a missing Wapiti now ends `failed`, not `skipped`
 
 ### Fixed
 
 - Fixed redirect catch-all hosts producing path findings: a `3xx` whose `Location` equals that of a host control is no longer reported, and a replayed external finding of that path becomes `refuted`
 - Fixed replay soft-404 controls waiting for the 30 s scan timeout: they now use `verify.request_timeout_s`
+- Fixed the DVWA bench login failing on run 2: the database is now reset before every run, not once per target
 - Fixed a failed scan losing the notes of skipped verification stages: they now stay in the stored `errors`
 - Fixed the sandbox image build leaving the image in the buildx cache under a `docker-container` builder, as on a Podman machine: `docs/agent_safety.md` and the integration test now build with `--load`, and the test asserts the effective capability set because Podman lists dropped capabilities one by one
 - Fixed the runtime image keeping Debian `zlib1g` `1:1.3.dfsg+really1.3.1-1+b1`: it now installs `1:1.3.dfsg+really1.3.1-1+deb13u1`
@@ -170,7 +175,7 @@
 - `haris.__version__` read from package metadata; the web app reports it
 - Added `itsdangerous` to the `web` extra (required by `SessionMiddleware`)
 - Upgraded all dependencies to latest stable (starlette 1.10, fastapi 0.162, openai 3.46, anthropic 2.6, cryptography 50, authlib 1.9.5, urllib3 2.8, mypy 2.4, ruff 0.17); `pip-audit` reports no vulnerabilities and dependency floors match the patched versions
-- `scanners` extra (sslyze, wapiti3) removed from `all` and declared conflicting with `web`; install both as isolated tools (`pipx`), as the Docker image now does under `/opt/tools`
+- `scanners` extra (sslyze, wapiti3) removed from `all` and declared conflicting with `web`; install both as isolated tools (`pipx`); the production Docker image has neither, and the `bench` target installs both under `/opt/tools`
 - Removed the redundant `llm-openai`/`llm-anthropic` extras (both SDKs are core dependencies); dev tools moved from the `dev` extra to the `dev` dependency group (`uv sync` installs it)
 - Documented minimum external tool versions in the README
 - Dependabot uses the `uv` ecosystem and groups minor/patch updates

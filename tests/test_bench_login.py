@@ -218,6 +218,26 @@ class TestSessionHandover:
             (BASE_URL, None),
         ]
 
+    def test_dvwa_database_is_reset_before_every_run_not_once_per_target(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        events: list[str] = []
+
+        monkeypatch.setattr(runner, "compose", lambda *a: None)
+        monkeypatch.setattr(runner, "resolve_base_url", lambda t: BASE_URL)
+        monkeypatch.setattr(runner, "wait_healthy", lambda *a: None)
+        monkeypatch.setattr(runner, "score", lambda *a: None)
+        monkeypatch.setattr(runner, "run_haris", lambda *a: events.append("scan"))
+        monkeypatch.setitem(runner.PREPARE, "dvwa", lambda url: events.append("reset"))
+
+        def login(url: str) -> str:
+            events.append("login")
+            return "cookie"
+
+        monkeypatch.setitem(runner.LOGIN, "dvwa", login)
+        runner.scan_target("dvwa", runner.parse_args(["--runs", "2"]), tmp_path)
+        assert events == ["reset", "login", "scan"] * 2
+
     def test_dvwa_and_webgoat_are_the_logged_in_targets(self) -> None:
         assert set(runner.LOGIN) == {"dvwa", "webgoat"}
 

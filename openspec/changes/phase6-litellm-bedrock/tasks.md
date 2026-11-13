@@ -39,6 +39,7 @@ Ids in brackets map to `modernise-0-7/tasks.md` section 4; tick both files when 
 - [ ] 4.6 Live-tested Wapiti `information_disclosure` on DVWA in the sandbox; dropped the exclusion only on a clean run [4.5]
 - [x] 4.7 Passed `ScanContext.tool_rate_rps` to nuclei `-rl`, nmap `--max-rate` and nikto `-Pause` per the existing "External tool pre-flight and rate split" requirement of `modernise-0-7`; replaced the pending entry of `Rate split` in `tests/bdd/maps/scoped-http.preserved.yaml` with its tests; regression test: existing `test_engine_pipeline.py` rate tests pass with nmap expectations corrected to the scenario
 - [x] 4.8 Nuclei template selection by technology: tag group before baseline group, deterministic map union LLM tags, allowlist from `nuclei -tgl`, no fingerprint pass, report note per run; regression test: existing nuclei tests pass with phase 1 removed
+- [x] 4.9 Bench image stage with Wapiti 3.3.2 and sslyze 6.3.1 in hashed isolated venvs, production image unchanged; `-s` and `--start` allowed for the Wapiti crawl seed
 - [x] 4.10 Nuclei `retries` option, one rate flag, argv redaction that keeps the flags after a cookie header, per-phase durations in the scanner metadata; regression test: existing rate-flag tests pass
 
 ## 5. Classification

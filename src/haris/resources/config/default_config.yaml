@@ -77,6 +77,8 @@ scanners:
       scope: folder
       modules: all
       max_links: 500
+      # Target-relative paths passed as `--start`; for pages no crawled link reaches.
+      seed_paths: []
 
   - name: nikto
     enabled: true

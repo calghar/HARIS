@@ -14,6 +14,7 @@ from ..data.scanner_config import (
 from ..models import Confidence, Finding, ScannerResult, Severity, Target
 from .base import ExternalToolScanner
 from .wapiti_exclude import wapiti_exclude_urls
+from .wapiti_seed import wapiti_seed_urls
 from .wapiti_session import session_report
 
 logger = logging.getLogger(__name__)
@@ -94,6 +95,7 @@ class WapitiScanner(ExternalToolScanner):
         self.options.setdefault("modules", "all")
         self.options.setdefault("max_links", 500)
         self.options.setdefault("extra_args", [])
+        self.options.setdefault("seed_paths", [])
 
     @handle_scanner_errors
     def scan(self, target: Target, context: Any = None) -> ScannerResult:
@@ -261,6 +263,10 @@ class WapitiScanner(ExternalToolScanner):
 
         for url in wapiti_exclude_urls(target.base_url, target.scope.excluded_paths):
             cmd.extend(["--exclude", url])
+
+        # Wapiti follows links only; seeds reach pages linked by scripts alone.
+        for url in wapiti_seed_urls(target.base_url, self.options["seed_paths"]):
+            cmd.extend(["--start", url])
 
         for name, value in target.auth.as_headers().items():
             cmd.extend(["--header", f"{name}: {value}"])

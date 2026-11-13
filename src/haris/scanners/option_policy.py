@@ -61,6 +61,7 @@ _OPTION_KEYS: dict[str, frozenset[str]] = {
             "modules",
             "max_links",
             "extra_args",
+            "seed_paths",
             "external_endpoint",
             "internal_endpoint",
         }
