@@ -28,6 +28,7 @@ Ids in brackets map to `modernise-0-7/tasks.md` section 4; tick both files when 
 - [x] 3.3 Oracles and `vuln_classes.yaml` keys for `path_traversal`, `open_redirect` and `command_injection` (delay-only payloads); `ssrf` and `xxe` stay without an oracle; regression test: the existing oracle matrix passes [4.3]
 - [ ] 3.4 Ran DVWA with replay on; recorded `verified_precision` and the count of `replay_verified` findings (at least 0.95 over at least 10); iterated on oracles, not on the target list, until it holds [4.3]
 - [ ] 3.5 Nikto `interesting_path` class and `info` severity (checked against the nikto severity map), and the two named noise items; regression test: existing nikto parser tests pass [4.9]
+- [x] 3.6 Wapiti anomaly records report severity `info` instead of `low` and stay eligible for the LLM verdict stage; regression test: `tests/test_wapiti_session.py` asserts the severity
 
 ## 4. Scanners and external tools
 

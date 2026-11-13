@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from haris.models import Confidence, Finding, Target
+from haris.models import Confidence, Finding, Severity, Target
 from haris.scanners.base import TIMEOUT_RETURNCODE, ToolRun
 from haris.scanners.wapiti_scanner import SCAN_KILL_GRACE_SECONDS, WapitiScanner
 from haris.scanners.wapiti_session import session_report
@@ -63,6 +63,11 @@ class TestSessionReport:
         )
         assert all(
             finding.confidence == Confidence.TENTATIVE
+            for finding in findings
+            if finding.title.startswith("Anomaly (")
+        )
+        assert all(
+            finding.severity == Severity.INFO
             for finding in findings
             if finding.title.startswith("Anomaly (")
         )

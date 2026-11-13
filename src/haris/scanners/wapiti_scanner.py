@@ -188,7 +188,7 @@ class WapitiScanner(ExternalToolScanner):
                     Finding(
                         title=f"Anomaly ({category}): {item.get('info', '')[:80]}",
                         description=item.get("info", ""),
-                        severity=Severity.LOW,
+                        severity=Severity.INFO,
                         confidence=Confidence.TENTATIVE,
                         url=item.get("path", ""),
                         method=item.get("method", "GET"),
