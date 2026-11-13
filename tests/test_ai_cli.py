@@ -22,7 +22,7 @@ def seen(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> dict[str, Any]:
         return [Probe("nuclei")]
 
     monkeypatch.setattr(ScanRunner, "_build_scanners", build)
-    monkeypatch.setattr("haris.cli._save_session_to_db", lambda *_a, **_k: None)
+    monkeypatch.setattr("haris.cli_scan._save_session_to_db", lambda *_a, **_k: None)
     monkeypatch.chdir(tmp_path)
     return record
 

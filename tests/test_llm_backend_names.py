@@ -29,7 +29,7 @@ def no_network(monkeypatch: pytest.MonkeyPatch) -> None:
 
 @pytest.fixture
 def cli(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
-    monkeypatch.setattr("haris.cli._save_session_to_db", lambda *_a, **_k: None)
+    monkeypatch.setattr("haris.cli_scan._save_session_to_db", lambda *_a, **_k: None)
     monkeypatch.setattr(ScanRunner, "_build_scanners", lambda _self: [Probe("nuclei")])
     monkeypatch.chdir(tmp_path)
 

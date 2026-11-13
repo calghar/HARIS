@@ -134,7 +134,7 @@ def test_entry_without_reason_exits_3_before_any_request(tmp_path, monkeypatch, 
     def no_scan(*_args, **_kwargs):
         raise AssertionError("a scan must not start")
 
-    monkeypatch.setattr("haris.cli.ScanRunner", no_scan)
+    monkeypatch.setattr("haris.cli_scan.ScanRunner", no_scan)
     code = main(["--url", "https://example.com", "--yes", "--ignore-file", str(path)])
     assert code == 3
     assert "reason" in capsys.readouterr().err

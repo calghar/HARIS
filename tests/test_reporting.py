@@ -4,7 +4,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from typing import cast
 
-from haris.cli import _write_reports
+from haris.cli_scan import _write_reports
 from haris.diff import LoadedReport
 from haris.models import Confidence, Finding, ScanSession, Severity, Target
 from haris.reporting.json_report import JSONReporter

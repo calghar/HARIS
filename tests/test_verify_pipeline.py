@@ -1,6 +1,6 @@
 import pytest
 
-from haris.cli import build_parser
+from haris.cli_parser import build_parser
 from haris.core.engine import ScanEngine
 from haris.core.exit_codes import EXIT_USAGE
 from haris.core.runner import ScanRunner

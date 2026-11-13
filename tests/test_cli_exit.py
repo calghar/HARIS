@@ -74,7 +74,7 @@ def scan(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
     """Run the CLI with the given probes in place of the registered scanners."""
     saved: list[ScanSession] = []
     monkeypatch.setattr(
-        "haris.cli._save_session_to_db", lambda s, **_k: saved.append(s)
+        "haris.cli_scan._save_session_to_db", lambda s, **_k: saved.append(s)
     )
     monkeypatch.chdir(tmp_path)
 
