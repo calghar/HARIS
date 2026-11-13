@@ -2,7 +2,6 @@ import json
 from typing import Any
 from urllib.parse import quote
 
-from ..core.decorators import register_check
 from ..models import Finding, Severity, Target
 from ..net import ScopedClient, ScopedResponse
 from .findings import make_finding
@@ -30,7 +29,6 @@ def _schema_types(resp: ScopedResponse | None) -> list[str] | None:
     return [str(t.get("name")) for t in schema["types"] if isinstance(t, dict)]
 
 
-@register_check
 class GraphqlIntrospectionScanner(ProbeScanner):
     """GraphQL endpoints that answer a schema introspection query."""
 

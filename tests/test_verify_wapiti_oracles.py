@@ -11,7 +11,7 @@ import pytest
 from haris.core.vuln_class import get_registry
 from haris.models import VerificationMethod, VerificationOracle, VerificationTier
 from haris.verify import oracles
-from haris.verify.oracles import ORACLES
+from haris.verify.registry import ORACLES
 from haris.verify.replay import replay
 from haris.verify.settings import load_verify_settings
 from haris.verify.timing import timing_positive

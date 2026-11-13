@@ -23,7 +23,7 @@ from ..ai_security.adapters import (
 from ..ai_security.discovery import Endpoint
 from ..ai_security.options import active_enabled
 from ..ai_security.probes import load_probes
-from ..core.decorators import handle_scanner_errors, register_scanner
+from ..core.decorators import handle_scanner_errors
 from ..models import Finding, ScanContext, ScannerResult, Target
 from .base import ExternalToolScanner, ToolRun
 
@@ -64,7 +64,6 @@ def _plugin_id(entry: dict[str, Any]) -> str:
     return ""
 
 
-@register_scanner
 class PromptfooScanner(ExternalToolScanner):
     """Runs promptfoo red-team plugins (injection, leakage) against a chat route.
 

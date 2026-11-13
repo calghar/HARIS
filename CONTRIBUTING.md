@@ -31,16 +31,15 @@ All tests must pass before submitting a PR. Tests use pytest with mocked externa
 
 1. Create `src/haris/scanners/{name}_scanner.py` subclassing `BaseScanner`
 2. Implement `scan()` and `parse_results()`
-3. Decorate with `@register_scanner`
-4. Register in `src/haris/scanners/__init__.py`
-5. Add config in `src/haris/resources/config/default_config.yaml`
-6. Add tests in `tests/test_{name}_scanner.py`
+3. Add it to `SCANNER_REGISTRY` in `src/haris/scanners/__init__.py`
+4. Add config in `src/haris/resources/config/default_config.yaml`
+5. Add tests in `tests/test_{name}_scanner.py`
 
 See `src/haris/scanners/nuclei_scanner.py` for a complete example.
 
 ## Adding a Check
 
-Same pattern as scanners, but in `src/haris/checks/` with `@register_check`.
+Same pattern as scanners, but in `src/haris/checks/` and added to `CHECK_REGISTRY` in `src/haris/checks/__init__.py`.
 
 ## Adding an LLM Prompt
 

@@ -1,5 +1,6 @@
 """Scanner adapters for external security tools."""
 
+from ..core.scanner import BaseScanner
 from .garak_scanner import GarakScanner
 from .nikto_scanner import NiktoScanner
 from .nmap_scanner import NmapScanner
@@ -9,7 +10,7 @@ from .sslyze_scanner import SSLyzeScanner
 from .wapiti_scanner import WapitiScanner
 from .zap_scanner import ZapScanner
 
-SCANNER_REGISTRY: dict[str, type] = {
+SCANNER_REGISTRY: dict[str, type[BaseScanner]] = {
     "wapiti": WapitiScanner,
     "sslyze": SSLyzeScanner,
     "nmap": NmapScanner,

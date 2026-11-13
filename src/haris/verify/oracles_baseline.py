@@ -11,7 +11,7 @@ from ..checks.baseline import (
 )
 from ..models import Finding, VerificationOracle
 from ..net import ScopedResponse
-from .oracles import OracleResult, Outcome, pair_result, register
+from .oracles import OracleResult, Outcome, pair_result
 from .probe import Prober
 from .settings import VerifySettings
 
@@ -45,7 +45,6 @@ def single(
     )
 
 
-@register("soft404", lambda _s: SOFT404_COST)
 def soft404(finding: Finding, prober: Prober, settings: VerifySettings) -> OracleResult:
     probe, verdict = judge(finding, prober)
     if matched_control(verdict):
@@ -74,7 +73,6 @@ def control_url(base_url: str, url: str) -> str:
     return urlunsplit(parts._replace(path=path, query="", fragment=""))
 
 
-@register("content_validator", lambda _s: VALIDATOR_COST)
 def content_validator(
     finding: Finding, prober: Prober, settings: VerifySettings
 ) -> OracleResult:

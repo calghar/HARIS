@@ -1,7 +1,6 @@
 from typing import Any
 from urllib.parse import urljoin
 
-from ..core.decorators import register_check
 from ..core.scanner import BaseScanner
 from ..models import Finding, ScanContext, ScannerResult, Severity, Target
 from ..net import NetworkError, ScopedClient, ScopedResponse
@@ -45,7 +44,6 @@ def _first_hop(resp: ScopedResponse, request_url: str) -> str:
     return ""
 
 
-@register_check
 class MiscCheckScanner(BaseScanner):
     """CORS, HTTP-to-HTTPS redirect and exposed sensitive paths."""
 

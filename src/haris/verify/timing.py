@@ -2,7 +2,7 @@ import statistics
 
 from ..models import Finding
 from ..net import ScopedResponse
-from .oracles import OracleResult, Outcome, register
+from .oracles import OracleResult, Outcome
 from .probe import Prober, random_token
 from .settings import TimingSettings, VerifySettings
 
@@ -35,7 +35,7 @@ def _result(prober: Prober, outcome: Outcome, pairs: list[Pair]) -> OracleResult
     )
 
 
-def _cost(cfg: TimingSettings, payloads: list[str]) -> int:
+def request_cost(cfg: TimingSettings, payloads: list[str]) -> int:
     return 2 * (len(payloads) - 1) + 2 * cfg.pairs
 
 
@@ -62,12 +62,10 @@ def _run(
     return _result(prober, "inconclusive", first_series)
 
 
-@register("timing", cost=lambda s: _cost(s.timing, s.timing.payloads))
 def timing(finding: Finding, prober: Prober, settings: VerifySettings) -> OracleResult:
     return _run(finding, prober, settings.timing, settings.timing.payloads)
 
 
-@register("timing_cmd", cost=lambda s: _cost(s.timing, s.timing.cmd_payloads))
 def timing_cmd(
     finding: Finding, prober: Prober, settings: VerifySettings
 ) -> OracleResult:

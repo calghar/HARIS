@@ -1,4 +1,3 @@
-from ..core.decorators import register_check
 from ..models import Finding, Severity, Target
 from ..net import ScopedClient, ScopedResponse
 from .cookie_policy import NAME_KEY, is_session_cookie, parse_set_cookie
@@ -23,7 +22,6 @@ def _sets_session_cookie(resp: ScopedResponse) -> bool:
     return False
 
 
-@register_check
 class CacheControlScanner(ProbeScanner):
     """Sensitive HTML responses that browsers or proxies may store."""
 

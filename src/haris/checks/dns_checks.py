@@ -2,7 +2,6 @@ import ipaddress
 import logging
 from typing import Any, Protocol
 
-from ..core.decorators import register_check
 from ..core.scanner import BaseScanner
 from ..models import Finding, ScanContext, ScannerResult, Severity, Target
 from .dns_wire import CAA, DNS_PORT, TXT, DnsError, UdpResolver, system_nameservers
@@ -33,7 +32,6 @@ def is_dns_name(host: str) -> bool:
     return False
 
 
-@register_check
 class DnsRecordScanner(BaseScanner):
     """CAA, SPF and DMARC records of the target's domain (read-only DNS queries)."""
 

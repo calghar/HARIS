@@ -21,12 +21,7 @@ from ..models import (
     Target,
 )
 from .correlator import FindingCorrelator
-from .decorators import (
-    handle_scanner_errors,
-    register_check,
-    register_scanner,
-    timed,
-)
+from .decorators import handle_scanner_errors, timed
 from .engine import ScanEngine
 from .owasp import all_categories, map_cwe_to_owasp, map_to_owasp
 from .profiles import get_profile, list_profiles
@@ -65,7 +60,5 @@ __all__ = [
     "list_profiles",
     "map_cwe_to_owasp",
     "map_to_owasp",
-    "register_check",
-    "register_scanner",
     "timed",
 ]

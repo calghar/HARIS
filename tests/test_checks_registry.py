@@ -1,4 +1,7 @@
+import importlib
+import inspect
 import pathlib
+import pkgutil
 import re
 
 import pytest
@@ -6,7 +9,9 @@ import yaml
 
 import haris.checks as checks
 from haris.config.paths import resolve_config_file
-from haris.core.decorators import check_registry
+from haris.core.decorators import all_registered, check_registry
+from haris.core.scanner import BaseScanner
+from haris.scanners import SCANNER_REGISTRY
 
 NEW_CHECKS = {
     "sri_checks",
@@ -41,3 +46,33 @@ def test_checks_package_does_not_import_a_raw_http_library():
         p.name for p in CHECKS_DIR.glob("*.py") if pattern.search(p.read_text())
     ]
     assert offenders == []
+
+
+def test_every_concrete_check_class_is_in_check_registry():
+    defined = {}
+    for info in pkgutil.iter_modules(checks.__path__):
+        module = importlib.import_module(f"{checks.__name__}.{info.name}")
+        for _, cls in inspect.getmembers(module, inspect.isclass):
+            if (
+                issubclass(cls, BaseScanner)
+                and cls.__module__ == module.__name__
+                and not inspect.isabstract(cls)
+                and "name" in vars(cls)
+            ):
+                defined[cls.name] = cls
+    assert defined, "no check classes found"
+    assert defined == checks.CHECK_REGISTRY
+
+
+@pytest.mark.parametrize(
+    "registry", [SCANNER_REGISTRY, checks.CHECK_REGISTRY], ids=["scanners", "checks"]
+)
+def test_registry_keys_are_the_class_names(registry):
+    assert {key: cls.name for key, cls in registry.items()} == {
+        key: key for key in registry
+    }
+
+
+def test_registry_readers_cover_the_maps_and_ai_security():
+    assert set(check_registry()) == {*checks.CHECK_REGISTRY, "ai_security"}
+    assert set(all_registered()) == {*SCANNER_REGISTRY, *check_registry()}

@@ -5,7 +5,7 @@ import time
 from pathlib import Path
 from typing import Any
 
-from ..core.decorators import handle_scanner_errors, register_scanner
+from ..core.decorators import handle_scanner_errors
 from ..data.scanner_config import (
     check_nuclei_phase2_timeout,
     get_nuclei_deny_tags,
@@ -44,7 +44,6 @@ EXCLUDED_SEVERITY = "info"
 EXPLICIT_OPTIONS = "explicit template options"
 
 
-@register_scanner
 class NucleiScanner(NucleiResults):
     """Adapter for the Nuclei template-based vulnerability scanner (3.x).
 

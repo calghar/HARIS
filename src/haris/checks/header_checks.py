@@ -2,7 +2,6 @@ import logging
 import re
 from typing import Any
 
-from ..core.decorators import register_check
 from ..core.scanner import BaseScanner
 from ..models import Finding, ScanContext, ScannerResult, Severity, Target
 from ..net import NetworkError, ScopedResponse
@@ -82,7 +81,6 @@ HEADER_CHECKS: list[dict[str, Any]] = [
 ]
 
 
-@register_check
 class SecurityHeaderScanner(BaseScanner):
     """Missing and weak HTTP security headers on the target's front page."""
 

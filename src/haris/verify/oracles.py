@@ -37,21 +37,6 @@ class OracleSpec(NamedTuple):
     cost: Callable[[VerifySettings], int]
 
 
-ORACLES: dict[str, OracleSpec] = {}
-
-
-def register(
-    name: str, cost: Callable[[VerifySettings], int] = lambda _s: 2
-) -> Callable[[OracleFn], OracleFn]:
-    """Register an oracle under its ``verification.oracle`` name and request cost."""
-
-    def add(run: OracleFn) -> OracleFn:
-        ORACLES[name] = OracleSpec(run, cost)
-        return run
-
-    return add
-
-
 def pair_result(
     prober: Prober,
     outcome: Outcome,
@@ -74,7 +59,6 @@ def is_html(response: ScopedResponse) -> bool:
     return media in HTML_TYPES
 
 
-@register("reflection")
 def reflection(
     finding: Finding, prober: Prober, settings: VerifySettings
 ) -> OracleResult:
@@ -89,7 +73,6 @@ def reflection(
     )
 
 
-@register("error_signature")
 def error_signature(
     finding: Finding, prober: Prober, settings: VerifySettings
 ) -> OracleResult:
@@ -106,7 +89,6 @@ def error_signature(
     )
 
 
-@register("path_traversal", cost=lambda s: 2 * len(s.traversal_payloads))
 def path_traversal(
     finding: Finding, prober: Prober, settings: VerifySettings
 ) -> OracleResult:
@@ -125,7 +107,6 @@ def redirect_host(response: ScopedResponse) -> str:
     return urlsplit(response.headers.get("location", "")).hostname or ""
 
 
-@register("open_redirect")
 def open_redirect(
     finding: Finding, prober: Prober, settings: VerifySettings
 ) -> OracleResult:
@@ -157,7 +138,6 @@ def header_state(
     return "invalid" if pattern and not re.search(pattern, value) else "valid"
 
 
-@register("header_presence")
 def header_presence(
     finding: Finding, prober: Prober, settings: VerifySettings
 ) -> OracleResult:
@@ -173,7 +153,6 @@ def header_presence(
     return pair_result(prober, outcome, first, second)
 
 
-@register("canary")
 def canary(finding: Finding, prober: Prober, settings: VerifySettings) -> OracleResult:
     token = secrets.token_hex(8)
     instruction = settings.canary_instruction.format(token=token)

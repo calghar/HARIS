@@ -1,4 +1,3 @@
-from ..core.decorators import register_check
 from ..models import Finding, Severity, Target
 from ..net import ScopedClient
 from .findings import make_finding
@@ -9,7 +8,6 @@ RISKY_METHODS = ("PUT", "DELETE", "PATCH", "CONNECT")
 TRACE_MARKER = "haris-trace-probe"
 
 
-@register_check
 class HttpMethodScanner(ProbeScanner):
     """Risky verbs advertised by OPTIONS and a live TRACE echo."""
 

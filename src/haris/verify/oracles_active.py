@@ -12,13 +12,12 @@ from .oracles import (
     OracleResult,
     is_html,
     pair_result,
-    register,
 )
 from .probe import CURL_MULTIPART_FLAGS, Prober, random_token
 from .settings import VerifySettings
 
 # true, false and the control
-_BOOLEAN_PER_ROUND = 3
+BOOLEAN_PER_ROUND = 3
 
 
 def stored_multipart(finding: Finding) -> bool:
@@ -94,7 +93,6 @@ def _send_file(prober: Prober, finding: Finding, marker: str) -> ScopedResponse:
     return prober.request(finding.method.upper(), url, body=body, headers=headers)
 
 
-@register("file_marker", lambda s: s.file_marker_cost)
 def file_marker(
     finding: Finding, prober: Prober, settings: VerifySettings
 ) -> OracleResult:
@@ -121,7 +119,6 @@ def _php_payload(settings: VerifySettings) -> tuple[str, str]:
     return marker, payload
 
 
-@register("code_eval", lambda s: s.code_eval_cost)
 def code_eval(
     finding: Finding, prober: Prober, settings: VerifySettings
 ) -> OracleResult:
@@ -166,7 +163,6 @@ def _boolean_round(
     return same and differs
 
 
-@register("boolean_sqli", lambda s: s.boolean_repeats * _BOOLEAN_PER_ROUND)
 def boolean_sqli(
     finding: Finding, prober: Prober, settings: VerifySettings
 ) -> OracleResult:

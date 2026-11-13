@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import urlsplit
 
-from ..core.decorators import handle_scanner_errors, register_scanner
+from ..core.decorators import handle_scanner_errors
 from ..data.scanner_config import (
     get_wapiti_category_tags,
     get_wapiti_excluded_modules,
@@ -73,7 +73,6 @@ def _timeout_message(timeout: int, findings: int, from_session: bool) -> str:
     return _TIMEOUT_EMPTY % timeout
 
 
-@register_scanner
 class WapitiScanner(ExternalToolScanner):
     """Adapter for Wapiti 3.3.2.
 

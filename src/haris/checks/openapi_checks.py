@@ -1,7 +1,6 @@
 import json
 from typing import Any
 
-from ..core.decorators import register_check
 from ..models import Finding, Severity, Target
 from ..net import ScopedClient
 from .findings import make_finding
@@ -27,7 +26,6 @@ def _operation_count(hit: PathHit) -> int:
         return 0
 
 
-@register_check
 class OpenApiScanner(ProbeScanner):
     """OpenAPI and Swagger documents served without authentication."""
 

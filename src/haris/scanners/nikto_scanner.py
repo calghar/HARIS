@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
 
-from ..core.decorators import handle_scanner_errors, register_scanner
+from ..core.decorators import handle_scanner_errors
 from ..data.scanner_config import (
     get_nikto_keyword_rules,
     get_nikto_osvdb_critical,
@@ -95,7 +95,6 @@ def _classify_finding(msg: str, osvdb_id: str) -> tuple[list[str], Severity]:
     return ["security_misconfiguration"], Severity.INFO
 
 
-@register_scanner
 class NiktoScanner(ExternalToolScanner):
     """Adapter for the Nikto web server scanner (2.6 JSON report).
 

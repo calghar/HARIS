@@ -13,10 +13,10 @@ from ..models import (
     VerificationTier,
 )
 from ..net import NetworkError, RequestBudgetExceeded, ScopedClient, TransportError
-from . import oracles_baseline, timing  # noqa: F401  # importing registers the oracles
-from .oracles import ORACLES, OracleResult
+from .oracles import OracleResult
 from .oracles_active import chain_active
 from .probe import NotReplayable, Prober, VerifyBudgetExhausted
+from .registry import ORACLES
 from .settings import VerifySettings
 
 logger = logging.getLogger(__name__)

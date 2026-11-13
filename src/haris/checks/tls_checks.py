@@ -3,7 +3,6 @@ import ssl
 import time
 from typing import Any
 
-from ..core.decorators import register_check
 from ..core.scanner import BaseScanner
 from ..models import Finding, ScanContext, ScannerResult, Severity, Target
 from ..net import NetworkError
@@ -24,7 +23,6 @@ SECONDS_PER_DAY = 86_400
 MIN_CIPHER_BITS = 128
 
 
-@register_check
 class TLSCheckScanner(BaseScanner):
     """Certificate expiry, hostname and trust, deprecated protocols and weak ciphers.
 

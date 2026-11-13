@@ -13,9 +13,9 @@ from haris.models import (
     VerificationOracle,
     VerificationTier,
 )
-from haris.verify.oracles import ORACLES
 from haris.verify.oracles_active import boolean_sqli, code_eval, file_marker
 from haris.verify.probe import Prober, VerifyBudgetExhausted
+from haris.verify.registry import ORACLES
 from haris.verify.replay import CAP_REASON, oracle_names, replay
 from haris.verify.settings import load_verify_settings
 from tests.checks_support import html, site

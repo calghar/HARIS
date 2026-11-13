@@ -4,6 +4,7 @@ These checks use Python's standard library and common HTTP libraries
 to test for common security misconfigurations directly.
 """
 
+from ..core.scanner import BaseScanner
 from .cache_checks import CacheControlScanner
 from .cookie_checks import CookieSecurityScanner
 from .dns_checks import DnsRecordScanner
@@ -18,7 +19,24 @@ from .redirect_checks import OpenRedirectScanner
 from .sri_checks import SriScanner
 from .tls_checks import TLSCheckScanner
 
+CHECK_REGISTRY: dict[str, type[BaseScanner]] = {
+    "cache_checks": CacheControlScanner,
+    "cookie_checks": CookieSecurityScanner,
+    "dns_checks": DnsRecordScanner,
+    "graphql_checks": GraphqlIntrospectionScanner,
+    "header_checks": SecurityHeaderScanner,
+    "info_disclosure": InfoDisclosureScanner,
+    "listing_checks": DirectoryListingScanner,
+    "method_checks": HttpMethodScanner,
+    "misc_checks": MiscCheckScanner,
+    "openapi_checks": OpenApiScanner,
+    "redirect_checks": OpenRedirectScanner,
+    "sri_checks": SriScanner,
+    "tls_checks": TLSCheckScanner,
+}
+
 __all__ = [
+    "CHECK_REGISTRY",
     "CacheControlScanner",
     "CookieSecurityScanner",
     "DirectoryListingScanner",

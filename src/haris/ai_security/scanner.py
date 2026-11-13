@@ -2,7 +2,6 @@ import logging
 from typing import Any
 
 from ..checks.probe_scanner import ProbeScanner
-from ..core.decorators import register_check
 from ..models import Finding, ScanContext, ScannerResult, Target
 from ..net import ScopedClient
 from .active import ActiveSettings, run_active
@@ -17,7 +16,6 @@ from .probes import load_probes
 logger = logging.getLogger(__name__)
 
 
-@register_check
 class AiSecurityScanner(ProbeScanner):
     """Finds AI endpoints and MCP servers; sends prompts only when authorised."""
 

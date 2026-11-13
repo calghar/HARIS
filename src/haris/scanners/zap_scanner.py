@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import urlsplit
 
-from ..core.decorators import handle_scanner_errors, register_scanner
+from ..core.decorators import handle_scanner_errors
 from ..data.scanner_config import get_zap_config
 from ..models import Confidence, Finding, ScanContext, ScannerResult, Severity, Target
 from ..net.errors import ScopeViolation, SSRFBlocked, TransportError
@@ -77,7 +77,6 @@ def _text(value: object) -> str:
     return str(value or "").strip()
 
 
-@register_scanner
 class ZapScanner(ExternalToolScanner):
     """Runs ZAP's Automation Framework and reads a traditional-json report.
 

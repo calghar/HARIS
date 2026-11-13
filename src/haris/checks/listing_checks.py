@@ -1,6 +1,5 @@
 import re
 
-from ..core.decorators import register_check
 from ..models import Finding, Severity, Target
 from ..net import ScopedClient
 from .findings import make_finding
@@ -30,7 +29,6 @@ LISTING_MARKER = re.compile(
 SPAN_CHARS = 60
 
 
-@register_check
 class DirectoryListingScanner(ProbeScanner):
     """Directories whose server-generated index page is publicly readable."""
 

@@ -57,6 +57,7 @@
 - Changed `bench/README.md`: a missing Wapiti now ends `failed`, not `skipped`
 - Changed Wapiti anomaly records (a 500 status after payload injection) from severity `low` to `info`; they stay in the report and the LLM verdict stage judges them last when `verify.llm.max_cases` is reached
 - Changed the bench ground truth to ignore the `dns_missing_*` records of the bench host name and the Spring `content-disposition` header on WebGoat `/WebGoat/trace.axd`, and to label DVWA stored XSS on `mtxMessage` as a true positive
+- Changed the built-in checks, scanners and oracles to explicit maps (`CHECK_REGISTRY`, `SCANNER_REGISTRY`, `ORACLES`); `register_check` and `register_scanner` are removed
 
 ### Fixed
 

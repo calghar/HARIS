@@ -1,7 +1,6 @@
 from html.parser import HTMLParser
 from urllib.parse import urljoin, urlsplit
 
-from ..core.decorators import register_check
 from ..models import Finding, Severity, Target
 from ..net import ScopedClient
 from .findings import make_finding
@@ -35,7 +34,6 @@ def _is_third_party(url: str, host: str) -> bool:
     return bool(other) and other != host and not other.endswith(f".{host}")
 
 
-@register_check
 class SriScanner(ProbeScanner):
     """Third-party scripts and stylesheets loaded without Subresource Integrity."""
 

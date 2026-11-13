@@ -19,7 +19,7 @@ from ..ai_security.adapters import (
 from ..ai_security.discovery import Endpoint
 from ..ai_security.options import active_enabled
 from ..ai_security.probes import load_probes
-from ..core.decorators import handle_scanner_errors, register_scanner
+from ..core.decorators import handle_scanner_errors
 from ..models import Finding, ScanContext, ScannerResult, Target
 from .base import ExternalToolScanner
 
@@ -46,7 +46,6 @@ def _eval_entries(raw: str) -> list[dict[str, Any]]:
     return entries
 
 
-@register_scanner
 class GarakScanner(ExternalToolScanner):
     """Runs garak's injection and leakage probes against a discovered chat route.
 

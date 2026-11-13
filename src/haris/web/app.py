@@ -11,8 +11,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.sessions import SessionMiddleware
 from starlette.responses import Response
 
-# Trigger @register_scanner / @register_check decorators
-from .. import __version__, checks, scanners  # noqa: F401
+from .. import __version__
 from ..auth.bootstrap import bootstrap_admin_from_env
 from ..auth.csrf import csrf_protect
 from ..auth.redirects import login_url

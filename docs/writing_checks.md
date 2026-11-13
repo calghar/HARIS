@@ -1,19 +1,17 @@
 # Writing custom checks
 
-A custom check is a `BaseScanner` with `@register_check`. HTTP goes through `ScopedClient`. The runner reads `haris.core.decorators.check_registry`, which the decorator fills when the module is imported.
+A custom check is a `BaseScanner`. HTTP goes through `ScopedClient`. The runner reads `haris.core.decorators.check_registry`, which returns `CHECK_REGISTRY` from `src/haris/checks/__init__.py` plus `ai_security`.
 
-Registration is that decorator and the import in `src/haris/checks/__init__.py`. The CLI has no `CUSTOM_CHECK_REGISTRY`.
+Registration is one entry in `CHECK_REGISTRY`.
 
 ## Example
 
 ```python
 from haris.checks.requesting import scan_client, try_request
-from haris.core.decorators import register_check
 from haris.core.scanner import BaseScanner
 from haris.models import Finding, ScanContext, ScannerResult, Severity, Target
 
 
-@register_check
 class CORSCheckScanner(BaseScanner):
     name = "cors_check"
     version = "1.0.0"
@@ -53,7 +51,7 @@ class CORSCheckScanner(BaseScanner):
 
 ## Register
 
-Import the class from `src/haris/checks/__init__.py`. A profile runs only the names in `src/haris/core/profiles.py`. Add the name there to include the check in a profile. A run with no profile uses the scanner list in `default_config.yaml`.
+Import the class in `src/haris/checks/__init__.py` and add it to `CHECK_REGISTRY` under its `name`. A profile runs only the names in `src/haris/core/profiles.py`. Add the name there to include the check in a profile. A run with no profile uses the scanner list in `default_config.yaml`.
 
 ## OWASP tag
 

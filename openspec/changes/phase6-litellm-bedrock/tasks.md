@@ -54,7 +54,7 @@ Ids in brackets map to `modernise-0-7/tasks.md` section 4; tick both files when 
 
 ## 7. Structural refactors (after sections 2 to 6 are merged and green)
 
-- [ ] 7.1 Explicit built-in maps for checks, scanners and oracles; second scanner registry and trigger-only imports removed [4.14]
+- [x] 7.1 Explicit built-in maps for checks, scanners and oracles; second scanner registry and trigger-only imports removed [4.14]
 - [ ] 7.2 `cli.py` split into parser, handlers and scan orchestration [4.15]
 - [ ] 7.3 Nuclei selection and argv construction in a data-only module [4.16]
 - [x] 7.4 `bench/run.py` split into target preparation and command execution [4.17]

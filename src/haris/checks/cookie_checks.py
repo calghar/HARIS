@@ -1,6 +1,5 @@
 from typing import Any
 
-from ..core.decorators import register_check
 from ..core.scanner import BaseScanner
 from ..models import Finding, ScanContext, ScannerResult, Severity, Target
 from ..net import NetworkError
@@ -19,7 +18,6 @@ MAX_SAFE_LIFETIME_SECONDS = 365 * 24 * 60 * 60
 SECONDS_PER_DAY = 86_400
 
 
-@register_check
 class CookieSecurityScanner(BaseScanner):
     """Flag weak attributes on session cookies set by the target's front page.
 

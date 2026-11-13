@@ -1,6 +1,5 @@
 from urllib.parse import quote, urljoin, urlsplit
 
-from ..core.decorators import register_check
 from ..models import Finding, Severity, Target
 from ..net import ScopedClient, ScopedResponse
 from .findings import make_finding
@@ -37,7 +36,6 @@ def _redirects_to_canary(resp: ScopedResponse | None) -> bool:
     return urlsplit(location).hostname == CANARY_HOST
 
 
-@register_check
 class OpenRedirectScanner(ProbeScanner):
     """Redirect parameters that send the browser to an attacker-chosen host."""
 

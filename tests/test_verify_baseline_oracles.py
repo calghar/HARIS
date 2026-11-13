@@ -17,8 +17,8 @@ from haris.models import (
     VerificationTier,
 )
 from haris.verify import load_verify_settings
-from haris.verify.oracles import ORACLES
 from haris.verify.probe import Prober
+from haris.verify.registry import ORACLES
 from haris.verify.replay import replay
 from tests.verify_server import case, fast_settings, make_client, serve
 

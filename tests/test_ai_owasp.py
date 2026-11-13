@@ -2,7 +2,6 @@ from pathlib import Path
 
 import pytest
 
-from haris import checks  # noqa: F401  # importing registers the checks
 from haris.ai_security.findings import ai_finding
 from haris.ai_security.owasp_ai import Mappings, load_mappings
 from haris.core.decorators import check_registry

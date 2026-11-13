@@ -9,49 +9,27 @@ from .scanner import BaseScanner
 
 logger = logging.getLogger(__name__)
 
-# Global registries -- populated by decorators at import time
-_SCANNER_REGISTRY: dict[str, type[BaseScanner]] = {}
-_CHECK_REGISTRY: dict[str, type[BaseScanner]] = {}
-
 
 def scanner_registry() -> dict[str, type[BaseScanner]]:
-    """Return the current scanner registry (read-only copy)."""
-    return dict(_SCANNER_REGISTRY)
+    """Return the built-in scanner map (a copy)."""
+    # Inside the body: scanners and checks import this module (a top-level cycle).
+    from ..scanners import SCANNER_REGISTRY
+
+    return dict(SCANNER_REGISTRY)
 
 
 def check_registry() -> dict[str, type[BaseScanner]]:
-    """Return the current check registry (read-only copy)."""
-    return dict(_CHECK_REGISTRY)
+    """Return the built-in check map (a copy), including ``ai_security``."""
+    # ai_security imports checks, so CHECK_REGISTRY cannot list it.
+    from ..ai_security import AiSecurityScanner
+    from ..checks import CHECK_REGISTRY
+
+    return {AiSecurityScanner.name: AiSecurityScanner, **CHECK_REGISTRY}
 
 
 def all_registered() -> dict[str, type[BaseScanner]]:
-    """Merged dict of every registered scanner and check."""
-    return {**_SCANNER_REGISTRY, **_CHECK_REGISTRY}
-
-
-# Class decorators
-
-
-def register_scanner(cls: type[BaseScanner]) -> type[BaseScanner]:
-    """Register *cls* in the global scanner registry under ``cls.name``.
-
-    Usage::
-
-        @register_scanner
-        class NiktoScanner(BaseScanner):
-            name = "nikto"
-            ...
-    """
-    _SCANNER_REGISTRY[cls.name] = cls
-    logger.debug("Registered scanner: %s", cls.name)
-    return cls
-
-
-def register_check(cls: type[BaseScanner]) -> type[BaseScanner]:
-    """Register *cls* in the global check registry under ``cls.name``."""
-    _CHECK_REGISTRY[cls.name] = cls
-    logger.debug("Registered check: %s", cls.name)
-    return cls
+    """Merged dict of every scanner and check."""
+    return {**scanner_registry(), **check_registry()}
 
 
 # Method / function decorators

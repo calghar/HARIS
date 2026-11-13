@@ -4,7 +4,7 @@ import xml.etree.ElementTree as ET  # noqa: N817
 from pathlib import Path
 from typing import Any
 
-from ..core.decorators import handle_scanner_errors, register_scanner
+from ..core.decorators import handle_scanner_errors
 from ..data.scanner_config import (
     get_nmap_default_extra_args,
     get_nmap_default_ports,
@@ -19,7 +19,6 @@ logger = logging.getLogger(__name__)
 NSE_SUFFIX = ".nse"
 
 
-@register_scanner
 class NmapScanner(ExternalToolScanner):
     """Adapter for Nmap network scanner (recon / port scan).
 

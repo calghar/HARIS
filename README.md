@@ -189,7 +189,7 @@ Web server variables. Flags accept `1`, `true` or `yes`, except where noted.
 - Writing a check: [`docs/writing_checks.md`](docs/writing_checks.md)
 - Integrating a tool: [`docs/integrating_tools.md`](docs/integrating_tools.md)
 
-A new scanner subclasses `BaseScanner` and uses `@register_scanner`. A new check uses `@register_check`. A report subclasses `BaseReporter` and implements `generate()`. An LLM backend subclasses `BaseLLMBackend` and implements `complete()`.
+A new scanner subclasses `BaseScanner` and is added to `SCANNER_REGISTRY`. A new check is added to `CHECK_REGISTRY`. A report subclasses `BaseReporter` and implements `generate()`. An LLM backend subclasses `BaseLLMBackend` and implements `complete()`.
 
 ## Limitations
 

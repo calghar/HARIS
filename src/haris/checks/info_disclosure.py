@@ -1,7 +1,6 @@
 import logging
 from typing import Any
 
-from ..core.decorators import register_check
 from ..core.scanner import BaseScanner
 from ..core.vuln_class import slug
 from ..models import Finding, ScanContext, ScannerResult, Severity, Target
@@ -25,7 +24,6 @@ EVIDENCE_PREVIEW_CHARS = 300
 CONTEXT_CHARS = 80
 
 
-@register_check
 class InfoDisclosureScanner(BaseScanner):
     """Information disclosure: error pages, debug and version endpoints, comments."""
 

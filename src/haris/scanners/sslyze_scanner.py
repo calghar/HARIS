@@ -4,7 +4,7 @@ import tempfile
 from pathlib import Path
 from typing import Any
 
-from ..core.decorators import handle_scanner_errors, register_scanner
+from ..core.decorators import handle_scanner_errors
 from ..data.scanner_config import (
     get_sslyze_deprecated_protocols,
     get_sslyze_vulnerability_checks,
@@ -34,7 +34,6 @@ def _command_result(scan_result: dict[str, Any], key: str) -> dict[str, Any]:
     return _dict(_dict(scan_result.get(key)).get("result"))
 
 
-@register_scanner
 class SSLyzeScanner(ExternalToolScanner):
     """Adapter for SSLyze TLS/SSL configuration scanner."""
 

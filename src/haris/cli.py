@@ -9,11 +9,6 @@ from typing import Any, NoReturn
 
 from pydantic import ValidationError
 
-# Import checks and scanners to trigger @register_scanner / @register_check
-from haris import (
-    checks,  # noqa: F401
-    scanners,  # noqa: F401
-)
 from haris.ai_security.options import add_ai_arguments, ai_scanner_options
 from haris.config.loader import load_config
 from haris.core.decorators import all_registered

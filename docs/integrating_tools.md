@@ -47,7 +47,6 @@ import tempfile
 from pathlib import Path
 from typing import Any
 
-from haris.core.decorators import register_scanner
 from haris.core.scanner import BaseScanner
 from haris.models import Confidence, Finding, ScannerResult, Severity, Target
 
@@ -68,7 +67,6 @@ CATEGORY_TAGS = {
 }
 
 
-@register_scanner
 class MyToolScanner(BaseScanner):
     name = "my_tool"
     version = "1.0"
@@ -148,12 +146,15 @@ class MyToolScanner(BaseScanner):
 
 ### 3. Register the scanner
 
-Import the module from `src/haris/scanners/__init__.py`. The import runs `@register_scanner`, and the scan runner reads that registry. Also add the class to `SCANNER_REGISTRY` in the same file. `get_scanner` reads the dict.
+Import the class in `src/haris/scanners/__init__.py` and add it to `SCANNER_REGISTRY` under its `name`. `get_scanner` and the scan runner read that dict.
 
 ```python
 from .my_tool_scanner import MyToolScanner
 
-SCANNER_REGISTRY["my_tool"] = MyToolScanner
+SCANNER_REGISTRY = {
+    # ...
+    "my_tool": MyToolScanner,
+}
 ```
 
 ### 4. Map to OWASP categories

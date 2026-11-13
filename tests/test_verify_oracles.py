@@ -1,3 +1,4 @@
+import json
 import re
 from urllib.parse import urlsplit
 
@@ -12,8 +13,10 @@ from haris.models import (
     VerificationOracle,
     VerificationTier,
 )
-from haris.verify.oracles import INERT_HTML, ORACLES
+from haris.reporting.report_schema import SCHEMA_PATH
+from haris.verify.oracles import INERT_HTML
 from haris.verify.probe import Prober
+from haris.verify.registry import ORACLES
 from haris.verify.replay import CAP_REASON, ReplayReport, replay
 from haris.verify.settings import load_verify_settings
 from haris.verify.timing import timing_positive
@@ -290,3 +293,9 @@ def test_verify_config_loads_with_spec_defaults_and_known_oracles():
         "code_eval",
         "boolean_sqli",
     }
+
+
+def test_oracle_names_match_the_report_schema_enum():
+    schema = json.loads(SCHEMA_PATH.read_text(encoding="utf-8"))
+    declared = set(schema["$defs"]["VerificationOracle"]["enum"]) - {"none"}
+    assert set(ORACLES) == declared
